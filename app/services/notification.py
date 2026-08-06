@@ -103,7 +103,7 @@ class InAppNotificationService:
             "current_usage": current_usage,
             "configured_limit": configured_limit,
         }
-        organization_message = f"Your organization has used {threshold}% of its {capacity_label} capacity."
+        organization_message = f"Your organization has used {threshold}% of its available {capacity_label} capacity."
         owner_message = f"{tenant.name} has used {threshold}% of its {capacity_label} capacity."
 
         tenant_roles = (RoleCode.TENANT_ADMIN, RoleCode.TENANT_USER)
@@ -324,16 +324,12 @@ class InAppNotificationService:
             return
         if {old_role_code, new_role_code} != supported_role_codes:
             return
-        old_role_label = self._role_label(old_role_code)
         new_role_label = self._role_label(new_role_code)
         await self.create(
             recipient_user_id=user.id,
             tenant_id=user.tenant_id,
             title="Role Updated",
-            message=(
-                f"Your role has been changed from {old_role_label} to {new_role_label} by your Tenant Admin. "
-                "Your permissions have been updated accordingly."
-            ),
+            message=f"Your role has changed to {new_role_label}. Your permissions have been updated.",
             metadata={
                 "event": "role_updated",
                 "old_role_code": old_role_code,
@@ -432,7 +428,7 @@ class InAppNotificationService:
         message = (
             f'A new Brand Space "{normalized_name}" has been created successfully.'
             if normalized_name
-            else "A new Brand Space Draft has been created successfully."
+            else "Your draft has been saved. Continue editing or publish when you're ready."
         )
         await self._create_brand_space_notification_for_tenant_admin_and_super_users(
             recipient_user_id=recipient_user_id,

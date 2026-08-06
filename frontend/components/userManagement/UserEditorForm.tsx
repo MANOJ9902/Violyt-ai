@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { isAxiosError } from "axios";
 import { useMemo, useState } from "react";
@@ -208,7 +208,7 @@ export default function UserEditorForm({ mode, userId }: UserEditorFormProps) {
                     }
                     if (roleChangedByTenantAdmin) {
                         toast({
-                            title: "User role updated successfully.",
+                            title: "User role updated.",
                             variant: "success",
                         });
                         router.push(`/user_management/${getTenantUserRequestId(savedUser)}`);
@@ -220,7 +220,7 @@ export default function UserEditorForm({ mode, userId }: UserEditorFormProps) {
                             (savedUser.role_codes.includes("tenant_user") || savedUser.role_codes.includes("brand_user")));
                     if (shouldShowProfileUpdateToast) {
                         toast({
-                            title: "profile has been updated successfully.",
+                            title: "Your profile has been updated.",
                             variant: "success",
                         });
                     }
