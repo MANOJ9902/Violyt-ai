@@ -90,13 +90,29 @@ class BrandSpaceService:
     def _build_guardrail_record(payload: dict) -> dict:
         # Guardrail sections may include asset references and other section-only
         # metadata. The relational guardrails table stores only the core rule set.
-        return GuardrailPayload.model_validate(payload).model_dump(
-            exclude={
-                "positive_word_bank_asset_ids",
-                "negative_word_bank_asset_ids",
-                "replaceable_word_bank_asset_ids",
+        try:
+            return GuardrailPayload.model_validate(payload or {}).model_dump(
+                exclude={
+                    "positive_word_bank_asset_ids",
+                    "negative_word_bank_asset_ids",
+                    "replaceable_word_bank_asset_ids",
+                }
+            )
+        except Exception:
+            # Never fail a Brand Space save because of optional guardrail metadata shape.
+            safe = payload or {}
+            return {
+                "positive_word_bank": list(safe.get("positive_word_bank") or []),
+                "replaceable_words": list(safe.get("replaceable_words") or []),
+                "negative_word_bank": list(safe.get("negative_word_bank") or []),
+                "dos": list(safe.get("dos") or []),
+                "donts": list(safe.get("donts") or []),
+                "forbidden_prompt_patterns": list(safe.get("forbidden_prompt_patterns") or []),
+                "restricted_topics": list(safe.get("restricted_topics") or []),
+                "restricted_claims": list(safe.get("restricted_claims") or []),
+                "blocked_words": list(safe.get("blocked_words") or []),
+                "custom_rules": list(safe.get("custom_rules") or []),
             }
-        )
 
     async def create_brand(
         self,
@@ -126,6 +142,7 @@ class BrandSpaceService:
             tenant_id=tenant_id,
             name=payload.identity.brand_name,
             slug=slug,
+            tagline=payload.identity.brand_tagline,
             description=payload.identity.brand_description,
             industry_category=payload.identity.industry_category,
             sub_industry=payload.identity.sub_industry,
@@ -294,6 +311,7 @@ class BrandSpaceService:
         # fields.
         if payload.section_code == "identity":
             brand.name = payload.payload.get("brand_name", brand.name)
+            brand.tagline = payload.payload.get("brand_tagline", brand.tagline)
             brand.description = payload.payload.get("brand_description", brand.description)
             brand.industry_category = payload.payload.get("industry_category")
             brand.sub_industry = payload.payload.get("sub_industry")
@@ -302,18 +320,21 @@ class BrandSpaceService:
             brand.geography_city = target_geography.get("city")
             brand.audience_type = payload.payload.get("audience_type")
         if payload.section_code == "foundations":
+            snapshot = brand.overview_snapshot if isinstance(brand.overview_snapshot, dict) else {}
             brand.overview_snapshot = {
-                **brand.overview_snapshot,
+                **snapshot,
                 "foundations": payload.payload,
             }
         if payload.section_code == "voice_tone":
+            snapshot = brand.overview_snapshot if isinstance(brand.overview_snapshot, dict) else {}
             brand.overview_snapshot = {
-                **brand.overview_snapshot,
+                **snapshot,
                 "voice_tone": payload.payload,
             }
         if payload.section_code == "visual_identity":
+            snapshot = brand.overview_snapshot if isinstance(brand.overview_snapshot, dict) else {}
             brand.overview_snapshot = {
-                **brand.overview_snapshot,
+                **snapshot,
                 "visual_identity": payload.payload,
             }
 
@@ -325,7 +346,30 @@ class BrandSpaceService:
                 await self.personas.delete(existing)
             default_persona_id = None
             for item in payload.payload.get("personas", []):
-                created = await self.personas.add(Persona(tenant_id=tenant_id, brand_space_id=brand_space_id, **item))
+                if not isinstance(item, dict):
+                    continue
+                persona_data = {
+                    key: item.get(key)
+                    for key in (
+                        "name",
+                        "role",
+                        "psychographics",
+                        "demographics",
+                        "audience_goals",
+                        "motivations",
+                        "fears_and_pain_points",
+                        "objections",
+                        "content_behavior",
+                        "language_preference",
+                        "is_default",
+                    )
+                    if key in item
+                }
+                if not str(persona_data.get("name") or "").strip():
+                    persona_data["name"] = "Primary Audience"
+                created = await self.personas.add(
+                    Persona(tenant_id=tenant_id, brand_space_id=brand_space_id, **persona_data)
+                )
                 if created.is_default:
                     default_persona_id = created.id
             brand.default_persona_id = default_persona_id
@@ -347,7 +391,25 @@ class BrandSpaceService:
             for existing in existing_objectives:
                 await self.objectives.delete(existing)
             for item in payload.payload.get("objectives", []):
-                await self.objectives.add(Objective(tenant_id=tenant_id, brand_space_id=brand_space_id, **item))
+                if not isinstance(item, dict):
+                    continue
+                objective_data = {
+                    key: item.get(key)
+                    for key in (
+                        "name",
+                        "description",
+                        "content_type",
+                        "platform_scope",
+                        "is_default",
+                        "configuration",
+                    )
+                    if key in item
+                }
+                if not str(objective_data.get("name") or "").strip():
+                    objective_data["name"] = "Brand Growth"
+                await self.objectives.add(
+                    Objective(tenant_id=tenant_id, brand_space_id=brand_space_id, **objective_data)
+                )
 
     async def upsert_section(self, tenant_id: UUID, brand_space_id: UUID, payload: BrandSectionUpsertRequest) -> BrandSpace:
         # Runs the section service flow and persists the resulting state before returning it to the route or
@@ -365,7 +427,18 @@ class BrandSpaceService:
         }
         await self._apply_section_upsert(tenant_id, brand_space_id, brand, payload, existing_sections, section_versions)
         await self.session.commit()
-        return await self.refresh_context(brand_space_id)
+        try:
+            return await self.refresh_context(brand_space_id)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "refresh_context failed after single section save brand_id=%s",
+                brand_space_id,
+                exc_info=True,
+            )
+            await self.session.refresh(brand)
+            return brand
 
     async def upsert_sections(
         self,
@@ -392,18 +465,31 @@ class BrandSpaceService:
         for section in payload.sections:
             await self._apply_section_upsert(tenant_id, brand_space_id, brand, section, existing_sections, section_versions)
         await self.session.commit()
-        updated_brand = await self.refresh_context(brand_space_id)
+        try:
+            updated_brand = await self.refresh_context(brand_space_id)
+        except Exception:
+            # Section data is already committed — don't fail the user save if context rebuild lags.
+            await self.session.refresh(brand)
+            updated_brand = brand
         normalized_actor_roles = {str(role_code) for role_code in (actor_role_codes or set())}
         if was_published and actor_user_id and RoleCode.TENANT_ADMIN.value in normalized_actor_roles:
-            emails_scheduled = await self._dispatch_published_brand_space_updated_emails(updated_brand, actor_user_id)
-            if emails_scheduled:
-                await self.create_history_entry(
-                    tenant_id=tenant_id,
-                    brand_space_id=brand_space_id,
-                    activity_type="brand_space_updated",
-                    message="Brand Space updated.",
-                    performed_by=actor_user_id,
-                    metadata={"brand_space_name": updated_brand.name},
+            try:
+                emails_scheduled = await self._dispatch_published_brand_space_updated_emails(updated_brand, actor_user_id)
+                if emails_scheduled:
+                    await self.create_history_entry(
+                        tenant_id=tenant_id,
+                        brand_space_id=brand_space_id,
+                        activity_type="brand_space_updated",
+                        message="Brand Space updated.",
+                        performed_by=actor_user_id,
+                        metadata={"brand_space_name": updated_brand.name},
+                    )
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception(
+                    "post-save history/email failed brand_id=%s",
+                    brand_space_id,
                 )
         return updated_brand
 
@@ -545,6 +631,10 @@ class BrandSpaceService:
         identity_section = next((section for section in sections if section.section_code == "identity"), None)
         if not identity_section or not identity_section.payload.get("brand_name"):
             raise LifecycleError("Brand Space cannot be published without a brand identity.")
+        if not str(identity_section.payload.get("brand_tagline") or "").strip():
+            raise LifecycleError("Brand Space cannot be published without a brand tagline.")
+        if not str(identity_section.payload.get("brand_description") or "").strip():
+            raise LifecycleError("Brand Space cannot be published without a brand description.")
         brand = await self.refresh_context(brand_space_id)
         brand.lifecycle_state = BrandSpaceLifecycle.ACTIVE
         brand.is_finalized = True

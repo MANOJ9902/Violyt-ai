@@ -255,6 +255,7 @@ export interface BrandResponse {
   tenant_id: UUID;
   name: string;
   slug: string;
+  tagline?: string | null;
   description: string;
   lifecycle_state: string;
   is_finalized: boolean;
@@ -391,6 +392,7 @@ export interface BrandOverviewResponse {
 
 export interface BrandAutofillResponse {
   brand_name?: string;
+  brand_tagline?: string;
   brand_description?: string;
   industry_category?: string;
   differentiators?: string;
@@ -617,6 +619,14 @@ export interface ChatSessionUpdateRequest {
   title?: string;
   studio_panel?: StudioPanelSelection;
   is_active?: boolean;
+}
+
+export interface ChatPipelineRecordRequest {
+  prompt: string;
+  image_urls: string[];
+  assistant_text?: string;
+  studio_panel?: StudioPanelSelection;
+  title?: string;
 }
 
 export interface ChatMessageCreateRequest {

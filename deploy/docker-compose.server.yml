@@ -9,18 +9,23 @@ services:
       OBJECT_STORAGE_BASE_PATH: /app/storage
       VECTOR_STORE_BASE_PATH: /app/vector_store
       GENERATION_TRACE_BASE_PATH: /app/storage/generation_traces
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
       FRONTEND_BASE_URL: https://65.0.82.127
       GENERATED_ASSETS_BASE_URL: https://65.0.82.127/storage
+      ASSET_DOWNLOAD_BASE_URL: ${ASSET_DOWNLOAD_BASE_URL:-https://65.0.82.127/api/v1/storage/download}
       CORS_ORIGINS: '["https://65.0.82.127","http://localhost:3000","http://127.0.0.1:3000"]'
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./storage:/app/storage
       - ./vector_store:/app/vector_store
-    command: ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"]
+    command: ["sh", "-c", "alembic upgrade heads && uvicorn main:app --host 0.0.0.0 --port 8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
       interval: 5s
@@ -38,11 +43,16 @@ services:
       OBJECT_STORAGE_BASE_PATH: /app/storage
       VECTOR_STORE_BASE_PATH: /app/vector_store
       GENERATION_TRACE_BASE_PATH: /app/storage/generation_traces
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
       FRONTEND_BASE_URL: https://65.0.82.127
       GENERATED_ASSETS_BASE_URL: https://65.0.82.127/storage
+      ASSET_DOWNLOAD_BASE_URL: ${ASSET_DOWNLOAD_BASE_URL:-https://65.0.82.127/api/v1/storage/download}
       CORS_ORIGINS: '["https://65.0.82.127","http://localhost:3000","http://127.0.0.1:3000"]'
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       api:
         condition: service_healthy
@@ -79,7 +89,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
  
 volumes:
   postgres_data:
     name: violyt_postgres_data
+  redis_data:
+    name: violyt_redis_data

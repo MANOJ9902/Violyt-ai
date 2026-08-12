@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { type KeyboardEvent, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type KeyboardEvent, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
     ArrowUp,
@@ -42,12 +42,15 @@ import type {
     StudioPanelSelection,
     TemplateRecommendationResponse,
 } from "@/lib/api/contracts";
-import { buildBrandChatHref, buildBrandSharingHref, resolveBrandByRouteKey } from "@/lib/brand-routing";
+import { buildBrandChatHref, buildBrandEditHref, buildBrandSharingHref, resolveBrandByRouteKey } from "@/lib/brand-routing";
 import { useBrandUsage, useBrands } from "@/hooks/useBrands";
+import { useGetMe } from "@/hooks/useUser";
 import { usePipeline } from "@/hooks/usePipeline";
 import ChatPipelinePanel, {
     type ChatPipelineState,
 } from "@/components/chat/ChatPipelinePanel";
+import PostCaptionBlock from "@/components/chat/PostCaptionBlock";
+import { buildPostCaption } from "@/lib/post-caption";
 import {
     useChatMessages,
     useChatSessions,
@@ -83,6 +86,8 @@ type WorkspaceChatProps = { brandKey: string };
 type Platform = "instagram" | "linkedin" | "x" | "youtube_thumbnail";
 type FormatMode = "static" | "carousel" | "infographic" | "video";
 type FileType = "doc" | "pdf" | "jpg" | "png";
+
+const IDLE_PIPELINE_STATE: ChatPipelineState = { status: "idle" };
 
 type ActionMode = "none" | "idea" | "social" | "repurpose" | "alignment";
 
@@ -387,6 +392,56 @@ function isScrolledNearBottom(node: HTMLDivElement | null) {
         return true;
     }
     return node.scrollHeight - node.scrollTop - node.clientHeight <= CHAT_BOTTOM_THRESHOLD_PX;
+}
+
+function useVerticalOverflow(
+    ref: { readonly current: HTMLDivElement | null },
+    enabled: boolean,
+    contentKey: string,
+) {
+    const [overflowState, setOverflowState] = useState({ contentKey: "", isOverflowing: false });
+
+    useEffect(() => {
+        const node = ref.current;
+        if (!enabled || !node) {
+            return;
+        }
+
+        let frameId: number | null = null;
+        const measure = () => {
+            if (frameId !== null) {
+                window.cancelAnimationFrame(frameId);
+            }
+            frameId = window.requestAnimationFrame(() => {
+                const isOverflowing = node.scrollHeight > node.clientHeight + 1;
+                setOverflowState((current) =>
+                    current.contentKey === contentKey && current.isOverflowing === isOverflowing
+                        ? current
+                        : { contentKey, isOverflowing },
+                );
+            });
+        };
+        const resizeObserver = new ResizeObserver(measure);
+        const observeLayout = () => {
+            resizeObserver.observe(node);
+            Array.from(node.children).forEach((child) => resizeObserver.observe(child));
+            measure();
+        };
+        const mutationObserver = new MutationObserver(observeLayout);
+
+        observeLayout();
+        mutationObserver.observe(node, { childList: true, subtree: true, characterData: true });
+
+        return () => {
+            mutationObserver.disconnect();
+            resizeObserver.disconnect();
+            if (frameId !== null) {
+                window.cancelAnimationFrame(frameId);
+            }
+        };
+    }, [contentKey, enabled, ref]);
+
+    return enabled && overflowState.contentKey === contentKey && overflowState.isOverflowing;
 }
 
 function dedupeImageAssets(assets: AssetReference[]) {
@@ -862,24 +917,49 @@ function TemplateRecommendationRail({
 }) {
     const [previewTemplate, setPreviewTemplate] = useState<TemplateRecommendationResponse | null>(null);
     const [brokenPreviewIds, setBrokenPreviewIds] = useState<Record<string, boolean>>({});
+    const [isCollapsed, setIsCollapsed] = useState(true);
 
     if (!recommendations.length && !isLoading) {
         return null;
     }
 
+    const selectedLabel =
+        recommendations.find((item) => item.template_id === selectedTemplateId)?.name || "Let Violyt choose";
+
     return (
-        <div className="space-y-2 rounded-[24px] border border-[#E8EBF4] bg-white/90 px-3 py-3 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.35)]">
+        <div className={`border border-[#E8EBF4] bg-white/90 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.35)] transition-all duration-200 ${isCollapsed ? "space-y-0 rounded-[18px] px-3 py-2" : "space-y-2 rounded-[24px] px-3 py-3"}`}>
             <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">Template Direction</p>
-                {isLoading ? (
-                    <span className="inline-flex items-center gap-2 text-xs font-medium text-primary">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Matching templates
-                    </span>
-                ) : null}
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">Template Direction</p>
+                    {isCollapsed ? (
+                        <p className="truncate text-[11px] font-medium text-slate-500">
+                            {selectedTemplateId ? `Pinned: ${selectedLabel}` : "Auto — tap to expand"}
+                        </p>
+                    ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                    {isLoading ? (
+                        <span className="inline-flex items-center gap-2 text-xs font-medium text-primary">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Matching templates
+                        </span>
+                    ) : null}
+                    <button
+                        type="button"
+                        aria-label={isCollapsed ? "Expand Template Direction" : "Collapse Template Direction"}
+                        aria-expanded={!isCollapsed}
+                        onClick={() => setIsCollapsed((current) => !current)}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border border-primary/70 bg-white text-primary transition hover:bg-primary/8"
+                    >
+                        <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isCollapsed ? "-rotate-90" : ""}`} />
+                    </button>
+                </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div
+                aria-hidden={isCollapsed}
+                className={`flex gap-2 overflow-x-auto pb-1 transition-all duration-200 ease-out ${isCollapsed ? "max-h-0 overflow-hidden pb-0 opacity-0 pointer-events-none" : "max-h-32 opacity-100"}`}
+            >
                 <button
                     type="button"
                     onClick={() => onSelect("")}
@@ -1085,6 +1165,7 @@ function GeneratedImageViewer({
     onExport,
     onExportForType,
     sourcePrompt,
+    postCaption,
 }: {
     brandId: string;
     assets: AssetReference[];
@@ -1095,6 +1176,7 @@ function GeneratedImageViewer({
     onExport: (contentVersionId: string) => Promise<AssetReference[]>;
     onExportForType: (contentVersionId: string, fileType: FileType) => Promise<AssetReference[]>;
     sourcePrompt: string;
+    postCaption?: string;
 }) {
     const [activeIndex, setActiveIndex] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
@@ -1625,6 +1707,11 @@ function GeneratedImageViewer({
                     </div>
                 ) : null}
             </div>
+            {postCaption ? (
+                <div className="mt-4">
+                    <PostCaptionBlock caption={postCaption} platform={platform} />
+                </div>
+            ) : null}
             <div className="mt-4 flex items-center gap-3">
                 <Button
                     type="button"
@@ -1906,6 +1993,18 @@ function StudioPanel({
     const applyPlatform = (next: Platform) => {
         setPlatform(next);
         setSizeLabel(resolveSizeOptions(format, next)[0].label);
+        // Keep audience in sync with platform — stale LinkedIn audience was leaking onto Instagram runs.
+        const platformAudienceDefaults: Record<Platform, string> = {
+            instagram: "Indian Instagram users / retail savers",
+            linkedin: "Indian LinkedIn professionals / retail savers",
+            x: "Indian X (Twitter) users / retail savers",
+            youtube_thumbnail: "Indian YouTube viewers / retail savers",
+        };
+        const preferred = platformAudienceDefaults[next];
+        const matchedOption =
+            targetAudienceOptions.find((option) => option.toLowerCase().includes(next.replace("_", " "))) ||
+            targetAudienceOptions.find((option) => preferred.toLowerCase().includes(option.toLowerCase().slice(0, 12)));
+        setTargetAudience(matchedOption || preferred);
     };
 
     return (
@@ -2026,7 +2125,9 @@ function StudioPanel({
 }
 
 export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
+    const router = useRouter();
     const searchParams = useSearchParams();
+    const { data: currentUser } = useGetMe();
     const { data: brands, isLoading: isBrandsLoading } = useBrands();
     const brand = useMemo(() => resolveBrandByRouteKey(brands, brandKey), [brands, brandKey]);
     const brandId = brand?.id || "";
@@ -2036,7 +2137,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
         [brand?.resolved_brand_context],
     );
 
-    const { data: sessions } = useChatSessions(brandId);
+    const { data: sessions, isLoading: isSessionsLoading } = useChatSessions(brandId);
     const createSession = useCreateChatSession(brandId);
     const uploadKnowledgeAsset = useUploadKnowledgeAsset(brandId);
     const [activeSessionId, setActiveSessionId] = useState("");
@@ -2044,9 +2145,15 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     const selectedSessionIsAvailable = Boolean(
         selectedSessionId && sessions?.some((session) => session.id === selectedSessionId),
     );
-    const resolvedActiveSessionId = selectedSessionIsAvailable
-        ? selectedSessionId
-        : activeSessionId || sessions?.[0]?.id || "";
+    const resolvedActiveSessionId = useMemo(() => {
+        if (selectedSessionId) {
+            // Trust URL while sessions are still loading.
+            if (!sessions || selectedSessionIsAvailable) {
+                return selectedSessionId;
+            }
+        }
+        return activeSessionId;
+    }, [activeSessionId, selectedSessionId, selectedSessionIsAvailable, sessions]);
     const {
         data: messages,
         fetchNextPage: fetchOlderMessages,
@@ -2059,7 +2166,28 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     const toneCheck = useToneCheck(brandId);
     const { runPipeline, approveBlueprint, rejectBlueprint, isApproving } = usePipeline();
 
-    const [pipelineUi, setPipelineUi] = useState<ChatPipelineState>({ status: "idle" });
+    const activeUiSessionKey = resolvedActiveSessionId || "new";
+    const [pipelineUiBySession, setPipelineUiBySession] = useState<Record<string, ChatPipelineState>>({});
+    const pipelineUi = pipelineUiBySession[activeUiSessionKey] || IDLE_PIPELINE_STATE;
+    const setPipelineUiForSession = useCallback(
+        (
+            sessionKey: string,
+            nextState: ChatPipelineState | ((current: ChatPipelineState) => ChatPipelineState),
+        ) => {
+            setPipelineUiBySession((currentBySession) => {
+                const current = currentBySession[sessionKey] || IDLE_PIPELINE_STATE;
+                const next = typeof nextState === "function" ? nextState(current) : nextState;
+                return { ...currentBySession, [sessionKey]: next };
+            });
+        },
+        [],
+    );
+    const setPipelineUi = useCallback(
+        (nextState: ChatPipelineState | ((current: ChatPipelineState) => ChatPipelineState)) => {
+            setPipelineUiForSession(activeUiSessionKey, nextState);
+        },
+        [activeUiSessionKey, setPipelineUiForSession],
+    );
 
     const [selectedAction, setSelectedAction] = useState<ActionMode>("none");
     const enhancePrompt = useEnhancePrompt(brandId);
@@ -2106,7 +2234,14 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     const activeGenerationControllerRef = useRef<AbortController | null>(null);
     const activeGenerationSessionRef = useRef<string>("");
     const pipelineInFlightRef = useRef(false);
+    const hasAutoOpenedSessionRef = useRef(false);
+    const skipAutoOpenOnceRef = useRef(false);
     const exportAssetCacheRef = useRef(new Map<string, AssetReference[]>());
+    const previousUiSessionKeyRef = useRef(activeUiSessionKey);
+    const createdSessionTransitionRef = useRef("");
+    const hydratedStudioSessionRef = useRef("");
+    const activeUiSessionKeyRef = useRef(activeUiSessionKey);
+    activeUiSessionKeyRef.current = activeUiSessionKey;
 
     const sizeOption = useMemo(() => {
         const options = resolveSizeOptions(studioFormat, studioPlatform);
@@ -2149,12 +2284,15 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     );
     const brandLifecycle = brand?.lifecycle_state || "draft";
     const canGenerateInWorkspace = brandLifecycle === "active";
+    const generationOwnerSessionId = activeGenerationSessionRef.current;
+    const generationBelongsToActiveSession =
+        !generationOwnerSessionId || generationOwnerSessionId === resolvedActiveSessionId;
     const pipelineBusy =
         pipelineUi.status === "running" ||
         pipelineUi.status === "generating" ||
-        runPipeline.isPending ||
-        approveBlueprint.isPending;
-    const isGeneratingMessage = createSession.isPending || sendMessage.isPending || pipelineBusy;
+        (generationBelongsToActiveSession && (runPipeline.isPending || approveBlueprint.isPending));
+    const isGeneratingMessage =
+        (generationBelongsToActiveSession && (createSession.isPending || sendMessage.isPending)) || pipelineBusy;
     const recommendationPrompt = useMemo(() => {
         if (selectedAction === "idea") {
             return [campaignFocus, campaignAudience, campaignObjective || campaignGoal, workspacePrompt]
@@ -2209,6 +2347,12 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     const hasConversation =
         Boolean((messages || []).length) ||
         (pipelineUi.status !== "idle" && pipelineUi.status !== "cancelled");
+    const conversationOverflowKey = `${resolvedActiveSessionId || "new"}:${hasConversation ? "messages" : "empty"}`;
+    const isMessageListScrollable = useVerticalOverflow(
+        messageListRef,
+        hasConversation,
+        conversationOverflowKey,
+    );
     const allocationPercent = brandUsage?.capacity_percent ?? 0;
     const usedWithinAllocationPercent = brandUsage?.usage_percent ?? 0;
     const usageRemainingPercent = Math.max(
@@ -2228,7 +2372,9 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     // );
     const orderedMessages = useMemo(
         () =>
-            [...(messages || [])].sort((left: ChatMessageResponse, right: ChatMessageResponse) => {
+            (messages || [])
+                .filter((message) => message.session_id === resolvedActiveSessionId)
+                .sort((left: ChatMessageResponse, right: ChatMessageResponse) => {
                 const createdDelta = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
                 if (createdDelta !== 0) {
                     return createdDelta;
@@ -2237,8 +2383,8 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                     return left.role === "user" ? -1 : 1;
                 }
                 return left.id.localeCompare(right.id);
-            }),
-        [messages],
+                }),
+        [messages, resolvedActiveSessionId],
     );
     useEffect(() => {
         const latestGeneratedMessage = [...orderedMessages]
@@ -2321,20 +2467,129 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
         }
     };
 
+    useLayoutEffect(() => {
+        const previousKey = previousUiSessionKeyRef.current;
+        if (previousKey === activeUiSessionKey) {
+            return;
+        }
+
+        previousUiSessionKeyRef.current = activeUiSessionKey;
+        const isCreatedSessionTransition =
+            previousKey === "new" && createdSessionTransitionRef.current === activeUiSessionKey;
+        if (isCreatedSessionTransition) {
+            createdSessionTransitionRef.current = "";
+            hydratedStudioSessionRef.current = activeUiSessionKey;
+            return;
+        }
+
+        hydratedStudioSessionRef.current = "";
+        setSelectedAction("none");
+        setWorkspacePrompt("");
+        setComposerDraft("");
+        setCampaignFocus("");
+        setCampaignAudience("");
+        setCampaignObjective("");
+        setSocialTopic("");
+        setSocialGoal("");
+        setRepurposeSource("");
+        setRepurposeTarget("");
+        setAlignmentContent("");
+        setStudioPlatform("instagram");
+        setActionPlatform("");
+        setStudioFormat("static");
+        setStudioFileType("png");
+        setStudioSizeLabel("1.91:1 · 1200×627");
+        setCampaignGoal("");
+        setStudioTargetAudience("");
+        setAttachedAssets([]);
+        setSelectedTemplateId("");
+        setSelectedTemplateName("");
+        setAttachmentError("");
+        setWorkspaceError("");
+        setEnhancePromptMode(null);
+        setEnhancedPrompt("");
+        setEnhancePromptError("");
+        setIsStudioOpen(true);
+        setChatSearchQuery("");
+        setActiveChatSearchMatchIndex(0);
+        messageElementRefs.current.clear();
+        autoFollowChatRef.current = true;
+        forceScrollToBottomRef.current = true;
+        previousSessionIdRef.current = "";
+        previousLatestMessageScrollKeyRef.current = "";
+    }, [activeUiSessionKey]);
+
     useEffect(() => {
-        if (!sessions?.length) {
+        if (!selectedSessionId) {
             return;
         }
-
-        if (!selectedSessionId || !selectedSessionIsAvailable) {
-            setActiveSessionId("");
+        if (sessions && !selectedSessionIsAvailable) {
             return;
         }
-
         if (activeSessionId !== selectedSessionId) {
             setActiveSessionId(selectedSessionId);
         }
     }, [activeSessionId, selectedSessionId, selectedSessionIsAvailable, sessions]);
+
+    useEffect(() => {
+        if (!brand || selectedSessionId || isSessionsLoading) {
+            return;
+        }
+        if (skipAutoOpenOnceRef.current) {
+            skipAutoOpenOnceRef.current = false;
+            return;
+        }
+        if (hasAutoOpenedSessionRef.current) {
+            return;
+        }
+        const availableSessions = sessions || [];
+        if (!availableSessions.length) {
+            return;
+        }
+        hasAutoOpenedSessionRef.current = true;
+        const latestSession = [...availableSessions].sort(
+            (left, right) =>
+                new Date(right.updated_at || right.created_at).getTime() -
+                new Date(left.updated_at || left.created_at).getTime(),
+        )[0];
+        if (latestSession?.id) {
+            router.replace(buildBrandChatHref(brand, latestSession.id), { scroll: false });
+        }
+    }, [brand, isSessionsLoading, router, selectedSessionId, sessions]);
+
+    useEffect(() => {
+        if (!resolvedActiveSessionId || hydratedStudioSessionRef.current === resolvedActiveSessionId) {
+            return;
+        }
+        const activeSession = sessions?.find((session) => session.id === resolvedActiveSessionId);
+        if (!activeSession?.studio_panel) {
+            return;
+        }
+
+        hydratedStudioSessionRef.current = resolvedActiveSessionId;
+        const panel = activeSession.studio_panel;
+        const nextFormat: FormatMode =
+            panel.format === "carousel" || panel.format === "infographic" ? panel.format : "static";
+        const nextPlatform: Platform =
+            panel.platform_preset === "linkedin" ||
+            panel.platform_preset === "x" ||
+            panel.platform_preset === "youtube_thumbnail"
+                ? panel.platform_preset
+                : "instagram";
+        const nextFileType: FileType =
+            panel.file_type === "doc" || panel.file_type === "pdf" || panel.file_type === "jpg"
+                ? panel.file_type
+                : "png";
+        const sizeOptions = resolveSizeOptions(nextFormat, nextPlatform);
+        const matchingSize = sizeOptions.find(
+            (option) => option.width === panel.size?.width && option.height === panel.size?.height,
+        );
+
+        setStudioFormat(nextFormat);
+        setStudioPlatform(nextPlatform);
+        setStudioFileType(nextFileType);
+        setStudioSizeLabel(matchingSize?.label || sizeOptions[0].label);
+    }, [resolvedActiveSessionId, sessions]);
 
     useEffect(() => {
         if (!resolvedActiveSessionId || !hasOlderMessages || isFetchingOlderMessages) {
@@ -2477,7 +2732,9 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
             title: workspacePrompt || `${brand.name} Workspace`,
             studio_panel: studioPanel,
         });
+        createdSessionTransitionRef.current = session.id;
         setActiveSessionId(session.id);
+        router.replace(buildBrandChatHref(brand, session.id), { scroll: false });
         return session.id;
     };
 
@@ -2496,6 +2753,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
             setEnhancePromptMode(null);
             return;
         }
+        const enhanceSessionKey = activeUiSessionKey;
         const prompt = mode === "composer" ? composerDraft : workspacePrompt;
         if (!hasEnhanceableSentence(prompt)) {
             setEnhancePromptError("Enter at least a sentence to enhance.");
@@ -2511,9 +2769,13 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 prompt,
                 studio_panel: studioPanel,
             });
-            setEnhancedPrompt(response.enhanced_prompt);
+            if (activeUiSessionKeyRef.current === enhanceSessionKey) {
+                setEnhancedPrompt(response.enhanced_prompt);
+            }
         } catch (error) {
-            setEnhancePromptError(extractApiError(error, "Could not enhance the prompt."));
+            if (activeUiSessionKeyRef.current === enhanceSessionKey) {
+                setEnhancePromptError(extractApiError(error, "Could not enhance the prompt."));
+            }
         }
     };
 
@@ -2552,11 +2814,14 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
             setWorkspaceError("Enter a prompt before sending.");
             return;
         }
+        let generationSessionId = resolvedActiveSessionId;
         pipelineInFlightRef.current = true;
         try {
             setWorkspaceError("");
             setGenerationProgressIndex(0);
             setGenerationProgressIndex(0);
+            generationSessionId = await ensureSession();
+            activeGenerationSessionRef.current = generationSessionId;
 
             // Creative formats use Violyt Intelligence Pipeline in chat (blueprint → AI-baked text image).
             if (studioFormat !== "video") {
@@ -2565,10 +2830,11 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 const pipelineFormat =
                     studioFormat === "carousel" || studioFormat === "infographic" ? studioFormat : "static";
 
-                setPipelineUi({
+                setPipelineUiForSession(generationSessionId, {
                     status: "running",
                     prompt: message.trim(),
                     format: pipelineFormat,
+                    platform: pipelinePlatform,
                     blueprint: null,
                     imageUrls: [],
                     error: null,
@@ -2587,11 +2853,12 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 });
 
                 if (phase1.status === "awaiting_blueprint_approval" && phase1.creative_blueprint) {
-                    setPipelineUi({
+                    setPipelineUiForSession(generationSessionId, {
                         status: "awaiting_blueprint_approval",
                         runId: phase1.run_id || undefined,
                         prompt: message.trim(),
                         format: pipelineFormat,
+                        platform: pipelinePlatform,
                         blueprint: phase1.creative_blueprint,
                         imageUrls: [],
                         error: null,
@@ -2600,10 +2867,11 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 }
 
                 if (phase1.status === "failed") {
-                    setPipelineUi({
+                    setPipelineUiForSession(generationSessionId, {
                         status: "failed",
                         prompt: message.trim(),
                         format: pipelineFormat,
+                        platform: pipelinePlatform,
                         error: phase1.error || "Pipeline failed before blueprint approval.",
                     });
                     return;
@@ -2612,11 +2880,12 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 const urls =
                     phase1.final_output?.asset_urls?.filter(Boolean) ||
                     (phase1.final_output?.asset_url ? [phase1.final_output.asset_url] : []);
-                setPipelineUi({
+                setPipelineUiForSession(generationSessionId, {
                     status: urls.length ? "complete" : "failed",
                     runId: phase1.run_id || undefined,
                     prompt: message.trim(),
                     format: pipelineFormat,
+                    platform: pipelinePlatform,
                     blueprint: phase1.creative_blueprint,
                     imageUrls: urls,
                     error: urls.length ? null : "No image returned from pipeline.",
@@ -2626,7 +2895,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
 
             autoFollowChatRef.current = true;
             forceScrollToBottomRef.current = true;
-            const sessionId = await ensureSession();
+            const sessionId = generationSessionId;
             const selectedAudiences = studioTargetAudience.split(",").map((item) => item.trim()).filter(Boolean);
             const outgoingMessage = selectedAudiences.length
                 ? `Target audience: ${selectedAudiences.join(", ")}\n\n${message}`
@@ -2654,8 +2923,10 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 return;
             }
             const detail = extractApiError(error, "Unable to start generation right now.");
-            setWorkspaceError(detail);
-            setPipelineUi((current) =>
+            if (activeUiSessionKeyRef.current === (generationSessionId || "new")) {
+                setWorkspaceError(detail);
+            }
+            setPipelineUiForSession(generationSessionId || activeUiSessionKey, (current) =>
                 current.status === "running" || current.status === "generating"
                     ? { ...current, status: "failed", error: detail }
                     : current,
@@ -2663,12 +2934,16 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
         } finally {
             pipelineInFlightRef.current = false;
             activeGenerationControllerRef.current = null;
-            activeGenerationSessionRef.current = "";
+            if (activeGenerationSessionRef.current === generationSessionId) {
+                activeGenerationSessionRef.current = "";
+            }
         }
     };
 
     const handleApproveBlueprint = async (edited: CreativeBlueprintResponse) => {
         if (!pipelineUi.runId) return;
+        const approvalSessionId = resolvedActiveSessionId;
+        activeGenerationSessionRef.current = approvalSessionId;
         try {
             setPipelineUi((current) => ({ ...current, status: "generating", blueprint: edited, error: null }));
             const phase2 = await approveBlueprint.mutateAsync({
@@ -2703,7 +2978,13 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                 status: "failed",
                 error: detail,
             }));
-            setWorkspaceError(detail);
+            if (activeUiSessionKeyRef.current === approvalSessionId) {
+                setWorkspaceError(detail);
+            }
+        } finally {
+            if (activeGenerationSessionRef.current === approvalSessionId) {
+                activeGenerationSessionRef.current = "";
+            }
         }
     };
 
@@ -2722,6 +3003,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
         if (!files?.length) {
             return;
         }
+        const uploadSessionKey = activeUiSessionKey;
         try {
             setAttachmentError("");
             const uploaded = await Promise.all(
@@ -2741,9 +3023,13 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                     }),
                 ),
             );
-            setAttachedAssets((current) => [...current, ...uploaded]);
+            if (activeUiSessionKeyRef.current === uploadSessionKey) {
+                setAttachedAssets((current) => [...current, ...uploaded]);
+            }
         } catch {
-            setAttachmentError("Unable to upload reference assets right now.");
+            if (activeUiSessionKeyRef.current === uploadSessionKey) {
+                setAttachmentError("Unable to upload reference assets right now.");
+            }
         }
     };
 
@@ -2844,9 +3130,14 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                 <div className="flex gap-2 relative">
                                                     <h1 className="font-dmSans text-3xl font-bold text-primary">{brand.name}</h1>
 
-                                                    <Tooltips content="View Brand Space">
+                                                    <Tooltips
+                                                        content="View Brand Space"
+                                                        side="right"
+                                                        sideOffset={8}
+                                                        contentClassName="bg-primary text-white"
+                                                    >
                                                     <Link
-                                                        href={`/brand_space/${brandId}/edit`}
+                                                        href={buildBrandEditHref({ id: brandId, slug: brand?.slug || brandId })}
                                                         aria-label="View Brand Space"
                                                         className="absolute -right-7 -top-1 text-sm text-[#121212] hover:underline"
                                                     >
@@ -2914,7 +3205,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                     <div
                                         ref={messageListRef}
                                         onScroll={handleMessageListScroll}
-                                        className="flex-1 space-y-8 overflow-y-auto px-1 py-5 thin-scrollbar"
+                                        className={`flex-1 space-y-8 px-1 py-5 thin-scrollbar ${isMessageListScrollable ? "overflow-y-auto" : "overflow-y-hidden"}`}
                                     >
                                         {orderedMessages.map((message, messageIndex) => {
                                             const previewAssets = message.role === "assistant" ? resolveGeneratedImageAssets(message.structured_payload) : [];
@@ -2926,6 +3217,24 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                 "";
                                             const previewUrl = previewAssets[0]?.asset_url || undefined;
                                             const generationDecision = message.role === "assistant" ? resolveGenerationDecision(message.structured_payload) : null;
+                                            const generatedPayload =
+                                                message.role === "assistant"
+                                                    ? (message.structured_payload as ChatAssistantStructuredPayload)?.generated_payload
+                                                    : undefined;
+                                            const blueprintPayload =
+                                                message.role === "assistant"
+                                                    ? ((message.structured_payload as ChatAssistantStructuredPayload)?.blueprint_payload as
+                                                          | CreativeBlueprintResponse
+                                                          | undefined)
+                                                    : undefined;
+                                            const postCaption =
+                                                message.role === "assistant"
+                                                    ? buildPostCaption({
+                                                          platform: studioPlatform,
+                                                          blueprint: blueprintPayload,
+                                                          generatedPayload,
+                                                      })
+                                                    : "";
                                             const imageStatus =
                                                 message.role === "assistant" &&
                                                     !previewUrl &&
@@ -2981,6 +3290,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                             onExport={exportGeneratedAssets}
                                                             onExportForType={exportGeneratedAssetsForType}
                                                             sourcePrompt={sourcePrompt}
+                                                            postCaption={postCaption}
                                                         />
                                                     ) : null}
                                                     {imageStatus === "not_generated" ? <p className="mt-3 text-sm text-slate-500">Image generation was requested, but no generated image asset was returned for this message.</p> : null}
@@ -3102,7 +3412,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                     value={composerDraft}
                                                     onChange={(event) => setComposerDraft(event.target.value)}
                                                     onKeyDown={handleComposerKeyDown}
-                                                    placeholder="What do you want to create today?"
+                                                    placeholder="Describe your campaign, content brief, brand challenge, or upload a reference to get started..."
                                                     className="min-h-9 max-h-55 flex-1 resize-none overflow-y-hidden border-none bg-transparent px-0 pt-3.5 text-base leading-6 text-[#6A6E8B] shadow-none outline-none focus-visible:ring-0"
                                                 />
                                                 {enhancePromptMode === "composer" ? (
@@ -3198,7 +3508,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                     {!hasConversation && (
                         <div className="flex h-[calc(100vh-32px)] flex-col">
                             <div className={`grid min-h-0 flex-1 ${isStudioOpen ? "xl:grid-cols-[minmax(0,1fr)_296px]" : "xl:grid-cols-1"}`}>
-                                <div className="min-h-0 overflow-y-auto bg-white">
+                                <div className="min-h-0 overflow-y-hidden bg-white">
                                     {/* Header */}
                                     <div className="flex h-[61px] py-10 items-center justify-between border-b border-[#E5E5EA] bg-white">
                                         <div className="w-full flex items-center justify-between gap-3 px-4">
@@ -3206,9 +3516,14 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                 <AppBackButton />
                                                 <div className="flex gap-2 relative">
                                                     <h1 className="font-dmSans text-3xl font-bold text-primary">{brand.name}</h1>
-                                                    <Tooltips content="View Brand Space">
+                                                    <Tooltips
+                                                        content="View Brand Space"
+                                                        side="right"
+                                                        sideOffset={8}
+                                                        contentClassName="bg-primary text-white"
+                                                    >
                                                     <Link
-                                                        href={`/brand_space/${brandId}/edit`}
+                                                        href={buildBrandEditHref({ id: brandId, slug: brand?.slug || brandId })}
                                                         aria-label="View Brand Space"
                                                         className="absolute -right-7 -top-1 text-sm text-[#121212] hover:underline"
                                                     >
@@ -3243,16 +3558,23 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                         </div>
                                     ) : null}
                                     <div className="max-w-5xl mx-auto flex flex-col items-center px-4 my-[21vh]">
-                                        <div className="flex items-center gap-5">
-                                            <Image src="/logo.svg" alt="Violyt Icon" width={40} height={40} className="" />
-                                            <h2 className="font-dmSans text-2xl md:text-3xl xl:text-4xl font-medium tracking-normal text-[#121212]">Greeting message</h2>
+                                        <div className="flex flex-col items-center">
+                                            <div className="flex items-center gap-5">
+                                                <Image src="/logo.svg" alt="Violyt Icon" width={40} height={40} className="" />
+                                                <h2 className="font-dmSans text-2xl md:text-3xl xl:text-4xl font-medium tracking-normal text-[#121212]">
+                                                    Welcome back, {currentUser?.name || "there"} {"\u{1F44B}"}
+                                                </h2>
+                                            </div>
+                                            <p className="mt-3 text-center text-sm text-[#5F6068]">
+                                                What are we building for {brand?.name || "your brand"} today?
+                                            </p>
                                         </div>
 
                                         <div ref={workspaceEnhanceContainerRef} className="relative mt-9 w-full">
                                             <SurfaceCard className="relative w-full rounded-xl border border-[#DDE1EA] bg-white px-4 py-3 shadow-[0_16px_30px_-25px_rgba(15,23,42,0.45)]">
                                                 <Textarea
                                                     ref={promptTextareaRef}
-                                                    placeholder="What do you want to create today?"
+                                                    placeholder="Describe your campaign, content brief, brand challenge, or upload a reference to get started..."
                                                     className="min-h-20 max-h-55 resize-none overflow-y-hidden border-none bg-transparent p-0 text-sm leading-6 text-[#74789A] shadow-none focus-visible:ring-0"
                                                     value={workspacePrompt}
                                                     onChange={(event) => setWorkspacePrompt(event.target.value)}
@@ -3338,146 +3660,6 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                             <p className="text-sm text-slate-500">
                                                 Pinned template: <span className="font-medium text-slate-700">{selectedTemplateLabel}</span>. Clear it any time to go back to auto selection.
                                             </p>
-                                        ) : null}
-
-                                        <div className="mt-6 flex flex-wrap justify-center gap-3">
-                                            {actionOptions.map((action) => (
-                                                <ActionButton
-                                                    key={action.id}
-                                                    selected={selectedAction === action.id}
-                                                    onClick={() => {
-                                                        setSelectedAction((current) => (current === action.id ? "none" : action.id));
-                                                        setActionPlatform("");
-                                                    }}
-                                                    icon={action.icon}
-                                                    label={action.label}
-                                                />
-                                            ))}
-                                        </div>
-
-                                        {activeActionOption ? (
-                                            <SurfaceCard className="mt-6 w-full border border-[#DDE1EA] bg-white px-8 py-4 shadow-none">
-                                                <div className="mb-6 flex items-center gap-2 text-[12px] font-medium text-[#121212]">
-                                                    <Image
-                                                        src={activeActionOption.icon}
-                                                        alt=""
-                                                        width={16}
-                                                        height={16}
-                                                        className="h-4 w-4"
-                                                    />
-                                                    <span>
-                                                        {selectedAction === "idea" && "Generate Campaign Idea"}
-                                                        {selectedAction === "social" && "Create Social Media Post"}
-                                                        {selectedAction === "repurpose" && "Repurpose Content"}
-                                                        {selectedAction === "alignment" && "Check Brand Alignment"}
-                                                    </span>
-                                                </div>
-
-                                                <div className="grid gap-5 md:max-w-md">
-                                                    {selectedAction === "idea" ? (
-                                                        <>
-                                                            <FormField label="Campaign focus">
-                                                                <StyledInput
-                                                                    placeholder="What product, service, or initiative is this campaign for"
-                                                                    value={campaignFocus}
-                                                                    onChange={(e) => setCampaignFocus(e.target.value)}
-                                                                />
-                                                            </FormField>
-                                                            <FormField label="Target Audience">
-                                                                <StyledSelect
-                                                                    value={campaignAudience}
-                                                                    onValueChange={(value) => setCampaignAudience(value)}
-                                                                    placeholder="Select target audience"
-                                                                    options={targetAudienceOptions}
-                                                                />
-                                                            </FormField>
-                                                            <FormField label="Campaign Objective">
-                                                                <StyledSelect
-                                                                    value={campaignObjective}
-                                                                    onValueChange={(value) => setCampaignObjective(value)}
-                                                                    placeholder="Select campaign objective"
-                                                                    options={campaignObjectiveOptions}
-                                                                />
-                                                            </FormField>
-                                                        </>
-                                                    ) : null}
-
-                                                    {selectedAction === "social" ? (
-                                                        <>
-                                                            <FormField label="Topic">
-                                                                <StyledInput
-                                                                    placeholder="What should this post be about"
-                                                                    value={socialTopic}
-                                                                    onChange={(e) => setSocialTopic(e.target.value)}
-                                                                />
-                                                            </FormField>
-                                                            <FormField label="Goal">
-                                                                <StyledInput
-                                                                    placeholder="What is the goal of this post"
-                                                                    value={socialGoal}
-                                                                    onChange={(e) => setSocialGoal(e.target.value)}
-                                                                />
-                                                            </FormField>
-                                                        </>
-                                                    ) : null}
-
-                                                    {selectedAction === "repurpose" ? (
-                                                        <>
-                                                            <FormField label="Source Content">
-                                                                <StyledInput
-                                                                    placeholder="Paste the content you would like to repurpose"
-                                                                    value={repurposeSource}
-                                                                    onChange={(e) => setRepurposeSource(e.target.value)}
-                                                                />
-                                                            </FormField>
-                                                            <FormField label="Target">
-                                                                <StyledInput
-                                                                    placeholder="Specify what the repurposed content should aim to achieve"
-                                                                    value={repurposeTarget}
-                                                                    onChange={(e) => setRepurposeTarget(e.target.value)}
-                                                                />
-                                                            </FormField>
-                                                        </>
-                                                    ) : null}
-
-                                                    {selectedAction === "alignment" ? (
-                                                        <label className="space-y-2">
-                                                            <span className="text-sm font-normal text-[#121212]">Content</span>
-                                                            <Textarea placeholder="Paste the content you want to evaluate for brand alignment" className="min-h-24 rounded-[8px] border-none bg-[#F3F5F8] text-xs shadow-none" value={alignmentContent} onChange={(event) => setAlignmentContent(event.target.value)} />
-                                                        </label>
-                                                    ) : null}
-
-                                                    {selectedAction !== "alignment" ? (
-                                                        <FormField label="Platform">
-                                                            <StyledSelect
-                                                                value={actionPlatform}
-                                                                onValueChange={(value: string) => {
-                                                                    const platformValue = value as Platform | "";
-                                                                    setActionPlatform(platformValue);
-                                                                    if (platformValue) {
-                                                                        setStudioPlatform(platformValue);
-                                                                        setStudioSizeLabel(
-                                                                            resolveSizeOptions(studioFormat, platformValue)[0].label,
-                                                                        );
-                                                                    }
-                                                                }}
-                                                                placeholder="Select platform"
-                                                                options={chatPlatformOptions}
-                                                                getOptionLabel={(value) => platformLabels[value as Platform] || value}
-                                                            />
-                                                        </FormField>
-                                                    ) : null}
-
-                                                    <Button
-                                                        type="button"
-                                                        onClick={() => void handleActionGenerate()}
-                                                        disabled={!canGenerateInWorkspace || isGeneratingMessage}
-                                                        className="rounded-none bg-primary px-6 py-5 text-white hover:bg-primary/90"
-                                                    >
-                                                        Generate
-                                                    </Button>
-                                                </div>
-                                            </SurfaceCard>
                                         ) : null}
 
                                     </div>

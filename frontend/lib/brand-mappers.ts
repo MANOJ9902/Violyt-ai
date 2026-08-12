@@ -278,6 +278,7 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     logo: null,
     logos: [],
     name: String(identity.brand_name || overview.brand.name || ""),
+    tagline: String(identity.brand_tagline || overview.brand.tagline || ""),
     description: String(identity.brand_description || overview.brand.description || ""),
     industryCategory: String(identity.industry_category || ""),
     differentiators: toTextarea(identity.key_differentiators),
@@ -560,6 +561,7 @@ export function mapBrandFormToCreateRequest(form: BrandFormState, uploads?: Uplo
   return {
     identity: {
       brand_name: form.core.name || "",
+      brand_tagline: form.core.tagline || "",
       brand_description: form.core.description || "",
       industry_category: normalized.industryCategory || undefined,
       target_geography: {
@@ -601,12 +603,15 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
   const competitors = normalizeCompetitorBrands(form);
   const primaryCompetitor = competitors[0];
   const competitorPayloads = competitorDescriptors(form);
+  const logoPlacements = [...(normalized.logoPlacements || [])];
+  const defaultLogoPlacement = logoPlacements[0] || "top_right";
 
   return [
     {
       section_code: "identity",
       payload: {
         brand_name: form.core.name || "",
+        brand_tagline: form.core.tagline || "",
         brand_description: form.core.description || "",
         industry_category: normalized.industryCategory || "",
         key_differentiators: splitList(form.core.differentiators),
@@ -774,7 +779,11 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
       payload: {
         brand_mood: form.visualIdentity.brandMood || "",
         visual_style: form.visualIdentity.visualStyle || "",
-        logo_placements: normalized.logoPlacements,
+        logo_placements: logoPlacements,
+        logo_placement: {
+          allowed_positions: logoPlacements.length ? logoPlacements : [defaultLogoPlacement],
+          default_position: defaultLogoPlacement,
+        },
         brand_color_palette: {
           primary: form.visualIdentity.primaryColor || "",
           secondary: form.visualIdentity.secondaryColor || "",

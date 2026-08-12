@@ -44,7 +44,7 @@ import { BrandSpaceHistoryDrawer } from "@/components/brandSpaces/BrandSpaceHist
 import type { BrandAttachmentResponse, BrandResponse, ValidationSummaryResponse } from "@/lib/api/contracts";
 import { API } from "@/lib/api/endpoints";
 import { request } from "@/lib/api/request";
-import { buildBrandWorkspaceHref } from "@/lib/brand-routing";
+import { buildBrandChatHref, buildBrandWorkspaceHref } from "@/lib/brand-routing";
 import { brandSpaceTabs } from "@/lib/brandSpace";
 import {
     formatMissingRequiredBrandFields,
@@ -65,6 +65,7 @@ import {
 import { mapBrandFormToCreateRequest, mapBrandSections } from "@/lib/brand-mappers";
 import { cn } from "@/lib/utils";
 import { useAutofillBrandFromKnowledge, useBrands, useCreateBrand } from "@/hooks/useBrands";
+import { useChatSessions } from "@/hooks/useContentWorkspace";
 import { applyBrandAutofillToForm } from "@/lib/brand-autofill";
 import { useGetMe } from "@/hooks/useUser";
 import { useGetTenantData } from "@/hooks/tenantAdmins/useGetTenants";
@@ -722,12 +723,12 @@ export default function BrandSpaceEditor({
     const [draftBrand, setDraftBrand] = useState<BrandResponse | null>(null);
     const [draftBrandId, setDraftBrandId] = useState<string | null>(brandId ?? null);
     const autofillFromKnowledge = useAutofillBrandFromKnowledge(draftBrandId || brandId || "");
+    const { data: brandChatSessions = [] } = useChatSessions(draftBrandId || brandId || "");
     const [brandLifecycleState, setBrandLifecycleState] = useState(initialLifecycleState);
     const [validationSummary, setValidationSummary] = useState<ValidationSummaryResponse | null>(null);
     const [didHydrateDraft, setDidHydrateDraft] = useState(mode !== "create");
     const [actionItemId, setActionItemId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState(brandSpaceTabs[0].value);
-    const [hasActivatedAttachmentTab, setHasActivatedAttachmentTab] = useState(false);
     const [hydratedBrandStateId, setHydratedBrandStateId] = useState<string | null>(null);
     const [hydratedAttachmentBrandId, setHydratedAttachmentBrandId] = useState<string | null>(null);
     const [capacityDialogOpen, setCapacityDialogOpen] = useState(false);
@@ -745,6 +746,8 @@ export default function BrandSpaceEditor({
         if (mode !== "edit" && mode !== "view") {
             return;
         }
+        // Hydrate once per brandId only. Depending on `initialForm` object identity caused
+        // overview refetch to wipe in-progress field edits (values appear then disappear).
         const nextLogos = normalizeBrandLogoItems(
             initialForm.core.logos.length
                 ? initialForm.core.logos
@@ -764,8 +767,8 @@ export default function BrandSpaceEditor({
         setBrandLifecycleState(initialLifecycleState);
         setHydratedBrandStateId(null);
         setHydratedAttachmentBrandId(null);
-        setHasActivatedAttachmentTab(false);
-    }, [brandId, initialForm, initialLifecycleState, mode]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally ignore initialForm identity
+    }, [brandId, initialLifecycleState, mode]);
 
     useEffect(() => {
         if (mode !== "create") {
@@ -780,7 +783,6 @@ export default function BrandSpaceEditor({
             setValidationSummary(null);
             setHydratedBrandStateId(null);
             setHydratedAttachmentBrandId(null);
-            setHasActivatedAttachmentTab(false);
             setDidHydrateDraft(true);
             return;
         }
@@ -819,13 +821,10 @@ export default function BrandSpaceEditor({
     }, [brandLifecycleState, didHydrateDraft, draftBrandId, form, isReadOnly, mode]);
 
     const effectiveBrandId = draftBrandId ?? brandId ?? null;
-    const activeTabNeedsAttachments = hasActivatedAttachmentTab && ATTACHMENT_TAB_VALUES.has(activeTab);
+    const activeTabNeedsAttachments = ATTACHMENT_TAB_VALUES.has(activeTab);
 
     const handleTabChange = (nextTab: string) => {
         setActiveTab(nextTab);
-        if (ATTACHMENT_TAB_VALUES.has(nextTab)) {
-            setHasActivatedAttachmentTab(true);
-        }
     };
 
     useEffect(() => {
@@ -1274,13 +1273,20 @@ export default function BrandSpaceEditor({
 
             if (hydratedAttachmentBrandId !== currentBrand.id) {
                 const existingAttachments = await listBrandSpaceAttachments(currentBrand.id);
-                formSnapshot = syncActiveColorPaletteFields(mergeBrandAttachmentsIntoForm(formSnapshot, existingAttachments));
-                formRef.current = formSnapshot;
-                setForm(formSnapshot);
+                // Merge attachments into the *live* form — never replace typed text with a stale snapshot.
+                setForm((current) => {
+                    const merged = syncActiveColorPaletteFields(
+                        mergeBrandAttachmentsIntoForm(current, existingAttachments),
+                    );
+                    formRef.current = merged;
+                    formSnapshot = merged;
+                    return merged;
+                });
             }
             setHydratedAttachmentBrandId(currentBrand.id);
 
             setSubmissionPhase("Uploading and syncing brand files...");
+            formSnapshot = formRef.current;
             const uploadedAssets = await uploadBrandSpaceAssets(currentBrand.id, formSnapshot, (update) =>
                 applyUploadUpdate(update.itemId, {
                     uploadedAssetId: update.uploadedAssetId,
@@ -1305,12 +1311,18 @@ export default function BrandSpaceEditor({
                 }),
             );
             const latestAttachments = await listBrandSpaceAttachments(currentBrand.id);
-            formSnapshot = syncActiveColorPaletteFields(mergeBrandAttachmentsIntoForm(formRef.current, latestAttachments));
-            formRef.current = formSnapshot;
-            setForm(formSnapshot);
+            setForm((current) => {
+                const merged = syncActiveColorPaletteFields(
+                    mergeBrandAttachmentsIntoForm(current, latestAttachments),
+                );
+                formRef.current = merged;
+                formSnapshot = merged;
+                return merged;
+            });
             setHydratedAttachmentBrandId(currentBrand.id);
 
             setSubmissionPhase("Saving structured brand sections...");
+            formSnapshot = formRef.current;
             await persistSections(currentBrand, uploadedAssets, formSnapshot);
 
             let nextBrand = currentBrand;
@@ -1357,12 +1369,18 @@ export default function BrandSpaceEditor({
                 clearBrandSpaceDraft();
             }
         } catch (error) {
+            const status = axios.isAxiosError(error) ? error.response?.status : undefined;
             const detail = axios.isAxiosError(error)
                 ? error.response?.data?.detail || error.response?.data?.message || error.message
                 : error instanceof Error
                     ? error.message
                     : "Unable to save Brand Space.";
-            showErrorToast("Unable to save Brand Space", String(detail));
+            const detailText = typeof detail === "string" ? detail : JSON.stringify(detail);
+            const statusHint = status ? ` (HTTP ${status})` : "";
+            showErrorToast(
+                "Unable to save Brand Space",
+                `${detailText}${statusHint}. Your typed fields are kept — fix the issue and save again.`,
+            );
         } finally {
             setSubmissionPhase(null);
             setIsSubmitting(false);
@@ -1540,11 +1558,19 @@ export default function BrandSpaceEditor({
         if (!hasPendingUploadItems) {
             clearBrandSpaceDraft();
         }
+        const brandRef = {
+            id: effectiveBrandId,
+            slug: draftBrand?.slug ?? effectiveBrandId,
+        };
+        const latestSession = [...brandChatSessions].sort(
+            (left, right) =>
+                new Date(right.updated_at || right.created_at).getTime() -
+                new Date(left.updated_at || left.created_at).getTime(),
+        )[0];
         router.push(
-            buildBrandWorkspaceHref({
-                id: effectiveBrandId,
-                slug: draftBrand?.slug ?? effectiveBrandId,
-            }),
+            latestSession?.id
+                ? buildBrandChatHref(brandRef, latestSession.id)
+                : buildBrandWorkspaceHref(brandRef),
         );
     };
 
@@ -1663,6 +1689,7 @@ export default function BrandSpaceEditor({
                                     createBrand.isPending ||
                                     isSubmitting ||
                                     autofillFromKnowledge.isPending ||
+                                    hasPendingUploadItems ||
                                     !(draftBrandId || brandId)
                                 }
                                 className="flex items-center justify-center gap-2 rounded-none border-primary/30 p-6 text-base text-primary hover:bg-primary/5"
@@ -1676,7 +1703,9 @@ export default function BrandSpaceEditor({
                                 <span>
                                     {autofillFromKnowledge.isPending
                                         ? "Fetching from knowledge..."
-                                        : "Auto-fill from knowledge"}
+                                        : hasPendingUploadItems
+                                            ? "Wait for uploads to finish..."
+                                            : "Auto-fill from knowledge"}
                                 </span>
                             </Button>
                         ) : null}
@@ -1764,12 +1793,15 @@ export default function BrandSpaceEditor({
 
                 <div className="pt-2">
                     {brandSpaceTabs.map((tab) => {
-                        if (tab.value !== activeTab) {
-                            return null;
-                        }
                         const TabComponent = tab.content;
+                        const isActive = tab.value === activeTab;
                         return (
-                            <TabsContent key={tab.id} value={tab.value} className="w-full">
+                            <TabsContent
+                                key={tab.id}
+                                value={tab.value}
+                                forceMount
+                                className={cn("w-full", !isActive && "hidden")}
+                            >
                                 <fieldset
                                     disabled={isReadOnly}
                                     className={cn(isReadOnly ? "pointer-events-none opacity-95" : "")}
