@@ -611,7 +611,7 @@ class InAppNotificationService:
             recipient_user_id=user.id,
             tenant_id=user.tenant_id,
             title="Welcome to Violyt",
-            message="Your account has been activated successfully. You can now access Violyt.",
+            message="Your account is ready.You can now sign in and start using the platform",
             metadata={"event": "account_activated"},
         )
 
