@@ -113,11 +113,11 @@ export function AppBackButton() {
         <Button
             type="button"
             variant="outline"
+            aria-label="Go back"
             onClick={handleBack}
-            className="h-9 rounded-none border-[#D4D8E5] bg-white px-3 text-sm font-semibold text-primary hover:bg-[#F7F7FB] hover:text-primary"
+            className="group h-9 w-9 shrink-0 rounded-full border border-primary/20 bg-primary/10 p-0 text-primary shadow-[0_8px_18px_-16px_rgba(60,47,143,0.35)] transition-all duration-200 ease-out hover:scale-[1.04] hover:border-primary/45 hover:bg-primary/90 hover:text-white hover:shadow-[0_0_0_4px_rgba(60,47,143,0.10),0_12px_28px_-16px_rgba(60,47,143,0.75)] focus-visible:ring-primary/25"
         >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
+            <ArrowLeft className="h-4 w-4 transition-transform duration-200 ease-out group-hover:-translate-x-0.5" />
         </Button>
     );
 }

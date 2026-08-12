@@ -224,7 +224,7 @@ const BrandReview = ({ brandId, form }: BrandTabProps) => {
 
             {overallPercent < 100 && (
                 <p className="text-center text-sm text-slate-500">
-                    Complete all sections to maximise AI generation quality for this brand.
+                    Complete all sections to maximize generation quality by Violyt, for this brand.
                 </p>
             )}
         </div>

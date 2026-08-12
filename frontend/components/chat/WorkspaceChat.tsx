@@ -3562,7 +3562,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                             <div className="flex items-center gap-5">
                                                 <Image src="/logo.svg" alt="Violyt Icon" width={40} height={40} className="" />
                                                 <h2 className="font-dmSans text-2xl md:text-3xl xl:text-4xl font-medium tracking-normal text-[#121212]">
-                                                    Welcome back, {currentUser?.name || "there"} {"\u{1F44B}"}
+                                                    Welcome {currentUser?.name || "there"} {"\u{1F44B}"}
                                                 </h2>
                                             </div>
                                             <p className="mt-3 text-center text-sm text-[#5F6068]">

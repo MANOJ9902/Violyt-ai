@@ -375,12 +375,12 @@ export default function ChatPipelinePanel({
               <p className="text-sm font-semibold text-[#121212]">
                 {state.status === "running"
                   ? "Violyt Intelligence Pipeline is running…"
-                  : "Generating finished AI creative…"}
+                  : "Generating finished creative…"}
               </p>
               <p className="text-xs text-[#6A6E8B]">
                 {state.status === "running"
                   ? "Preparing your creative brief and blueprint. Usually 3–6 minutes — please keep this tab open."
-                  : "Creating your AI image with approved text baked in (usually 1–2 minutes)…"}
+                  : "Creating your brand image with approved text, baked in usually 1-2 minutes…"}
               </p>
             </div>
           </div>
