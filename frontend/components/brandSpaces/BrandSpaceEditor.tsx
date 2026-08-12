@@ -1342,7 +1342,11 @@ export default function BrandSpaceEditor({
                     pathParams: currentBrand.id,
                 });
                 showSuccessToast(
-                    intent === "draft" ? "Draft saved" : "Brand Space changes saved",
+                    intent === "draft"
+                        ? "Draft saved"
+                        : isFirstSaveForBrand
+                            ? "Brand Space Created"
+                            : `Changes saved to "${currentBrand.name}".`,
                     intent === "draft"
                         ? "You can keep editing, add more documents, or publish when you are ready."
                         : undefined,
@@ -1746,7 +1750,7 @@ export default function BrandSpaceEditor({
 
             {canOpenWorkspace && hasPendingUploadItems ? (
                 <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-primary">
-                    This Brand Space is already active. File processing is still running in the background, so you can leave this page and come back later to check status.
+                    This Brand Space is active. File processing is still running in the background You can leave this page and check the status later.
                 </div>
             ) : null}
 

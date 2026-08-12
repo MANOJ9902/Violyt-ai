@@ -61,17 +61,30 @@ class EmailService:
         greeting_name = recipient_name or recipient_email
         text_body = (
             f"Hello {greeting_name},\n\n"
-            "Your Violyt account is ready. Use the link below to activate your account and create a password:\n\n"
+            "Welcome to Violyt!\n\n"
+            "Your account has been created and is ready to be activated. Click the button below to set your password "
+            "and complete your account setup.\n\n"
+            "Activate Account\n\n"
+            "If the button above doesn't work, copy and paste the activation link into your browser.\n\n"
             f"{activation_link}\n\n"
-            "This link will expire automatically. If you did not expect this invitation, you can ignore this email."
+            "For your security, this activation link will expire automatically after a limited time.\n\n"
+            "If you weren't expecting this invitation, you can safely ignore this email.\n\n"
+            "You're all set to start building, managing, and scaling your brand with a single source of truth.\n\n"
+            "Regards,\n"
+            "The Violyt Team"
         )
         html_body = (
             f"<p>Hello {greeting_name},</p>"
-            "<p>Your Violyt account is ready. Use the button below to activate your account and create a password.</p>"
+            "<p>Welcome to Violyt!</p>"
+            "<p>Your account has been created and is ready to be activated. Click the button below to set your password "
+            "and complete your account setup.</p>"
             f'<p><a href="{activation_link}" style="display:inline-block;padding:12px 20px;'
             'background:#3C2F8F;color:#ffffff;text-decoration:none;border-radius:8px;">Activate Account</a></p>'
-            f"<p>If the button does not work, open this link:</p><p>{activation_link}</p>"
-            "<p>This link will expire automatically. If you did not expect this invitation, you can ignore this email.</p>"
+            f"<p>If the button above doesn't work, copy and paste the activation link into your browser.</p><p>{activation_link}</p>"
+            "<p>For your security, this activation link will expire automatically after a limited time.</p>"
+            "<p>If you weren't expecting this invitation, you can safely ignore this email.</p>"
+            "<p>You're all set to start building, managing, and scaling your brand with a single source of truth.</p>"
+            "<p>Regards,<br>The Violyt Team</p>"
         )
         return self._send_email(recipient_email, subject, text_body, html_body)
 
@@ -140,17 +153,28 @@ class EmailService:
         greeting_name = recipient_name or recipient_email
         text_body = (
             f"Hello {greeting_name},\n\n"
-            "We received a request to reset your Violyt password. Use the link below to continue:\n\n"
+            "We received a request to reset your Violyt password.\n\n"
+            "Click the button below to create a new password and regain access to your account.\n\n"
+            "Reset Password\n\n"
+            "If the button above doesn't work, copy and paste the reset link into your browser.\n\n"
             f"{reset_link}\n\n"
-            "If you did not request a password reset, you can ignore this email."
+            "For your security, this password reset link will expire automatically.\n\n"
+            "If you did not request a password reset, you can safely ignore this email.\n\n"
+            "Protecting your account helps keep your organization's brand knowledge secure.\n\n"
+            "Regards,\n"
+            "The Violyt Team"
         )
         html_body = (
             f"<p>Hello {greeting_name},</p>"
-            "<p>We received a request to reset your Violyt password. Use the button below to continue.</p>"
+            "<p>We received a request to reset your Violyt password.</p>"
+            "<p>Click the button below to create a new password and regain access to your account.</p>"
             f'<p><a href="{reset_link}" style="display:inline-block;padding:12px 20px;'
             'background:#3C2F8F;color:#ffffff;text-decoration:none;border-radius:8px;">Reset Password</a></p>'
-            f"<p>If the button does not work, open this link:</p><p>{reset_link}</p>"
-            "<p>If you did not request a password reset, you can ignore this email.</p>"
+            f"<p>If the button above doesn't work, copy and paste the reset link into your browser.</p><p>{reset_link}</p>"
+            "<p>For your security, this password reset link will expire automatically.</p>"
+            "<p>If you did not request a password reset, you can safely ignore this email.</p>"
+            "<p>Protecting your account helps keep your organization's brand knowledge secure.</p>"
+            "<p>Regards,<br>The Violyt Team</p>"
         )
         return self._send_email(recipient_email, subject, text_body, html_body)
 
@@ -230,23 +254,25 @@ class EmailService:
     ) -> EmailDeliveryResult:
         greeting_name = recipient_name or recipient_email
         escaped_greeting_name = escape(greeting_name)
-        subject = "Your Violyt Password Has Been Changed"
+        subject = "Your Violyt password has been changed"
         text_body = (
             f"Hello {greeting_name},\n\n"
-            "This is a confirmation that the password for your Violyt account has been changed successfully.\n\n"
+            "This is a confirmation that your Violyt account password has been changed successfully.\n\n"
             "If you made this change, no further action is required.\n\n"
             "If you did not change your password, please contact your administrator immediately and "
-            "secure your account as soon as possible.\n\n"
+            "take the necessary steps to secure your account.\n\n"
+            "Your account security has been updated successfully, helping keep your Brand Spaces protected.\n\n"
             "Regards,\n"
-            "Violyt Team"
+            "The Violyt Team"
         )
         html_body = (
             f"<p>Hello {escaped_greeting_name},</p>"
-            "<p>This is a confirmation that the password for your Violyt account has been changed successfully.</p>"
+            "<p>This is a confirmation that your Violyt account password has been changed successfully.</p>"
             "<p>If you made this change, no further action is required.</p>"
             "<p>If you did not change your password, please contact your administrator immediately and "
-            "secure your account as soon as possible.</p>"
-            "<p>Regards,<br>Violyt Team</p>"
+            "take the necessary steps to secure your account.</p>"
+            "<p>Your account security has been updated successfully, helping keep your Brand Spaces protected.</p>"
+            "<p>Regards,<br>The Violyt Team</p>"
         )
         return self._send_email(recipient_email, subject, text_body, html_body)
 
@@ -306,23 +332,23 @@ class EmailService:
         # Sends a user-facing account status notice after an administrator deactivates access.
         greeting_name = recipient_name or recipient_email
         escaped_greeting_name = escape(greeting_name)
-        subject = "Your Violyt Account Has Been Deactivated"
-        actor_label = "the Platform Owner" if deactivated_by_platform_owner else "your Tenant Admin"
-        contact_label = "the Platform Owner" if deactivated_by_platform_owner else "your Tenant Administrator"
+        subject = "Your Violyt account has been deactivated"
         text_body = (
             f"Hello {greeting_name},\n\n"
-            f"Your Violyt account has been deactivated by {actor_label}.\n\n"
-            "You will no longer be able to access your account until it is reactivated.\n\n"
-            f"If you believe this was done in error, please contact {contact_label}.\n\n"
+            "Your Violyt account has been deactivated.\n\n"
+            "You will no longer be able to sign in or access Violyt until your account is reactivated.\n\n"
+            "If you believe this was done in error, please contact your administrator.\n\n"
+            "Your Brand Spaces and brand knowledge remain secure while your account access is disabled.\n\n"
             "Regards,\n"
-            "Violyt Team"
+            "The Violyt Team"
         )
         html_body = (
             f"<p>Hello {escaped_greeting_name},</p>"
-            f"<p>Your Violyt account has been deactivated by {escape(actor_label)}.</p>"
-            "<p>You will no longer be able to access your account until it is reactivated.</p>"
-            f"<p>If you believe this was done in error, please contact {escape(contact_label)}.</p>"
-            "<p>Regards,<br>Violyt Team</p>"
+            "<p>Your Violyt account has been deactivated.</p>"
+            "<p>You will no longer be able to sign in or access Violyt until your account is reactivated.</p>"
+            "<p>If you believe this was done in error, please contact your administrator.</p>"
+            "<p>Your Brand Spaces and brand knowledge remain secure while your account access is disabled.</p>"
+            "<p>Regards,<br>The Violyt Team</p>"
         )
         return self._send_email(recipient_email, subject, text_body, html_body)
 
@@ -424,20 +450,23 @@ class EmailService:
     ) -> EmailDeliveryResult:
         greeting_name = recipient_name or recipient_email
         escaped_greeting_name = escape(greeting_name)
-        subject = "Your Violyt Account Has Been Reactivated"
-        actor_label = "the Platform Owner" if reactivated_by_platform_owner else "your Tenant Admin"
+        subject = "Your Violyt account has been reactivated"
         text_body = (
             f"Hello {greeting_name},\n\n"
-            f"Your Violyt account has been reactivated by {actor_label}.\n\n"
-            "You can now sign in and access your account again.\n\n"
+            "Your Violyt account has been reactivated.\n\n"
+            "You can now sign in and access Violyt again.\n\n"
+            "Your access has been restored, and you can continue working with your team's Brand Spaces and "
+            "AI-powered workflows.\n\n"
             "Regards,\n"
-            "Violyt Team"
+            "The Violyt Team"
         )
         html_body = (
             f"<p>Hello {escaped_greeting_name},</p>"
-            f"<p>Your Violyt account has been reactivated by {escape(actor_label)}.</p>"
-            "<p>You can now sign in and access your account again.</p>"
-            "<p>Regards,<br>Violyt Team</p>"
+            "<p>Your Violyt account has been reactivated.</p>"
+            "<p>You can now sign in and access Violyt again.</p>"
+            "<p>Your access has been restored, and you can continue working with your team's Brand Spaces and "
+            "AI-powered workflows.</p>"
+            "<p>Regards,<br>The Violyt Team</p>"
         )
         return self._send_email(recipient_email, subject, text_body, html_body)
 
@@ -653,21 +682,25 @@ class EmailService:
         greeting_name = recipient_name or recipient_email
         escaped_greeting_name = escape(greeting_name)
         escaped_brand_space_name = escape(brand_space_name)
-        subject = "Brand Space Updated"
+        subject = "Brand Space updated"
         text_body = (
             f"Hello {greeting_name},\n\n"
             f'The Brand Space "{brand_space_name}" has been updated.\n\n'
-            "The latest changes will be applied to all future creative outputs generated using this Brand Space.\n\n"
-            "If you need to review the updated Brand Space details, please sign in to Violyt.\n\n"
+            "These changes will be reflected in all future creative outputs generated using this Brand Space.\n\n"
+            "To review the updated Brand Space details, please sign in to Violyt.\n\n"
+            "Your updates will automatically be reflected in future AI-generated content, helping your team "
+            "maintain brand consistency across every output.\n\n"
             "Regards,\n"
-            "Violyt Team"
+            "The Violyt Team"
         )
         html_body = (
             f"<p>Hello {escaped_greeting_name},</p>"
             f'<p>The Brand Space "{escaped_brand_space_name}" has been updated.</p>'
-            "<p>The latest changes will be applied to all future creative outputs generated using this Brand Space.</p>"
-            "<p>If you need to review the updated Brand Space details, please sign in to Violyt.</p>"
-            "<p>Regards,<br>Violyt Team</p>"
+            "<p>These changes will be reflected in all future creative outputs generated using this Brand Space.</p>"
+            "<p>To review the updated Brand Space details, please sign in to Violyt.</p>"
+            "<p>Your updates will automatically be reflected in future AI-generated content, helping your team "
+            "maintain brand consistency across every output.</p>"
+            "<p>Regards,<br>The Violyt Team</p>"
         )
         return self._send_email(recipient_email, subject, text_body, html_body)
 

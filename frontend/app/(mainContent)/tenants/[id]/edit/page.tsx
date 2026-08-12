@@ -89,10 +89,20 @@ export default function EditTenantPage() {
         validation.data.admin.phone !== initialForm.admin.phone
       ),
     );
+    const usageLimitsUpdated = Boolean(
+      initialForm &&
+      Object.keys(validation.data.usage).some(
+        (field) =>
+          validation.data.usage[field as keyof TenantFormData["usage"]] !==
+          initialForm.usage[field as keyof TenantFormData["usage"]],
+      ),
+    );
     toast({
-      title: platformOwnerUpdatedAdminProfile
-        ? "profile has been updated successfully."
-        : "Tenant details have been updated successfully.",
+      title: usageLimitsUpdated
+        ? "Usage limit details have been updated successfully."
+        : platformOwnerUpdatedAdminProfile
+          ? "profile has been updated successfully."
+          : "Tenant details have been updated successfully.",
       variant: "success",
     });
     router.push(`/tenants/${tenantId}`);

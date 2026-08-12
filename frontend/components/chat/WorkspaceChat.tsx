@@ -2284,6 +2284,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     );
     const brandLifecycle = brand?.lifecycle_state || "draft";
     const canGenerateInWorkspace = brandLifecycle === "active";
+    const hasRequiredStudioSettings = Boolean(campaignGoal.trim() && studioTargetAudience.trim());
     const generationOwnerSessionId = activeGenerationSessionRef.current;
     const generationBelongsToActiveSession =
         !generationOwnerSessionId || generationOwnerSessionId === resolvedActiveSessionId;
@@ -2808,6 +2809,12 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
             runPipeline.isPending ||
             approveBlueprint.isPending
         ) {
+            return;
+        }
+        if (!hasRequiredStudioSettings) {
+            toast({
+                title: "Please complete the required Studio settings before generating.",
+            });
             return;
         }
         if (!message.trim()) {

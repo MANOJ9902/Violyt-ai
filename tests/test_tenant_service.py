@@ -626,16 +626,18 @@ def test_password_changed_confirmation_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "member@violyt.ai"
-    assert subject == "Your Violyt Password Has Been Changed"
+    assert subject == "Your Violyt password has been changed"
     assert "Hello Team Member," in text_body
-    assert "This is a confirmation that the password for your Violyt account has been changed successfully." in text_body
+    assert "This is a confirmation that your Violyt account password has been changed successfully." in text_body
     assert "If you made this change, no further action is required." in text_body
     assert (
         "If you did not change your password, please contact your administrator immediately and "
-        "secure your account as soon as possible."
+        "take the necessary steps to secure your account."
     ) in text_body
-    assert "Regards,\nViolyt Team" in text_body
-    assert "This is a confirmation that the password for your Violyt account has been changed successfully." in html_body
+    assert "Your account security has been updated successfully, helping keep your Brand Spaces protected." in text_body
+    assert "Regards,\nThe Violyt Team" in text_body
+    assert "This is a confirmation that your Violyt account password has been changed successfully." in html_body
+    assert "<p>Your account security has been updated successfully" in html_body
 
 
 async def test_profile_change_password_sends_confirmation_email_to_requesting_scoped_user(monkeypatch):
@@ -820,13 +822,14 @@ def test_account_deactivated_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "super-user@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Deactivated"
+    assert subject == "Your Violyt account has been deactivated"
     assert "Hello Super User," in text_body
-    assert "Your Violyt account has been deactivated by your Tenant Admin." in text_body
-    assert "You will no longer be able to access your account until it is reactivated." in text_body
-    assert "If you believe this was done in error, please contact your Tenant Administrator." in text_body
-    assert "Regards,\nViolyt Team" in text_body
-    assert "Your Violyt account has been deactivated by your Tenant Admin." in html_body
+    assert "Your Violyt account has been deactivated." in text_body
+    assert "You will no longer be able to sign in or access Violyt until your account is reactivated." in text_body
+    assert "If you believe this was done in error, please contact your administrator." in text_body
+    assert "Your Brand Spaces and brand knowledge remain secure while your account access is disabled." in text_body
+    assert "Regards,\nThe Violyt Team" in text_body
+    assert "<p>Your Brand Spaces and brand knowledge remain secure" in html_body
 
 
 def test_platform_owner_deactivated_tenant_admin_email_matches_required_copy():
@@ -847,11 +850,13 @@ def test_platform_owner_deactivated_tenant_admin_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "admin@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Deactivated"
+    assert subject == "Your Violyt account has been deactivated"
     assert "Hello Tenant Admin," in text_body
-    assert "Your Violyt account has been deactivated by the Platform Owner." in text_body
-    assert "If you believe this was done in error, please contact the Platform Owner." in text_body
-    assert "Your Violyt account has been deactivated by the Platform Owner." in html_body
+    assert "Your Violyt account has been deactivated." in text_body
+    assert "You will no longer be able to sign in or access Violyt until your account is reactivated." in text_body
+    assert "If you believe this was done in error, please contact your administrator." in text_body
+    assert "Your Brand Spaces and brand knowledge remain secure while your account access is disabled." in text_body
+    assert "<p>Your Brand Spaces and brand knowledge remain secure" in html_body
 
 
 def test_user_deactivated_confirmation_email_matches_required_copy():
@@ -1128,12 +1133,13 @@ def test_account_reactivated_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "super-user@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Reactivated"
+    assert subject == "Your Violyt account has been reactivated"
     assert "Hello Super User," in text_body
-    assert "Your Violyt account has been reactivated by your Tenant Admin." in text_body
-    assert "You can now sign in and access your account again." in text_body
-    assert "Regards,\nViolyt Team" in text_body
-    assert "Your Violyt account has been reactivated by your Tenant Admin." in html_body
+    assert "Your Violyt account has been reactivated." in text_body
+    assert "You can now sign in and access Violyt again." in text_body
+    assert "Your access has been restored" in text_body
+    assert "Regards,\nThe Violyt Team" in text_body
+    assert "<p>Your access has been restored" in html_body
 
 
 def test_platform_owner_reactivated_tenant_admin_email_matches_required_copy():
@@ -1154,11 +1160,12 @@ def test_platform_owner_reactivated_tenant_admin_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "admin@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Reactivated"
+    assert subject == "Your Violyt account has been reactivated"
     assert "Hello Tenant Admin," in text_body
-    assert "Your Violyt account has been reactivated by the Platform Owner." in text_body
-    assert "You can now sign in and access your account again." in text_body
-    assert "Your Violyt account has been reactivated by the Platform Owner." in html_body
+    assert "Your Violyt account has been reactivated." in text_body
+    assert "You can now sign in and access Violyt again." in text_body
+    assert "Your access has been restored" in text_body
+    assert "<p>Your access has been restored" in html_body
 
 
 def test_user_reactivated_confirmation_email_matches_required_copy():

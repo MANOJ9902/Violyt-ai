@@ -216,8 +216,8 @@ async def test_usage_alert_messages_are_role_specific() -> None:
     messages = [call.kwargs["message"] for call in service.create.await_args_list]
     assert all(call.kwargs["title"] == "Usage Warning" for call in service.create.await_args_list)
     assert messages == [
-        "Your organization has used 80% of its visual-generation capacity.",
-        "Your organization has used 80% of its visual-generation capacity.",
+        "Your organization has used 80% of its available visual-generation capacity.",
+        "Your organization has used 80% of its available visual-generation capacity.",
         "Acme Corp has used 80% of its visual-generation capacity.",
     ]
 
