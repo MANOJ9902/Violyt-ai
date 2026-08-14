@@ -8,9 +8,16 @@ from __future__ import annotations
 # sample_infographic_explain_why_airports.png / rbi plastic perfect.
 # Use EXACTLY these hexes for paragraphs, infographics, lists, rankings.
 # ═══════════════════════════════════════════════════════════════
+# Data-story infographic canvas, sampled from sample_infographic_data_story_airports.png.
+# Scoped to information/data infographics; other formats keep the flat JIRAAF_BG.
+JIRAAF_DATA_BG_TOP = "#D3EAFC"
+JIRAAF_DATA_BG_MID = "#E0F0FD"
+JIRAAF_DATA_BG_BOTTOM = "#DDEEFE"
+
 JIRAAF_NAVY = "#003975"
 JIRAAF_ORANGE = "#FFA400"
-JIRAAF_BG = "#E8F0F8"
+# Brand-approved canvas colour — identical for static, infographic AND carousel.
+JIRAAF_BG = "#87CEFA"
 JIRAAF_CARD = "#FFFFFF"
 JIRAAF_CARD_SOFT = "#F8FBFF"
 JIRAAF_GOLD = "#AE8235"
@@ -18,17 +25,34 @@ JIRAAF_BODY_GRAY = "#5A6A7A"
 JIRAAF_INSIGHT_CREAM = "#FFF5E8"
 JIRAAF_DIVIDER = "#DCEAF5"
 
+# ═══════════════════════════════════════════════════════════════
+# CAROUSEL-ONLY PALETTE — locked from the India Building Airports PDF
+# (carousel_airport_pdf/slide_01..06). Carousel does NOT use the sky-blue
+# JIRAAF_BG — the reference carousel canvas is a very pale editorial blue.
+# ═══════════════════════════════════════════════════════════════
+JIRAAF_CAROUSEL_BG = "#EDF7FC"
+JIRAAF_CAROUSEL_CARD = "#DDEFF9"
+JIRAAF_CAROUSEL_NAVY = "#063B78"
+JIRAAF_CAROUSEL_ORANGE = "#FFA500"
+JIRAAF_CAROUSEL_BODY = "#40484D"
+JIRAAF_CAROUSEL_MUTED = "#68747D"
+
 UNIVERSAL_JIRAAF_PALETTE_LOCK = f"""
 ════════════════════════════════════════════════════════
-UNIVERSAL JIRAAF COLOUR LOCK (ALL FORMATS — NON-NEGOTIABLE)
+UNIVERSAL JIRAAF COLOUR LOCK (STATIC / INFOGRAPHIC FORMATS — NON-NEGOTIABLE)
 Applies identically to: paragraphs, explain infographics, lists, rankings,
-hub facts, static posters, carousels accents. NO format may invent a new palette.
+hub facts, static posters. NO format may invent a new palette.
+CAROUSEL is the ONE exception — it uses the Airport-PDF palette
+(pale-blue {JIRAAF_CAROUSEL_BG} canvas, {JIRAAF_CAROUSEL_CARD} cards, navy {JIRAAF_CAROUSEL_NAVY}).
 ════════════════════════════════════════════════════════
-BG (full-bleed):        {JIRAAF_BG}  ice-blue — NEVER cream #FBF8F3, NEVER pure white #FFFFFF as page BG, NEVER #87CEFA, NEVER yellow
+BG (full-bleed):        {JIRAAF_BG}  sky-blue — SAME hex on static AND infographic.
+                        NEVER cream #FBF8F3, NEVER pure white #FFFFFF, NEVER #E8F0F8, NEVER yellow, NEVER grey
 HEADLINES / TITLES:     {JIRAAF_NAVY} navy — NEVER black, NEVER orange, NEVER teal/cyan headings
 BODY / SUPPORTING:      {JIRAAF_BODY_GRAY} gray
 ACCENTS / CTA / BADGES: {JIRAAF_ORANGE} vivid orange — NEVER gold-only #E1A644, NEVER mustard, NEVER yellow as primary accent
-CARDS:                  white {JIRAAF_CARD} or soft {JIRAAF_CARD_SOFT} floating on ice-blue BG
+CARDS:                  white {JIRAAF_CARD} or soft {JIRAAF_CARD_SOFT} floating on the sky-blue BG
+CARD BORDERS:           hairline {JIRAAF_DIVIDER} (1px) + soft shadow — NEVER a thick navy/black
+                        outline, NEVER a full-page frame or border around the whole canvas
 DIVIDERS:               {JIRAAF_DIVIDER}
 FOOTER BAR (explain):   solid navy {JIRAAF_NAVY} + WHITE tagline
 LOGO:                   Brand Space composite top-right ONLY — never draw JIRAAF / giraffe / fake logo
@@ -57,7 +81,7 @@ JIRAAF_SEBI_DISCLAIMER = (
 
 # Carousel-only — never inject into static/infographic prompts
 SEBI_FOOTER_HINT = (
-    "CAROUSEL ONLY: Reserve bottom ~14–18% EMPTY sky-blue (#87CEFA / soft alt) on EVERY carousel slide "
+    f"CAROUSEL ONLY: Reserve bottom ~14% EMPTY pale-blue ({JIRAAF_CAROUSEL_BG}) on EVERY carousel slide "
     "for the legal disclaimer. Do NOT invent SEBI/registration text in the image — exact footer is "
     f"Pillow-composited after (same reliability as Brand Space logo) at readable size:\n{JIRAAF_SEBI_DISCLAIMER}"
 )
@@ -95,8 +119,9 @@ ICON STYLE LOCK (NON-NEGOTIABLE — ULTRA-PREMIUM HD 3D, same quality family as 
   * bonds / fixed income -> bond certificate, coupon slip, wallet, chart, rupee coin
 - Do NOT default to FD briefcase, handshake, bond certificate, or bank icons for unrelated topics.
 - Palette: navy {JIRAAF_NAVY}, gold/amber {JIRAAF_GOLD}, orange {JIRAAF_ORANGE}, warm neutral accents.
-- SIZE: static/infographic icons can be medium; CAROUSEL icons/avatars ~12–16% height —
-  HD premium clay-3D illustrated objects (wallet, coins, doc, lock, shield) — not giant mushy heroes.
+- SIZE: SMALL–MEDIUM so text/paragraphs stay readable — static/infographic icons ~8–11% of
+  card/column; CAROUSEL icons/avatars ~10–12% height. HD premium clay-3D objects
+  (wallet, coins, doc, lock, shield) — never giant mushy heroes that crowd out copy.
 - Clean metaphors only — no clutter, no random mixed-topic objects.
 - NEVER pure black / charcoal backgrounds behind icons — always ice-blue {JIRAAF_BG}.
 """
@@ -123,7 +148,7 @@ TYPOGRAPHY:
 
 ICONS (premium HD — match perfect sample glossy 3D quality):
 - Clay-3D / glossy plastic studio render: satin materials, gold/navy/orange accents, soft shadows on ice-blue BG
-- Section icons LARGE and sharp at 100% zoom — NOT clipart, NOT emoji, NOT blurry blobs
+- Section icons SMALL–MEDIUM and sharp at 100% zoom — NOT clipart, NOT emoji, NOT blurry blobs
 - Hero cluster top-right for explain: holographic note + coins + shield (perfect sample)
 {ICON_STYLE_LOCK}
 """
@@ -240,10 +265,10 @@ CAROUSEL_FIT_LOCK = f"""
 {UNIVERSAL_FIT_LOCK}
 {CAROUSEL_TEXT_FIT_LOCK}
 {CAROUSEL_ICON_LOCK}
-CAROUSEL FIT LOCK — MATCH SAMPLE PDFs (Sweep-In / Capital / Gains):
-- FULL-BLEED ice-blue {JIRAAF_BG}. NO white side panels. NO second BG.
-- STYLE: premium white rounded cards with soft shadow + generous padding (Sweep-In / Gains DNA) —
-  NOT sparse empty slides, NOT quadrant grids, NOT thin orange divider stacks.
+CAROUSEL FIT LOCK — MATCH INDIA BUILDING AIRPORTS PDF:
+- FULL-BLEED very pale blue {JIRAAF_CAROUSEL_BG}. NO white side panels. NO second BG.
+- STYLE: wide rounded soft-blue {JIRAAF_CAROUSEL_CARD} info cards (3D icon left, divider, text right)
+  with generous padding — NOT sparse empty slides, NOT quadrant grids, NOT thin orange divider stacks.
 - STORY FIRST: every slide teaches one beat of the arc with ₹/%/rules — not a slogan + icon.
 - ICONS/AVATARS: ONE premium HD clay-3D object (~12–16% height) bottom-right — crisp, not mushy.
 - FORBIDDEN: truncated headlines ("o.."), missing headlines, topic title alone, empty Pros/Cons,
@@ -253,9 +278,9 @@ CAROUSEL FIT LOCK — MATCH SAMPLE PDFs (Sweep-In / Capital / Gains):
 - Headlines/subheads: navy {JIRAAF_NAVY} ONLY. No orange underlines under titles.
 {HEADLINE_COLOR_LOCK}
 {ORANGE_COVERAGE_LOCK}
-- REQUIRED: 2–3 white story cards/blocks with full short explanations (sample page density).
+- REQUIRED: 3–4 soft-blue story cards/blocks with full short explanations (sample page density).
 - Bottom ~14% EMPTY for SEBI. Nothing clipped. Margins ≥8%.
-- Top-right corner: plain empty ice-blue only — NO AI logo, NO "Brand Logo" text, NO dashed box.
+- Top-right corner: plain empty pale-blue only — NO AI logo, NO "Brand Logo" text, NO dashed box.
 - Spelling perfect. Plain printed sans-serif.
 """
 
@@ -313,14 +338,14 @@ FORMAT: 1080×1350 portrait (4:5). Data-led editorial storytelling.
 Aesthetic: Jiraaf sample DNA — ice-blue canvas, navy hierarchy, orange accents, 3D icons.
 
 COLOURS (EXACT — same as ranking / lists / paragraphs):
-- BG full-bleed ice-blue {JIRAAF_BG} — NEVER #87CEFA, NEVER cream, NEVER white page
+- BG full-bleed sky-blue {JIRAAF_BG} — NEVER #E8F0F8, NEVER cream, NEVER white page
 - Headlines / section titles: navy {JIRAAF_NAVY} ONLY
 - Accent orange {JIRAAF_ORANGE} ONLY (#FFA400) — never #F7931A, never gold/mustard
 - Body gray {JIRAAF_BODY_GRAY}
 - Soft cards white/{JIRAAF_CARD_SOFT} on ice-blue
 - Footer: solid navy bar + WHITE tagline
 
-LOGO: empty TOP-RIGHT pocket (~10% width × ~8% height) — never draw wordmark (Brand Space composite).
+LOGO: empty TOP-RIGHT pocket (~24% width × ~12% height) — never draw wordmark (Brand Space composite).
 
 STORY STRUCTURE (must feel like a narrative, not a textbook dump):
 1) Hook headline (navy) with ONE orange keyword highlight allowed
@@ -390,7 +415,7 @@ INFOGRAPHIC EXPLAIN QUALITY LOCK:
 STATIC_EXPLAIN_QUALITY_LOCK = f"""
 STATIC EXPLAIN QUALITY LOCK:
 - Bake headline + supporting + EVERY card heading + explanation line — zero missing text.
-- EACH white card MUST have its own distinct LARGE clay-3D icon (not text-only cards).
+- EACH white card MUST have its own distinct SMALL clay-3D icon + neat body paragraph (not text-only / not icon-only).
 - Hero clay-3D icon top/center — topic-matched, premium studio render.
 - Orange {JIRAAF_ORANGE} dividers between cards + orange CTA button fill (≥2% image area).
 - Clean premium layout: ice-blue BG, navy headlines, gray body, sharp sans-serif — no gibberish.
@@ -486,28 +511,34 @@ STATIC RANKING + INSIGHT (when user asks top-N AND why/describe about focal coun
 {STATIC_ORANGE_STUB}
 """
 
-# Infographic / static data posts — retail audience tone (client feedback Jul 2026)
+# Generic retail tone — safe for EVERY topic/format (contains no sample copy to plagiarise)
+RETAIL_TONE_LOCK = """
+RETAIL AUDIENCE TONE LOCK (all formats):
+Target = everyday Indian investor on LinkedIn/Instagram.
+- Short, plain, human lines. Scannable. Concrete.
+- Every line must be about the USER'S OWN TOPIC — written fresh from this run's research.
+- BAD: textbook essays, policy jargon (Vostro/hedge/sector exposure), mid-word cuts,
+  paragraph CTAs, research meta-labels ("Web Search:", "Answer WHY").
+- CTA: 2–3 words maximum.
+"""
+
+# Ranking-only tone. Injected ONLY for layout_type=static_ranking.
+# Sample wording is described, never quoted — quoting caused verbatim copy leaks
+# (an airport prompt rendered the FDI sample creative word-for-word).
 INFOGRAPHIC_AUDIENCE_TONE_LOCK = f"""
-RANKING TONE LOCK — match sample_top_countries_investing.png EXACTLY:
-Target = everyday Indian investor. Language must be THIS simple:
+RANKING TONE LOCK — structure of sample_top_countries_investing.png:
+{RETAIL_TONE_LOCK}
+ANTI-PLAGIARISM RULE (HARD FAIL):
+The sample creative is a LAYOUT reference only. NEVER reuse its subject matter,
+entity names, phrases, amounts, headline or subtitle. If the user's topic is not
+a country-investment ranking, none of that sample's wording may appear anywhere.
 
-GOOD phrases (copy this style):
-  "Top investor in India"
-  "Strong economic ties"
-  "Growing interest"
-  "Diverse sectors"
-  "Strategic partnerships"
-
-BAD (never):
-  textbook essays, Vostro/hedge/sector-exposure jargon, ESD/HAE/ASA typos,
-  mid-word cuts, paragraph CTAs like "Explore Investment Opportunities"
-
-COPY SHAPE:
-- Headline: plain claim ("Top 6 Countries Investing in India")
-- Supporting: one soft line ("A strong signal from global investors.")
-- Each row: ONE phrase ≤5 words under the country name
-- Amount: ₹50B style (or % / USD letters when source requires)
-- CTA: "Explore more" (2–3 words) — NEVER a long button sentence
+COPY SHAPE (write fresh wording for the user's actual topic):
+- Headline: plain factual claim naming the USER'S topic and the count
+- Supporting: one soft factual line about the USER'S topic
+- Each row: ONE descriptive phrase ≤5 words, specific to that row's entity
+- Amount: ₹ figure (or % / USD letters when the source requires)
+- CTA: 2–3 words
 """
 
 # Shared DNA for INFOGRAPHIC ranking — vertical rows (Top Countries sample)
@@ -544,10 +575,10 @@ CURRENCY: ₹ for India FDI ranks · % for inflation · ¥ Japan · USD letters 
 
 # Compact stub for any remaining AI image path
 RANKING_IMAGE_STUB = f"""
-RANKING = sample_top_countries_investing.png DNA:
+RANKING = sample_top_countries_investing.png LAYOUT DNA (not its wording):
 BG {JIRAAF_BG}. Navy {JIRAAF_NAVY}. Orange badges+accent+CTA+coin icons {JIRAAF_ORANGE}.
-Row: orange # square | real flag | NAME + ≤5-word phrase | ₹50B | coin/chart icon.
-Tone: "Top investor in India" / "Strong economic ties" — never textbook. CTA "Explore more".
+Row: orange # square | real flag | NAME + ≤5-word phrase | ₹ amount | coin/chart icon.
+Tone: short plain phrases about THIS run's entities — never textbook, never the sample's words.
 Never HAE/ASA/$/US $/wrong flags. Same for static AND infographic.
 """
 
@@ -610,9 +641,11 @@ JIRAAF SAMPLE SYSTEM LOCK (NON-NEGOTIABLE)
 Match PNG samples in app/prompts/references/jiraaf_samples/:
 - Ranking/lists: sample_top_countries_investing.png
 - Explain/why stories: sample_infographic_explain_why_airports.png + rbi plastic perfect
+Samples are LAYOUT references. Their words, entities and numbers belong to their own
+topics and must never be reused on a different topic.
 Educate-first, short human lines — NEVER textbook paragraphs, NEVER empty teaser ads.
 NEVER bake "Web Search:" or research meta-labels into the creative.
-{INFOGRAPHIC_AUDIENCE_TONE_LOCK}
+{RETAIL_TONE_LOCK}
 
 ════════════════════════════════════════
 LAYOUT ROUTER (follow layout_type)
@@ -639,13 +672,18 @@ If user asks WHY / useful / benefits / explain / how / what is:
 If user asks rates / rules / top-N / comparison / FDI / inflation / bank penalties:
 → Put ACTUAL facts in sections/slides. NO curiosity-only teasers. NO fake testimonials replacing data.
 
-BAD: "What Are Your FD Penalty Rates?" + "Learn more" + fake quote
-BAD: "Why bonds for income?" + India/USA/Germany/Japan comparison nobody asked for
-BAD: hub-spoke collage with "Web Search:" labels + truncated text + missing logo
-GOOD: "Bonds: Path to Predictable Income" + 4 benefit cards (income, capital, wealth, liquidity)
-GOOD: "Bank's Penalty Rates and Key Rules" + 5 bank cards with ₹/% rules
-GOOD: "Top 6 Countries Investing in India" + ranked flag rows + plain phrases + amounts
-GOOD: "WHY INDIA IS BUILDING AIRPORTS" storytelling editorial with navy/orange ice-blue DNA
+TOPIC LOCK (HARD FAIL — read before using any example below):
+The examples in this document exist to show SHAPE only. Every headline, entity,
+phrase, statistic and CTA you emit must come from the user's own topic and this
+run's research. Reusing an example's subject matter or wording is a rejection.
+If the user asked about airports, nothing about FDI/countries/banks/bonds may appear.
+
+BAD SHAPE: teaser question + "Learn more" + fake quote, with none of the actual rates
+BAD SHAPE: a country/yield comparison board when the user asked neither compare nor rank
+BAD SHAPE: hub-spoke collage with "Web Search:" labels + truncated text + missing logo
+GOOD SHAPE: plain claim headline + 4–5 fact cards, each carrying a real ₹/% figure
+GOOD SHAPE: ranked rows with flag + ≤5-word phrase + amount (only when top-N was asked)
+GOOD SHAPE: storytelling editorial — hook → scale → why → effect → takeaway (why/how topics)
 
 ════════════════════════════════════════
 CONTENT DEPTH
@@ -701,26 +739,28 @@ BRAND_COLOR_LOCK_RULE = f"""
 # NEVER paste mega-locks (CAROUSEL_FIT_LOCK / BRAND_COLOR_LOCK_RULE) into image prompts —
 # they alone exceed 6000 chars and wipe the slide headline/body.
 # Carousel-only tokens — locked to RBI plastic sample template
-_CAROUSEL_BG = "#D9ECF8"
-_CAROUSEL_NAVY = "#033B5E"
-_CAROUSEL_ORANGE = "#FF8C24"
+_CAROUSEL_BG = JIRAAF_CAROUSEL_BG
+_CAROUSEL_NAVY = JIRAAF_CAROUSEL_NAVY
+_CAROUSEL_ORANGE = JIRAAF_CAROUSEL_ORANGE
 
 CAROUSEL_IMAGE_STYLE_STUB = f"""
-CAROUSEL CONNECTED INFOGRAPHIC (Magnific-style):
-- BG {_CAROUSEL_BG}; navy {_CAROUSEL_NAVY}; orange {_CAROUSEL_ORANGE}.
-- Small premium icons CONNECTED by lines/arrows + short text labels — show content flow.
-- NO numbers in headline (never 1. 2. 6. or 01 badges). NO page counters.
-- Logo pocket empty top-right. Footer empty for SEBI composite.
+CAROUSEL — INDIA BUILDING AIRPORTS PDF DESIGN SYSTEM (locked):
+- Canvas: very pale blue {_CAROUSEL_BG}; headlines dark navy {_CAROUSEL_NAVY}; orange {_CAROUSEL_ORANGE} accent only.
+- Info pages: 3–4 wide rounded soft-blue cards — 3D isometric icon LEFT, thin divider, text RIGHT.
+- NO numbers in headline (never 1. 2. 6. or 01 badges). NO page counters. NO source names.
+- Logo pocket empty top-right. Bottom ~14% empty for small gray legal footer composite (no navy bar).
 """
 
 CAROUSEL_TONE_IMAGE_STUB = """
-Connected infographic layout: 2–4 small icon nodes linked by paths. Labels from copy only.
-NO digits in headlines. Logo/disclaimer composited — never baked.
+Premium fintech editorial carousel (Airport PDF DNA): pale-blue canvas, navy headline, gray subhead,
+wide rounded info cards with miniature 3D isometric icons. Labels from copy only.
+NO connector graphs / path lines. NO digits in headlines. Logo/disclaimer composited — never baked.
 """
 
 CAROUSEL_IMAGE_EXTRA_LOCKS = f"""
-NO NUMBERS in headline text. NO page numbers/badges. Connected icon+label infographic flow.
-BG {_CAROUSEL_BG}. Logo composited. SEBI composited. Letter-perfect copy.
+NO NUMBERS in headline text. NO page numbers/badges. NO connector graphs or flowchart arrows.
+Wide rounded info cards (icon left, divider, text right) + miniature 3D isometric icons. BG {_CAROUSEL_BG}.
+Logo composited. Small gray legal footer composited (no navy footer bar). Letter-perfect copy.
 """
 
 STATIC_IMAGE_EXTRA_LOCKS = f"""

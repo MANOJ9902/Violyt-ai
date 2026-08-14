@@ -21,7 +21,7 @@ CAROUSEL_H = 1350
 NAVY = (0, 57, 117)  # #003975
 BODY_GRAY = (74, 85, 104)  # #4A5568
 ORANGE = (255, 164, 0)  # #FFA400
-ICE_BLUE = (232, 240, 248)  # #E8F0F8
+ICE_BLUE = (135, 206, 250)  # #87CEFA — brand canvas, identical across all formats
 CARD_WHITE = (255, 255, 255)
 CARD_SHADOW = (200, 214, 228)
 
@@ -50,7 +50,7 @@ def resolve_carousel_layout(width: int = CAROUSEL_W, height: int = CAROUSEL_H) -
     Sample geometry (1080×1350 reference):
     - Outer margin X: 8% (~86px)
     - Top content start: 7% (~95px) — below logo band
-    - Logo pocket: right 14% × top 9%
+    - Logo pocket: right 24% × top 12% (matches the compositor's wipe)
     - Headline: left content to 78% width, max 2 lines
     - Supporting: under headline
     - Cards column: left 8% → 58% width (leaves icon column)
@@ -62,8 +62,8 @@ def resolve_carousel_layout(width: int = CAROUSEL_W, height: int = CAROUSEL_H) -
 
     mx = int(w * 0.08)
     mt = int(h * 0.07)
-    logo_left = int(w * 0.86)
-    logo_bottom = int(h * 0.09)
+    logo_left = int(w * 0.76)
+    logo_bottom = int(h * 0.12)
     sebi_top = int(h * 0.76)  # bottom 24%
 
     # Headline sits under top margin, left of logo pocket

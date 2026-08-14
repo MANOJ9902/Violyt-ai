@@ -2725,7 +2725,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     const extractApiError = (error: unknown, fallback: string) => {
         if (axios.isAxiosError(error)) {
             if (error.code === "ECONNABORTED" || /timeout/i.test(String(error.message || ""))) {
-                return "Timed out waiting for the pipeline (10 min). Content prep + image gen can take a few minutes — try again once.";
+                return "Timed out waiting for the pipeline (20 min). The run may still have finished on the server — reload this chat before re-running, so you don't pay for the same work twice.";
             }
             return String(error.response?.data?.detail || error.response?.data?.message || error.message || fallback);
         }

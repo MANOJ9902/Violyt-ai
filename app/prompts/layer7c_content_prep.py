@@ -26,7 +26,9 @@ class ContentPrepPromptBuilder(BasePromptBuilder):
         layout_type = str(kwargs.get("layout_type") or "carousel_story")
         user_p = str(kwargs.get("user_prompt") or "")
         brand_name = str(kwargs.get("brand_name") or "")
-        is_jiraaf = "jiraaf" in brand_name.casefold()
+        from app.prompts.brand_visual_palette import is_jiraaf_brand
+
+        is_jiraaf = is_jiraaf_brand(brand_name)
         template = resolve_creative_template(user_p, format_name, brand_name=brand_name or None)
         hub = layout_type == "static_hub_facts"
 
@@ -130,7 +132,9 @@ If L7 returned a teaser, REWRITE it into the sample hub/data/story structure bef
         layout_type = str(kwargs.get("layout_type") or "carousel_story")
         live_research = kwargs.get("live_research") or {}
         brand = brand_intelligence.brand_core
-        is_jiraaf = "jiraaf" in (brand.brand_name or "").casefold()
+        from app.prompts.brand_visual_palette import is_jiraaf_brand
+
+        is_jiraaf = is_jiraaf_brand(brand.brand_name)
         is_cognixia = "cognixia" in (brand.brand_name or "").casefold() or "cognia" in (brand.brand_name or "").casefold()
         behavior = brand_intelligence.communication_behavior
         audience = brand_intelligence.audience_model

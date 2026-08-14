@@ -93,6 +93,29 @@ class InsightCandidate(BaseModel):
     useful_test: bool = True
 
 
+class AgencyBrief(BaseModel):
+    """Advertising-agency creative brief — filled BEFORE hook/storyline/copy.
+
+    This is the strategic spine agencies lock before any creative development.
+    Downstream layers (L5/L7/L7c/L8) must serve this brief, not invent around it.
+    """
+
+    user_intent: str = ""
+    audience: str = ""
+    communication_objective: str = ""
+    brand_truth: str = ""
+    audience_tension: str = ""
+    insight: str = ""
+    single_minded_proposition: str = ""
+    creative_territory: str = ""
+    creative_device: str = ""
+    headline: str = ""
+    support: str = ""
+    visual_metaphor: str = ""
+    format: str = ""
+    visual_hierarchy: str = ""
+
+
 class ContentIntelligenceOutput(BaseModel):
     """Authoritative intelligence package consumed by L5 / L7 / L7c / L8."""
 
@@ -106,6 +129,7 @@ class ContentIntelligenceOutput(BaseModel):
     reasoning_map: str = ""
     narrative_beats: List[NarrativeBeat] = Field(default_factory=list)
     format_architecture: FormatArchitecture = Field(default_factory=FormatArchitecture)
+    agency_brief: AgencyBrief = Field(default_factory=AgencyBrief)
     brand_thinking_notes: List[str] = Field(default_factory=list)
     qa_self_score: dict = Field(default_factory=dict)
     live_research: dict = Field(default_factory=dict)

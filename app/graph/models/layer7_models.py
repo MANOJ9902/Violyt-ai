@@ -4,6 +4,8 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.graph.models.text_coercion import stringify_list
+
 
 class CopySlide(BaseModel):
     slide_number: int = 1
@@ -74,6 +76,8 @@ class InfographicSection(BaseModel):
                     out["section_label"] = ""
         if out.get("body") is None:
             out["body"] = ""
+        if "includes" in out:
+            out["includes"] = stringify_list(out.get("includes"))
         return out
 
 
@@ -95,6 +99,18 @@ class CopyOutput(BaseModel):
     customer_quote: Optional[str] = None
     customer_name: Optional[str] = None
     process_steps: List[str] = Field(default_factory=list)
+
+    @field_validator(
+        "hashtags",
+        "claim_safety_notes",
+        "proof_points",
+        "stat_highlights",
+        "process_steps",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_string_lists(cls, value: Any) -> Any:
+        return stringify_list(value)
 
     @model_validator(mode="after")
     def _renumber_slides(self) -> CopyOutput:

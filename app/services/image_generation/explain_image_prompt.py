@@ -13,7 +13,7 @@ from app.prompts.brand_copy_tone import JIRAAF_BG, JIRAAF_NAVY, JIRAAF_ORANGE
 from app.services.image_generation.ranking_board import sanitize_ranking_text
 
 # LOCKED Jiraaf sample DNA — match sample_infographic_explain_rbi_polymer.png exactly
-EXPLAIN_BG = JIRAAF_BG          # #E8F0F8 ice-blue (NOT white, NOT #87CEFA)
+EXPLAIN_BG = JIRAAF_BG          # #87CEFA brand sky-blue (NOT white, NOT cream)
 EXPLAIN_HEADING = JIRAAF_NAVY   # #003975
 EXPLAIN_ORANGE = JIRAAF_ORANGE  # #FFA400 vivid orange (NOT yellow/gold/amber)
 EXPLAIN_SECONDARY_BLUE = "#2D8CFF"
@@ -76,32 +76,32 @@ def build_explain_infographic_prompt(
     # ── Extract headline, supporting, CTA from blueprint ──────────────────────
     hl = _scrub(
         getattr(blueprint, "headline", None) or getattr(blueprint, "title", None) or "",
-        max_words=12,
+        max_words=14,
     ).upper()
     sub_headline = _scrub(
         getattr(blueprint, "supporting_line", None) or supporting or "",
-        max_words=18,
+        max_words=24,
     )
     cta_text = _scrub(
         getattr(blueprint, "cta", None) or "",
-        max_words=8,
+        max_words=10,
     ).upper()
     source_footer = _scrub(
         getattr(blueprint, "source_footer", None) or customer_quote or "",
-        max_words=14,
+        max_words=18,
     )
 
     # ── Extract section cards from blueprint sections ──────────────────────────
     cards: list[tuple[str, str, str]] = []  # (TITLE, body, icon_hint)
     for sec in sections[:8]:
-        raw_label = _scrub(getattr(sec, "section_label", None) or "", max_words=5).upper()
-        raw_body = _scrub(getattr(sec, "body", None) or "", max_words=18)
+        raw_label = _scrub(getattr(sec, "section_label", None) or "", max_words=8).upper()
+        raw_body = _scrub(getattr(sec, "body", None) or "", max_words=28)
         includes = [str(x).strip() for x in (getattr(sec, "includes", None) or []) if str(x).strip()]
-        stat = _scrub(getattr(sec, "stat", None) or "", max_words=6)
+        stat = _scrub(getattr(sec, "stat", None) or "", max_words=8)
 
         # Use includes as body if body is empty
         if not raw_body and includes:
-            raw_body = _scrub(includes[0], max_words=18)
+            raw_body = _scrub(includes[0], max_words=28)
 
         # Use stat as suffix if available
         if stat and stat not in raw_body:
@@ -127,8 +127,8 @@ def build_explain_infographic_prompt(
         "Reference DNA: sample_infographic_explain_why_airports.png + rbi plastic perfect.\n"
         "NOT a ranking board. NOT hub-and-spoke web-search collage. NOT cream/white page.\n"
         f"Canvas: {canvas_desc or '1080x1350'} portrait 4:5. Ultra HD LinkedIn-ready.\n\n"
-        f"BACKGROUND: full-bleed ice-blue {EXPLAIN_BG} ONLY — NEVER pure white, NEVER cream, NEVER #87CEFA.\n"
-        "BRANDING: empty TOP-RIGHT corner (~12% width × ~9% height) — COMPLETELY BLANK ice-blue only. "
+        f"BACKGROUND: full-bleed sky-blue {EXPLAIN_BG} ONLY — NEVER pure white, NEVER cream, NEVER grey.\n"
+        "BRANDING: empty TOP-RIGHT corner (~24% width × ~12% height) — COMPLETELY BLANK background only. "
         "NEVER draw any logo, leaf, compass, badge, giraffe, or wordmark in the top-right. "
         "Real Brand Space logo is composited in post.\n"
         "NO SEBI disclaimer on this infographic.\n\n"
@@ -149,15 +149,16 @@ def build_explain_infographic_prompt(
         f"{headline_lines}\n\n"
         "HERO (under logo pocket — NO text on hero):\n"
         "Premium photoreal/3D topic object (airport/plane/infra) — studio lit, soft shadow.\n\n"
-        "CARDS: rounded ~20px, soft shadow, float on ice-blue. ONE distinct clay-3D icon each.\n"
-        "ICON STYLE: glossy 3D navy/orange/gold — NOT flat, NOT emoji, NOT teal UI chrome.\n\n"
+        "CARDS: rounded ~20px, soft shadow, float on ice-blue. ONE SMALL clay-3D icon each "
+        "(~8–11% of card) + bold TITLE + neat 2–3 line BODY paragraph.\n"
+        "ICON STYLE: glossy 3D navy/orange — NOT flat, NOT emoji, NOT giant icons crowding text.\n\n"
         "LAYOUT:\n"
         "1) TOP: navy headline + gray insight supporting line + empty top-right logo pocket\n"
         f'   Supporting thesis: "{sub_headline}"\n'
-        "2) Optional at-a-glance stat strip (3–4 short numbers)\n"
-        f"3) MIDDLE: {grid_desc} reason cards — each a UNIQUE story beat (REQUIRED)\n"
+        "2) Optional at-a-glance stat strip (3–5 latest numbers)\n"
+        f"3) MIDDLE: {grid_desc} reason cards — bake EVERY section body (REQUIRED)\n"
         "4) BOTTOM: navy full-width footer bar + WHITE tagline; optional orange CTA pill\n"
-        "5) NEVER empty cards. NEVER repeated identical titles. NEVER invented placeholders.\n\n"
+        "5) NEVER empty cards. NEVER repeated titles. NEVER replace facts with sample filler.\n\n"
         "RENDER: Octane/Redshift look — crisp edges, GI, HDR.\n"
         "NEGATIVE: cream BG, teal titles, gold-as-orange, hub-spoke web-search UI, clipart, "
         "watermark, neon, handwritten fonts, truncated text.\n\n"

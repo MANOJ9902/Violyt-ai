@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from app.core.logging import get_logger
 from app.graph.models.content_intelligence_models import (
+    AgencyBrief,
     ContentIntelligenceOutput,
     EvidenceItem,
     FormatArchitecture,
@@ -22,6 +23,7 @@ from app.graph.models.content_intelligence_models import (
     NarrativeBeat,
     SubQuestion,
 )
+from app.prompts.brand_visual_palette import is_jiraaf_brand as _is_jiraaf_brand
 from app.prompts.jiraaf_layout import needs_live_research
 from app.services.live_research import LiveResearchService
 from app.services.llm.llm_router import LLMRouter
@@ -208,7 +210,7 @@ def build_research_queries(intent: IntentDecomposition, brand_name: str = "") ->
     geo = intent.geography or ""
     for sq in intent.sub_questions[:5]:
         q = f"{intent.topic}: {sq.question} {sq.evidence_needed} {geo}".strip()
-        if brand_name and "jiraaf" in brand_name.casefold():
+        if _is_jiraaf_brand(brand_name):
             q += " India official statistics"
         queries.append(q.strip())
     if intent.informational_need == "data_points":
@@ -509,6 +511,101 @@ def synthesize_ranked_insights(
     return primary, supporting, candidates
 
 
+def _brand_truth_seed(brand_intelligence: Any, brand_name: str) -> str:
+    """Pull a short brand-truth line from BrandIntelligence / BrandCore if present."""
+    if not brand_intelligence:
+        return f"{brand_name} earns trust by being specific, credible, and useful."
+    for attr in ("brand_core", "core"):
+        core = getattr(brand_intelligence, attr, None)
+        if core is None:
+            continue
+        for key in ("brand_truth", "truth", "positioning", "essence", "promise"):
+            val = getattr(core, key, None) if not isinstance(core, dict) else core.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()[:280]
+    bt = getattr(brand_intelligence, "brand_truth", None)
+    if isinstance(bt, str) and bt.strip():
+        return bt.strip()[:280]
+    if isinstance(bt, dict):
+        for key in ("statement", "truth", "text"):
+            val = bt.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()[:280]
+    return f"{brand_name} earns trust by being specific, credible, and useful."
+
+
+def seed_agency_brief(
+    *,
+    user_prompt: str,
+    intent: IntentDecomposition,
+    brand_name: str,
+    brand_intelligence: Any,
+    fmt: str,
+    primary_insight: str,
+    supporting_insights: list[str],
+    package: ContentIntelligenceOutput | None = None,
+) -> AgencyBrief:
+    """Complete the advertising agency brief before creative execution."""
+    existing = package.agency_brief if package and package.agency_brief else AgencyBrief()
+    brand_truth = (existing.brand_truth or "").strip() or _brand_truth_seed(brand_intelligence, brand_name)
+    insight = (existing.insight or "").strip() or (primary_insight or "").strip()
+    audience = (
+        (existing.audience or "").strip()
+        or (intent.audience_hint or "").strip()
+        or "Decision-makers who need clarity, not slogans"
+    )
+    objective = (
+        (existing.communication_objective or "").strip()
+        or (intent.objective or "").replace("_", " ")
+        or "Make the audience understand the so-what and act with confidence"
+    )
+    tension = (existing.audience_tension or "").strip() or (
+        "They sense the topic matters but lack a sharp reason why it changes their next decision."
+    )
+    smp = (existing.single_minded_proposition or "").strip()
+    if not smp:
+        smp = insight.split(".")[0].strip()[:160] if insight else objective[:160]
+    territory = (existing.creative_territory or "").strip() or (
+        "Clarity over hype — prove the implication with one vivid proof, then close the loop."
+    )
+    device = (existing.creative_device or "").strip() or "One tension → one insight → one proof → one payoff"
+    headline = (existing.headline or "").strip()
+    if not headline and package and (package.insight_thesis or primary_insight):
+        headline = (package.insight_thesis or primary_insight).split(".")[0].strip()[:90]
+    support = (existing.support or "").strip()
+    if not support:
+        support = "; ".join(s for s in (supporting_insights or [])[:2] if s)[:220]
+    metaphor = (existing.visual_metaphor or "").strip() or (
+        "Concrete scene that makes the insight visible — not decorative wallpaper."
+    )
+    hierarchy = (existing.visual_hierarchy or "").strip() or (
+        "Headline first → key proof figure → supporting insight → brand/logo last"
+    )
+    fa = package.format_architecture if package else None
+    format_line = (existing.format or "").strip()
+    if not format_line:
+        bits = [fmt]
+        if fa and fa.hero_statistic:
+            bits.append(f"hero: {fa.hero_statistic[:60]}")
+        format_line = " — ".join(bits)
+    return AgencyBrief(
+        user_intent=(existing.user_intent or "").strip() or (intent.intent_brief or user_prompt)[:320],
+        audience=audience[:220],
+        communication_objective=objective[:220],
+        brand_truth=brand_truth[:280],
+        audience_tension=tension[:280],
+        insight=insight[:320],
+        single_minded_proposition=smp[:200],
+        creative_territory=territory[:220],
+        creative_device=device[:180],
+        headline=headline[:100],
+        support=support[:240],
+        visual_metaphor=metaphor[:200],
+        format=format_line[:220],
+        visual_hierarchy=hierarchy[:220],
+    )
+
+
 async def synthesize_insight_and_narrative(
     *,
     user_prompt: str,
@@ -520,8 +617,9 @@ async def synthesize_insight_and_narrative(
     primary_insight: str,
     supporting_insights: list[str],
     reasoning_map: str,
+    brand_truth: str = "",
 ) -> ContentIntelligenceOutput:
-    """One structured LLM call: thesis + narrative beats + format architecture."""
+    """One structured LLM call: agency brief + thesis + narrative + format architecture."""
     approved = [
         e for e in evidence if e.priority_tier in ("must_know", "useful") and e.approved_for_creative
     ] or [e for e in evidence if e.approved_for_creative][:6]
@@ -533,18 +631,22 @@ async def synthesize_insight_and_narrative(
         + (f" ({e.source_url})" if e.source_url else "")
         for e in approved
     ) or "- (no verified statistics yet — stay cautious, do not invent numbers)"
+    brand_truth_line = (brand_truth or "").strip() or (
+        f"{brand_name} earns trust by being specific, credible, and useful."
+    )
 
     system = f"""You are Violyt's Content Intelligence Engine for brand "{brand_name or 'the brand'}".
-You do NOT write final social copy yet. You produce the thinking layer:
-insight thesis + narrative architecture + format architecture.
+You do NOT write final social copy yet. You produce the thinking layer FIRST:
+an advertising-agency creative brief, then insight thesis + narrative + format architecture.
 
 Rules:
+- Fill AGENCY BRIEF completely before any creative beats — strategy before execution.
 - Prefer MUST_KNOW / USEFUL statistics over slogans.
 - Spell UDAN correctly (never ADAN).
-- Insight thesis must answer WHY / SO-WHAT — not "India has more airports".
+- Insight / single_minded_proposition must answer WHY / SO-WHAT — not a fact dump.
 - Lock to the PRIMARY INSIGHT provided; supporting insights are secondary.
 - Distinguish FACT vs INFERENCE in framing.
-- Narrative beats: hook → scale → why → effect → idea → takeaway.
+- Narrative beats: hook → scale → why → effect → idea → takeaway (must serve the brief).
 - Infographic: 1 hero statistic, 3–5 supporting data points, 1 core insight.
 - Never invent precise numbers not present in evidence.
 
@@ -559,6 +661,11 @@ INTENT BRIEF:
 Topic: {intent.topic} | Geography: {intent.geography or 'n/a'} | Freshness: {intent.freshness}
 Must answer WHY: {intent.must_answer_why}
 Evidence requirement: {intent.evidence_requirement}
+Audience hint: {intent.audience_hint or 'brand audience'}
+Objective: {intent.objective}
+
+BRAND TRUTH (seed — refine, do not invent a fake brand):
+{brand_truth_line}
 
 PRIMARY INSIGHT (LOCK):
 {primary_insight}
@@ -579,6 +686,22 @@ FORMAT SELECTED: {fmt}
 
 Produce JSON with:
 {{
+  "agency_brief": {{
+    "user_intent": "what the user asked for, in planner language",
+    "audience": "who we are talking to + their job-to-be-done",
+    "communication_objective": "what this piece must make them think/feel/do",
+    "brand_truth": "what is true and distinctive about the brand here",
+    "audience_tension": "the friction / gap / belief conflict we exploit",
+    "insight": "the human truth that unlocks the work (not a slogan)",
+    "single_minded_proposition": "ONE thing the work must say",
+    "creative_territory": "the space we play in (tone + world)",
+    "creative_device": "the mechanism that carries the idea",
+    "headline": "working headline direction",
+    "support": "proof / reason-to-believe in one short line",
+    "visual_metaphor": "how the idea should look / feel visually",
+    "format": "{fmt} — one-line format plan",
+    "visual_hierarchy": "what the eye must read first → second → last"
+  }},
   "insight_thesis": "one clear thesis sentence — must reflect PRIMARY INSIGHT",
   "narrative_beats": [
     {{"role":"hook","message":"...","supporting_stat":"..."}},
@@ -607,13 +730,14 @@ Produce JSON with:
     "insight_quality": 0
   }}
 }}
-Scores are 0-10 integers. Be honest.
+Scores are 0-10 integers. Be honest. Every agency_brief field must be filled — no placeholders.
 """
 
     from pydantic import BaseModel, Field
     from typing import List
 
     class _NarrativeOut(BaseModel):
+        agency_brief: AgencyBrief = Field(default_factory=AgencyBrief)
         insight_thesis: str = ""
         narrative_beats: List[NarrativeBeat] = Field(default_factory=list)
         format_architecture: FormatArchitecture = Field(default_factory=FormatArchitecture)
@@ -627,7 +751,7 @@ Scores are 0-10 integers. Be honest.
             user=user,
             output_model=_NarrativeOut,
             layer="l6b_content_intelligence",
-            max_tokens=2500,
+            max_tokens=3200,
         )
         latency = meta.get("latency_ms", 0)
         tokens_in = meta.get("input_tokens", 0)
@@ -635,6 +759,22 @@ Scores are 0-10 integers. Be honest.
     except Exception as exc:
         logger.warning("content_intelligence.synthesize_failed", error=str(exc)[:200])
         partial = _NarrativeOut(
+            agency_brief=AgencyBrief(
+                user_intent=(intent.intent_brief or user_prompt)[:320],
+                audience=intent.audience_hint or "Decision-makers who need clarity",
+                communication_objective=(intent.objective or "educate").replace("_", " "),
+                brand_truth=brand_truth_line[:280],
+                audience_tension="They care about the topic but lack a sharp reason to decide differently.",
+                insight=primary_insight[:320],
+                single_minded_proposition=(primary_insight.split(".")[0][:160] if primary_insight else ""),
+                creative_territory="Clarity over hype — one proof, one payoff",
+                creative_device="Tension → insight → proof → payoff",
+                headline=(primary_insight.split(".")[0][:90] if primary_insight else ""),
+                support="; ".join(supporting_insights[:2])[:240],
+                visual_metaphor="Concrete scene that makes the insight visible",
+                format=f"{fmt} — hook, scale, why, effect, idea, takeaway",
+                visual_hierarchy="Headline → proof figure → supporting insight → brand last",
+            ),
             insight_thesis=primary_insight,
             narrative_beats=[
                 NarrativeBeat(role="hook", message=intent.core_question),
@@ -685,6 +825,7 @@ Scores are 0-10 integers. Be honest.
         reasoning_map=reasoning_map,
         narrative_beats=partial.narrative_beats or [],
         format_architecture=fa,
+        agency_brief=partial.agency_brief or AgencyBrief(),
         brand_thinking_notes=partial.brand_thinking_notes or [],
         qa_self_score=partial.qa_self_score or {},
     )
@@ -710,7 +851,7 @@ def brand_thinking_constraints(brand_intelligence: Any, brand_name: str) -> str:
         f"Prohibited: {behavior.prohibited_phrases}",
         f"Guardrails: {brand_intelligence.guardrails}",
     ]
-    if "jiraaf" in (brand_name or core.brand_name or "").casefold():
+    if _is_jiraaf_brand(brand_name or core.brand_name):
         parts.append(
             "JIRAAF FINANCIAL EDUCATION LOCK: explain economic phenomena accessibly; "
             "use evidence; help reader understand investment/economic implication; "
@@ -778,6 +919,7 @@ async def run_content_intelligence(
     )
 
     brand_notes = brand_thinking_constraints(brand_intelligence, brand_name)
+    brand_truth = _brand_truth_seed(brand_intelligence, brand_name)
     package = await synthesize_insight_and_narrative(
         user_prompt=user_prompt,
         intent=intent,
@@ -788,6 +930,7 @@ async def run_content_intelligence(
         primary_insight=primary_insight,
         supporting_insights=supporting_insights,
         reasoning_map=reasoning_map,
+        brand_truth=brand_truth,
     )
     package.research_queries = queries
     package.live_research = live_research
@@ -795,6 +938,16 @@ async def run_content_intelligence(
     package.primary_insight = primary_insight
     package.supporting_insights = supporting_insights
     package.reasoning_map = reasoning_map
+    package.agency_brief = seed_agency_brief(
+        user_prompt=user_prompt,
+        intent=intent,
+        brand_name=brand_name,
+        brand_intelligence=brand_intelligence,
+        fmt=fmt,
+        primary_insight=primary_insight,
+        supporting_insights=supporting_insights,
+        package=package,
+    )
     package.brand_thinking_notes = list(
         dict.fromkeys((package.brand_thinking_notes or []) + [brand_notes[:240]])
     )
@@ -834,10 +987,27 @@ def content_intelligence_prompt_block(package: ContentIntelligenceOutput | None)
     ) or "- (insufficient approved statistics — do not invent precise numbers)"
     fa = package.format_architecture
     supporting = "\n".join(f"- {s}" for s in (package.supporting_insights or [])[:3])
+    ab = package.agency_brief or AgencyBrief()
     return f"""
 ════════════════════════════════════════
 CONTENT INTELLIGENCE PACKAGE (AUTHORITATIVE — LOCK THIS)
 ════════════════════════════════════════
+AGENCY BRIEF (strategy before creative — LOCK; hook/storyline/copy MUST serve this):
+- USER INTENT: {ab.user_intent}
+- AUDIENCE: {ab.audience}
+- COMMUNICATION OBJECTIVE: {ab.communication_objective}
+- BRAND TRUTH: {ab.brand_truth}
+- AUDIENCE TENSION: {ab.audience_tension}
+- INSIGHT: {ab.insight}
+- SINGLE-MINDED PROPOSITION: {ab.single_minded_proposition}
+- CREATIVE TERRITORY: {ab.creative_territory}
+- CREATIVE DEVICE: {ab.creative_device}
+- HEADLINE DIRECTION: {ab.headline}
+- SUPPORT / RTB: {ab.support}
+- VISUAL METAPHOR: {ab.visual_metaphor}
+- FORMAT: {ab.format}
+- VISUAL HIERARCHY: {ab.visual_hierarchy}
+
 INTENT BRIEF: {package.intent.intent_brief or package.intent.core_question}
 CORE QUESTION: {package.intent.core_question}
 GEOGRAPHY: {package.intent.geography or 'n/a'} | FRESHNESS: {package.intent.freshness}
@@ -868,6 +1038,6 @@ BRAND THINKING:
 {chr(10).join('- ' + n for n in (package.brand_thinking_notes or [])[:4])}
 
 SELF-SCORE: {package.qa_self_score}
-Concepts, copy, and visuals must express the PRIMARY INSIGHT — not a generic fact dump.
+Concepts, copy, and visuals must express the AGENCY BRIEF + PRIMARY INSIGHT — not a generic fact dump.
 SPELLING: UDAN never ADAN. Complete sentences only. Label inferences carefully.
 """

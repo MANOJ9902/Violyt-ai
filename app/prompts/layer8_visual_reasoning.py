@@ -14,10 +14,14 @@ from app.prompts.brand_visual_palette import (
 )
 from app.prompts.brand_copy_tone import (
     JIRAAF_BG,
+    JIRAAF_BODY_GRAY,
     JIRAAF_CARD,
     JIRAAF_GOLD,
     JIRAAF_NAVY,
     JIRAAF_ORANGE,
+    JIRAAF_CAROUSEL_BG,
+    JIRAAF_CAROUSEL_NAVY,
+    JIRAAF_CAROUSEL_ORANGE,
     SOURCE_FOOTER_RULE,
     SEBI_FOOTER_HINT,
     NO_SEBI_STATIC_RULE,
@@ -56,14 +60,14 @@ class VisualReasoningPromptBuilder(BasePromptBuilder):
 
     PROMPT_VERSION = "5.1-infographic-explain-static-bar-samples"
 
-    # Locked design tokens from Brand Space + PDF samples
-    # Carousel sky-blue DNA (ranking/static keep JIRAAF_* ice-blue separately)
-    CAROUSEL_BG = "#D9ECF8"
+    # Locked design tokens from Brand Space + PDF samples.
+    # Carousel uses the India Building Airports PDF palette; other formats keep JIRAAF_BG.
+    CAROUSEL_BG = JIRAAF_CAROUSEL_BG
     INFO_BG = JIRAAF_BG
-    NAVY = JIRAAF_NAVY  # #003975 — ranking/static; carousel overrides to #033B5E in slide bake
-    CAROUSEL_NAVY = "#033B5E"
-    CAROUSEL_ORANGE = "#FF8C24"
-    BODY_GRAY = "#4A5568"
+    NAVY = JIRAAF_NAVY
+    CAROUSEL_NAVY = JIRAAF_CAROUSEL_NAVY
+    CAROUSEL_ORANGE = JIRAAF_CAROUSEL_ORANGE
+    BODY_GRAY = JIRAAF_BODY_GRAY
     ORANGE = JIRAAF_ORANGE  # #FFA400 — REQUIRED accent for ranking/static
     GOLD = JIRAAF_GOLD
     CARD_BLUE = JIRAAF_CARD
@@ -143,7 +147,7 @@ NO white side panels. NO second background.
 Style: Clean premium education carousel for {brand_name or 'this brand'} — NOT Jiraaf fintech DNA.
 {_font_note}
 Brand colours LOCKED — PRIMARY: {_brand_primary or 'from Brand Space'}; SECONDARY: {_brand_secondary or 'brand accent'}.
-FORBIDDEN: Jiraaf navy #003975, orange #FFA400, ice-blue #E8F0F8 — these are NOT {brand_name}'s colours.
+FORBIDDEN: Jiraaf navy #003975, orange #FFA400, sky-blue #87CEFA — these are NOT {brand_name}'s colours.
 AUDIENCE: Use EXACT brand audience demographics — reflect the correct age group/persona visually and in copy tone.
 ILLUSTRATIONS: Use the brand's own visual style — modern vector or clean 3D that fits the brand category. NOT generic fintech.
 - Perfect spelling. Complete sentences. No truncated bullets.
@@ -301,7 +305,7 @@ REQUIRED JSON SHAPE (fill every field; do not rename keys):
   "focal_point": "Central soft matte clay-3D icon cluster",
   "negative_space_plan": "Generous margins; tiny logo-safe top-right pocket only — headline fully clear",
   "color_behavior": "{color_json_example}",
-  "logo_zone_instruction": "Tiny top-right pocket (~12% width x 7% height), 20px padding; never draw brand-name text",
+  "logo_zone_instruction": "Empty top-right pocket (~24% width x 12% height), 20px padding; never draw brand-name text",
   "typography_behavior": "Bold navy sans headlines, readable gray body, baked into image",
   "image_prompt_direction": "Detailed image prompt covering layout, icons, colors, and exact text...",
   "content_sections": [
@@ -346,7 +350,7 @@ element_type allowed: headline|subheadline|supporting_line|body|cta|label|footer
 No preamble. No markdown fences. ONLY raw JSON.
 {layout_lock}
 {SOURCE_FOOTER_RULE}
-{(SEBI_FOOTER_HINT if fmt == "carousel" and "jiraaf" in str(kwargs.get("brand_name") or "").casefold() else NO_SEBI_STATIC_RULE)}
+{(SEBI_FOOTER_HINT if fmt == "carousel" and _is_jiraaf_brand(str(kwargs.get("brand_name") or "")) else NO_SEBI_STATIC_RULE)}
 {format_instructions}"""
 
     def build_user(
@@ -612,24 +616,24 @@ Content that does not fit must be shortened or dropped — never clip.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LOCKED VISUAL SYSTEM (PREMIUM AGENCY)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BACKGROUND: solid {self.CAROUSEL_BG} only (soft alt #F7FAFC ok). Soft vignette/particles almost invisible.
+BACKGROUND: solid very pale blue {self.CAROUSEL_BG} only. Soft vignette/particles almost invisible.
 NO full-page heavy gradients. NO PowerPoint / Canva look.
 Colors: navy titles {self.CAROUSEL_NAVY}; body gray {self.BODY_GRAY}; orange accents {self.CAROUSEL_ORANGE}
 ONLY for numbers/key words/tiny CTA/icons — never overuse.
-White floating cards 22px radius, tiny soft shadow.
+Wide rounded soft-blue #DDEFF9 info cards (3D isometric icon left, thin divider, text right), tiny soft depth.
 Icons: Pixar-quality photoreal 3D (glass/ceramic/chrome) — NO flat icons, NO emoji, NO text baked inside icons.
 Typography: Extra Bold UPPERCASE navy headline ≤12 words; body ≤20 words / max 2 lines. Perfect spelling.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LOCKED LAYOUT (TOP → BOTTOM)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1) TOP-RIGHT: empty logo pocket (~7%) — NEVER draw logo/wordmark/"{brand_name}"/JIRAAF letters.
+1) TOP-RIGHT: empty logo pocket (~24% wide × ~12% tall) — NEVER draw logo/wordmark/"{brand_name}"/JIRAAF letters.
 2) HEADLINE: Extra Bold navy UPPERCASE — max 12 words — never cut mid-word.
 3) SUPPORTING LINE: one short subhead.
 4) Hero 3D visual (storytelling object — coins/graphs/shield/docs/lock).
-5) 2–3 white floating cards with short labels only (quoted copy).
+5) 3–4 wide rounded soft-blue info cards (icon left → divider → short text right).
 6) Tiny takeaway ABOVE footer zone.
-7) FOOTER SAFE ZONE (MANDATORY EVERY SLIDE): leave bottom ~14–18% EMPTY sky-blue —
+7) FOOTER SAFE ZONE (MANDATORY EVERY SLIDE): leave bottom ~14% EMPTY pale-blue —
    do NOT bake SEBI/legal text (exact disclaimer Pillow-composited after).
 8) CTA: ONLY if provided on closing slide — compact orange pill ≤28% width ≤4.5% height 2–4 words.
    NEVER invent CTAs. NEVER bake CTA/icon gibberish text.
@@ -704,7 +708,7 @@ Return ONLY the finished image-generation prompt."""
         title = headline or "Untitled"
         subtitle = supporting_line or ""
         layout_type = str(layout_type or "").strip()
-        is_jiraaf_brand = "jiraaf" in (brand_name or "").casefold()
+        is_jiraaf_brand = _is_jiraaf_brand(brand_name)
         from app.prompts.jiraaf_layout import is_trade_data_board
 
         is_rank = layout_type == "static_ranking"
@@ -719,13 +723,20 @@ Return ONLY the finished image-generation prompt."""
             stat = sec.get("stat") or ""
             includes = sec.get("includes") or []
             if isinstance(includes, list):
-                includes_txt = "; ".join(str(x) for x in includes[:2])
+                includes_txt = "; ".join(str(x) for x in includes[:3])
             else:
                 includes_txt = str(includes)
-            body_sec = (sec.get("body") or "").strip()
-            if len(body_sec.split()) > 8:
-                body_sec = ""
-            icon = sec.get("icon_hint") or ("flag/metric icon" if is_rank else "clay-3D topic icon")
+            body_sec = " ".join(str(sec.get("body") or "").split()).strip()
+            # Keep insightful paragraphs — do NOT wipe long bodies (that made posters sparse).
+            if body_sec:
+                body_words = body_sec.split()
+                if len(body_words) > 28:
+                    body_sec = " ".join(body_words[:28])
+            if not body_sec and isinstance(includes, list) and includes:
+                body_sec = " ".join(str(includes[0]).split()[:28])
+            icon = sec.get("icon_hint") or (
+                "flag/metric icon" if is_rank else "SMALL clay-3D topic icon"
+            )
 
             if is_education:
                 sub_lines = []
@@ -733,30 +744,33 @@ Return ONLY the finished image-generation prompt."""
                     for inc in includes[:3]:
                         sub_lines.append(f"    - {inc}")
                 rows.append(
-                    f'SECTION {i}: "{label}"'
+                    f'SECTION {i}: TITLE "{label}"'
+                    + (f' | STAT "{stat}"' if stat else "")
+                    + (f'\n    BODY: "{body_sec}"' if body_sec else "")
                     + (("\n" + "\n".join(sub_lines)) if sub_lines else "")
-                    + (f'\n    callout: {body_sec}' if body_sec else "")
+                    + f"\n    ICON: SMALL clay-3D ({icon})"
                 )
             else:
                 rows.append(
                     f"RANK {i}: {label}"
                     f"{f' | {stat}' if stat else ''}"
                     f"{f' | {includes_txt}' if includes_txt else ''}"
-                    f"{f' | note: {body_sec}' if body_sec else ''}"
-                    f" | icon: {icon}"
+                    f"{f' | BODY: {body_sec}' if body_sec else ''}"
+                    f" | icon: SMALL {icon}"
                 )
 
         if is_education:
             rows_text = "\n".join(rows) or (
-                "Build DENSE sample-style sections: orange bars + 3-col UNIQUE fact cards + callout — NOT sparse poster."
+                "Build DENSE insight sections: SMALL icons + title + 2–3 line body paragraphs "
+                "with latest verified facts — NOT sparse sample poster."
             )
         else:
             rows_text = "\n".join(rows) or (
                 "Build ranked rows from the topic data — NOT benefit cards."
             )
 
-        stats = "\n".join(f"- {s}" for s in (stat_highlights or [])[:5]) or "- (optional)"
-        proofs = "\n".join(f"- {p}" for p in (proof_points or [])[:5]) or "- (optional)"
+        stats = "\n".join(f"- {s}" for s in (stat_highlights or [])[:6]) or "- (optional)"
+        proofs = "\n".join(f"- {p}" for p in (proof_points or [])[:6]) or "- (optional)"
         objectives = "\n".join(f"- {s}" for s in (process_steps or proof_points or [])[:4]) or (
             "- Section 1: Why it matters\n- Section 2: How it works\n- Section 3: What to watch"
         )
@@ -844,7 +858,7 @@ CTA (if any): COMPACT ≤28% width, ≤4.5% height, 2–4 words — never a wide
 Brand: {brand_name}
 Canvas: {canvas}.
 BACKGROUND + palette: {color_behavior or visual_mood or 'Use Brand Space visual identity only'}.
-NEVER Jiraaf navy #003975, orange #FFA400, ice-blue #E8F0F8/#87CEFA, or Jiraaf sample layouts.
+NEVER Jiraaf navy #003975, orange #FFA400, sky-blue #87CEFA, or Jiraaf sample layouts.
 {ICON_STYLE_LOCK}
 Typography: Bold headlines; short labels. ALL text baked into pixels. Perfect spelling.
 CTA (if any): COMPACT pill — 2–4 words max.
@@ -1020,7 +1034,7 @@ FORBIDDEN (instant fail if present):
 - Official trademark bank logos (Axis/SBI/HDFC/ICICI/PNB logo marks) — AI ruins trademarks
 - Cheap low-poly / washed-out / tiny icons
 
-Logo pocket: leave ONLY a tiny empty top-right corner (~10%×6%) blank — real Brand Space
+Logo pocket: leave an empty top-right corner (~24%×12%) blank — real Brand Space
 icon is composited later. Do not draw anything there.
 
 LOCKED LAYOUT (HUB + 5 ICON FACT CARDS):

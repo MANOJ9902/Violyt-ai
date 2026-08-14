@@ -7,6 +7,7 @@ KnowledgeAsset records, or BrandLogoAsset mappings) so it can be composited
 onto DALL-E generated images after generation.
 """
 
+import re
 from pathlib import Path
 from uuid import UUID
 
@@ -165,6 +166,13 @@ async def get_brand_logo_storage_path(
                     )
                     break
 
+        def _prefer_png(paths: list[str]) -> str | None:
+            cleaned = [str(p).strip() for p in paths if str(p or "").strip()]
+            if not cleaned:
+                return None
+            pngs = [p for p in cleaned if p.lower().endswith(".png")]
+            return pngs[0] if pngs else cleaned[0]
+
         # ── 2. Check KnowledgeAsset table directly ────────────────────────────
         if not storage_path:
             stmt = (
@@ -177,10 +185,10 @@ async def get_brand_logo_storage_path(
                     | (KnowledgeAsset.name.ilike("%logo%"))
                 )
                 .order_by(KnowledgeAsset.created_at.desc())
-                .limit(1)
+                .limit(12)
             )
             res = await session.execute(stmt)
-            storage_path = res.scalar_one_or_none()
+            storage_path = _prefer_png([row[0] for row in res.fetchall() if row and row[0]])
 
         # ── 3. Fallback to BrandLogoAsset standard query ───────────────────────
         if not storage_path:
@@ -190,13 +198,30 @@ async def get_brand_logo_storage_path(
                 .where(BrandLogoAsset.brand_space_id == brand_uuid)
                 .where(KnowledgeAsset.is_active.is_(True))
                 .order_by(KnowledgeAsset.created_at.desc())
-                .limit(1)
+                .limit(12)
             )
             res_std = await session.execute(stmt_standard)
-            storage_path = res_std.scalar_one_or_none()
+            storage_path = _prefer_png([row[0] for row in res_std.fetchall() if row and row[0]])
 
         if storage_path:
             storage_path = str(storage_path).strip()
+            # If identity path is JPG but a PNG sibling exists in the same folder, use PNG.
+            if storage_path.lower().endswith((".jpg", ".jpeg")):
+                sibling_png = re.sub(r"\.(jpg|jpeg)$", ".png", storage_path, flags=re.I)
+                try:
+                    from app.integrations.object_storage import get_object_storage
+
+                    _st = get_object_storage()
+                    if hasattr(_st, "read_bytes") and _st.read_bytes(sibling_png):
+                        logger.info(
+                            "logo_fetcher.switched_jpg_to_png_sibling",
+                            brand_id=str(brand_uuid),
+                            from_path=storage_path,
+                            to_path=sibling_png,
+                        )
+                        storage_path = sibling_png
+                except Exception:
+                    pass
 
         # ── 4. Verify Existence — prefer S3 check, fall back to local disk ────
         if storage_path:
@@ -263,7 +288,13 @@ async def get_brand_logo_storage_path(
                         if any(k in lowered_name for k in ["logo", "brand", "icon"]):
                             logo_candidates.append(p)
 
-                logo_candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                # Prefer PNG (transparent) over JPG/JPEG which leave a white plate.
+                def _logo_rank(path: Path) -> tuple[int, float]:
+                    ext = path.suffix.lower()
+                    png_bonus = 0 if ext == ".png" else 1
+                    return (png_bonus, -path.stat().st_mtime)
+
+                logo_candidates.sort(key=_logo_rank)
                 if logo_candidates:
                     selected_file = logo_candidates[0]
                     resolved_rel_path = str(selected_file.relative_to(base_storage_path)).replace("\\", "/")
@@ -272,6 +303,7 @@ async def get_brand_logo_storage_path(
                         brand_space_id=str(brand_uuid),
                         storage_path=resolved_rel_path,
                         filename=selected_file.name,
+                        preferred_png=selected_file.suffix.lower() == ".png",
                     )
                     return resolved_rel_path
 

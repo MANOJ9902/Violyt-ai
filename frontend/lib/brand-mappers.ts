@@ -745,8 +745,25 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
       payload: {
         objectives: [
           {
-            name: form.objectives.campaignTheme || form.additional.brandAdvantage || form.additional.brandMission || "Brand Growth",
-            description: form.objectives.businessOutcome || form.additional.strategy || form.additional.marketPositioning || "",
+            name: (() => {
+              const primary = String(form.objectives.primaryObjective || "").trim();
+              if (primary) {
+                return primary
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (char) => char.toUpperCase())
+                  .slice(0, 120);
+              }
+              const fallback = String(
+                form.additional.brandAdvantage || form.additional.brandMission || "Brand Growth",
+              ).trim();
+              return fallback.slice(0, 120) || "Brand Growth";
+            })(),
+            description:
+              form.objectives.businessOutcome ||
+              form.objectives.campaignTheme ||
+              form.additional.strategy ||
+              form.additional.marketPositioning ||
+              "",
             content_type: form.objectives.primaryObjective || "social_post",
             platform_scope: "multiplatform",
             is_default: true,

@@ -923,6 +923,23 @@ export interface OverlayZoneResponse {
   slide_number?: number | null;
 }
 
+export interface AgencyBriefResponse {
+  user_intent?: string;
+  audience?: string;
+  communication_objective?: string;
+  brand_truth?: string;
+  audience_tension?: string;
+  insight?: string;
+  single_minded_proposition?: string;
+  creative_territory?: string;
+  creative_device?: string;
+  headline?: string;
+  support?: string;
+  visual_metaphor?: string;
+  format?: string;
+  visual_hierarchy?: string;
+}
+
 export interface CreativeBlueprintResponse {
   purpose?: string;
   intent?: string;
@@ -930,6 +947,7 @@ export interface CreativeBlueprintResponse {
   platform?: string;
   format?: "static" | "carousel" | "infographic";
   tone?: string;
+  agency_brief?: AgencyBriefResponse;
   hook?: string;
   story_flow?: string[];
   messaging_pillars?: string[];
@@ -939,6 +957,7 @@ export interface CreativeBlueprintResponse {
   body?: string;
   labels?: string[];
   hashtags?: string[];
+  post_caption?: string;
   slides?: BlueprintSlideResponse[];
   title?: string | null;
   sections?: BlueprintInfographicSectionResponse[];

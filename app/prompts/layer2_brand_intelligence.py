@@ -71,9 +71,16 @@ No preamble. No explanation. No markdown. JSON only."""
         high_context: list[RetrievedChunk],
         medium_context: list[RetrievedChunk],
         weak_signals: list[str] | None = None,
+        brand_name: str = "",
         **kwargs: Any,
     ) -> str:
-        return f"""Brand ID: {brand_id}
+        name_line = (
+            f"Brand Name (authoritative, from the Brand Space — use EXACTLY this "
+            f"as brand_core.brand_name): {brand_name}\n"
+            if brand_name
+            else ""
+        )
+        return f"""{name_line}Brand ID: {brand_id}
 
 HIGH RELEVANCE BRAND DATA:
 {self._format_chunks(high_context)}

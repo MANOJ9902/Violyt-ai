@@ -14,6 +14,7 @@ import {
 import { SurfaceCard } from "@/components/common/DesignPrimitives";
 import BlueprintApprovalCard from "@/components/brandSpaces/tabs/BlueprintApprovalCard";
 import PostCaptionBlock from "@/components/chat/PostCaptionBlock";
+import PromptRunAnalytics, { type LayerTokenUsage } from "@/components/chat/PromptRunAnalytics";
 import type { CreativeBlueprintResponse } from "@/lib/api/contracts";
 import { buildPostCaption } from "@/lib/post-caption";
 import { usePipeline } from "@/hooks/usePipeline";
@@ -38,6 +39,8 @@ export type ChatPipelineState = {
   blueprint?: CreativeBlueprintResponse | null;
   imageUrls?: string[];
   error?: string | null;
+  layerLatencies?: Record<string, number>;
+  tokenUsage?: Record<string, LayerTokenUsage>;
 };
 
 type EditableFields = {
@@ -119,6 +122,7 @@ function ImageCarousel({
   const { editImageText, isEditingImage } = usePipeline();
   const [index, setIndex] = useState(0);
   const [editing, setEditing] = useState(false);
+  const [loadedIndexes, setLoadedIndexes] = useState<Set<number>>(() => new Set());
   const [fields, setFields] = useState<EditableFields>({
     headline: "",
     supporting_line: "",
@@ -129,10 +133,29 @@ function ImageCarousel({
 
   const total = urls.length;
   const current = urls[Math.min(index, Math.max(total - 1, 0))] || "";
+  const resolvedUrls = useMemo(() => urls.map((url) => resolveUrl(url)), [urls]);
 
   useEffect(() => {
     setIndex(0);
+    setLoadedIndexes(new Set());
   }, [urls.join("|")]);
+
+  useEffect(() => {
+    resolvedUrls.forEach((url, slideIndex) => {
+      if (!url) return;
+      const img = new window.Image();
+      img.decoding = "async";
+      img.onload = () => {
+        setLoadedIndexes((current) => {
+          if (current.has(slideIndex)) return current;
+          const next = new Set(current);
+          next.add(slideIndex);
+          return next;
+        });
+      };
+      img.src = url;
+    });
+  }, [resolvedUrls]);
 
   useEffect(() => {
     if (!editing) {
@@ -185,6 +208,7 @@ function ImageCarousel({
   if (!current) return null;
 
   const isMulti = total > 1;
+  const isSlideLoading = Boolean(resolvedUrls[index]) && !loadedIndexes.has(index);
   const counterLabel =
     formatLabel === "carousel"
       ? `Slide ${index + 1} of ${total}`
@@ -194,12 +218,34 @@ function ImageCarousel({
     <div className="space-y-3">
       <div className="overflow-hidden rounded-xl border border-emerald-100 bg-white">
         <div className="relative">
+          {isSlideLoading ? (
+            <div className="flex min-h-[280px] items-center justify-center bg-slate-50">
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+            </div>
+          ) : null}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={resolveUrl(current)}
+            src={resolvedUrls[index] || resolveUrl(current)}
             alt={`Generated creative ${index + 1}`}
-            className="h-auto w-full"
+            className={cn("h-auto w-full", isSlideLoading ? "hidden" : "block")}
+            loading="eager"
+            decoding="async"
           />
+          {isMulti
+            ? resolvedUrls.map((url, slideIndex) =>
+                slideIndex === index || loadedIndexes.has(slideIndex) ? null : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={url}
+                    src={url}
+                    alt=""
+                    aria-hidden
+                    className="hidden"
+                    loading="eager"
+                  />
+                ),
+              )
+            : null}
 
           {isMulti ? (
             <>
@@ -388,13 +434,20 @@ export default function ChatPipelinePanel({
       )}
 
       {state.status === "awaiting_blueprint_approval" && state.blueprint ? (
-        <BlueprintApprovalCard
-          blueprint={state.blueprint}
-          format={state.format || state.blueprint.format || "static"}
-          isApproving={isApproving}
-          onApprove={onApprove}
-          onCancel={onCancel}
-        />
+        <>
+          <PromptRunAnalytics
+            layerLatencies={state.layerLatencies}
+            tokenUsage={state.tokenUsage}
+            className="mb-2"
+          />
+          <BlueprintApprovalCard
+            blueprint={state.blueprint}
+            format={state.format || state.blueprint.format || "static"}
+            isApproving={isApproving}
+            onApprove={onApprove}
+            onCancel={onCancel}
+          />
+        </>
       ) : null}
 
       {state.status === "complete" && completeUrls.length > 0 ? (
@@ -421,6 +474,11 @@ export default function ChatPipelinePanel({
                 : ""}
             </p>
           )}
+          <PromptRunAnalytics
+            layerLatencies={state.layerLatencies}
+            tokenUsage={state.tokenUsage}
+            imageCount={completeUrls.length}
+          />
           <ImageCarousel
             urls={completeUrls}
             formatLabel={state.format}

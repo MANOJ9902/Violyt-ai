@@ -21,6 +21,28 @@ _prompt_builder = ContentPrepPromptBuilder()
 
 MAX_BLUEPRINT_REGENERATIONS = 2
 
+# The dimensions a rewrite can realistically move. has_real_data is excluded on
+# purpose: it counts numbers the evidence supplies, and inventing figures is banned.
+_QA_DIMENSIONS = (
+    "answers_why",
+    "has_real_data",
+    "claims_verified",
+    "narrative_coherent",
+    "copy_complete",
+)
+
+
+def _scores_improved(new: dict, old: dict) -> bool:
+    """True when a retry moved any QA dimension up without dragging another down."""
+    gained = False
+    for key in _QA_DIMENSIONS:
+        delta = int(new.get(key, 0) or 0) - int(old.get(key, 0) or 0)
+        if delta < 0:
+            return False
+        if delta > 0:
+            gained = True
+    return gained
+
 
 def _normalize_blueprint_fields(
     output: CreativeBlueprint,
@@ -165,7 +187,8 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
                 base_user
                 + "\n\n"
                 + intel_block
-                + "\nBlueprint MUST follow narrative architecture + approved evidence. "
+                + "\nBlueprint MUST follow the AGENCY BRIEF first, then narrative architecture + approved evidence. "
+                "Hook, storyline, headline, and sections must serve single_minded_proposition + insight. "
                 "Hero statistic + supporting data points from format architecture. "
                 "Section bodies = so-what insights, not slogans. UDAN never ADAN.\n"
             )
@@ -179,6 +202,7 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
     total_out = 0
     output: CreativeBlueprint | None = None
     last_scores: dict = {}
+    prev_scores: dict | None = None
 
     for attempt in range(MAX_BLUEPRINT_REGENERATIONS + 1):
         user = base_user
@@ -244,6 +268,20 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
             logger.info("content_prep.qa_passed", attempt=attempt, scores=last_scores)
             break
         logger.warning("content_prep.qa_rejected", attempt=attempt, scores=last_scores)
+
+        # has_real_data is bounded by how many numbers the evidence actually carries,
+        # so rewriting cannot lift it and every further attempt returns the same
+        # scores while costing a full LLM round trip. Stop as soon as a retry
+        # stops improving and let the repair layer go after the evidence instead.
+        if prev_scores is not None and not _scores_improved(last_scores, prev_scores):
+            logger.warning(
+                "content_prep.qa_stalled",
+                attempt=attempt,
+                scores=last_scores,
+                reason="retry did not improve; evidence-bound, not copy-bound",
+            )
+            break
+        prev_scores = dict(last_scores)
     else:
         logger.warning(
             "content_prep.qa_exhausted",

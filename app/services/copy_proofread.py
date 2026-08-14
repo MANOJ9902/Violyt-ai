@@ -262,7 +262,7 @@ SPELLING_ACCURACY_RULE = (
     "Copy letter-by-letter. Do not invent, truncate, hyphenate, or remix words.\n"
     "2) FONT — Bold clean sans-serif / block lettering only. Sharp edges, even spacing, "
     "no decorative or serif display fonts that blur letters.\n"
-    "3) CONTRAST — Dark navy (#003975) text on ice-blue (#E8F0F8) or white cards. "
+    "3) CONTRAST — Dark navy (#003975) text on brand sky-blue (#87CEFA) or white cards. "
     "Never light-on-light or busy-background text.\n"
     "4) SHORT + CLEAR — Prefer short headlines and short bullets. Dense paragraphs cause "
     "spelling errors — keep each card to at most 2 short lines (≤10 words each).\n"

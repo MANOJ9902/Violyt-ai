@@ -5,6 +5,9 @@ from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.graph.models.content_intelligence_models import AgencyBrief
+from app.graph.models.text_coercion import stringify_list
+
 
 class OverlayZone(BaseModel):
     """Optional text placement hint (legacy). Final creatives bake text via AI image model."""
@@ -81,6 +84,8 @@ class BlueprintInfographicSection(BaseModel):
         if not isinstance(data, dict):
             return data
         out = dict(data)
+        if "includes" in out:
+            out["includes"] = stringify_list(out.get("includes"))
         if not out.get("section_label"):
             # Never default to the literal "Item" — that string gets baked into images.
             label = str(
@@ -91,9 +96,7 @@ class BlueprintInfographicSection(BaseModel):
             else:
                 body = str(out.get("body") or "").strip()
                 includes = out.get("includes") or []
-                first_include = ""
-                if isinstance(includes, list) and includes:
-                    first_include = str(includes[0] or "").strip()
+                first_include = includes[0].strip() if includes else ""
                 fallback = body or first_include
                 if fallback:
                     words = fallback.split()
@@ -122,6 +125,9 @@ class CreativeBlueprint(BaseModel):
     tone: str = ""
     layout_type: str = ""  # carousel_story | static_hub_facts | static_ranking
 
+    # Agency brief (strategy locked before hook / storyline / copy)
+    agency_brief: AgencyBrief = Field(default_factory=AgencyBrief)
+
     # Story
     hook: str = ""
     story_flow: List[str] = Field(default_factory=list)
@@ -134,6 +140,7 @@ class CreativeBlueprint(BaseModel):
     body: str = ""
     labels: List[str] = Field(default_factory=list)
     hashtags: List[str] = Field(default_factory=list)
+    post_caption: str = ""  # Platform social caption (NOT baked into image)
 
     # Carousel
     slides: List[BlueprintSlide] = Field(default_factory=list)
@@ -188,7 +195,7 @@ class CreativeBlueprint(BaseModel):
             if value is None:
                 return []
             if isinstance(value, list):
-                return [str(x).strip() for x in value if str(x).strip()]
+                return stringify_list(value)
             if isinstance(value, str):
                 text = value.strip()
                 if not text:
@@ -221,6 +228,26 @@ class CreativeBlueprint(BaseModel):
         ):
             if key in out:
                 out[key] = _as_str_list(out.get(key))
+
+        # LLM / JSON often sends null for optional copy fields — str fields reject None.
+        for key in (
+            "purpose",
+            "intent",
+            "audience",
+            "platform",
+            "tone",
+            "layout_type",
+            "hook",
+            "cta",
+            "headline",
+            "body",
+            "post_caption",
+            "text_density",
+            "layout_archetype",
+            "source_footer",
+        ):
+            if key in out and out[key] is None:
+                out[key] = ""
 
         return out
 

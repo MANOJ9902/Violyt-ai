@@ -19,6 +19,7 @@ from app.prompts.brand_copy_tone import (
     INFOGRAPHIC_EXPLAIN_QUALITY_LOCK,
     INFOGRAPHIC_RANKING_FORMAT_LOCK,
     INFOGRAPHIC_TRADE_BOARD_LOCK,
+    JIRAAF_BG,
     JIRAAF_STORYTELLING_LOCK,
     NO_SEBI_STATIC_RULE,
     ORANGE_COVERAGE_LOCK,
@@ -119,7 +120,7 @@ TEMPLATE LOCK — {self.template_id} (sample: {self.sample_file})
             f"\nTEMPLATE LOCK — {self.template_id}\n"
             f"MATCH SAMPLE EXACTLY: {self.sample_file}\n"
             f"{self.visual_lock}\n"
-            f"- Canvas {canvas_desc}. Ice-blue #E8F0F8 / soft white BG.\n"
+            f"- Canvas {canvas_desc}. Full-bleed brand sky-blue {JIRAAF_BG} BG.\n"
             f"- {NO_SEBI_STATIC_RULE}\n"
             f"- {ICON_STYLE_LOCK}\n"
             f"- {UNIVERSAL_FIT_LOCK}\n"
@@ -197,7 +198,7 @@ _TEMPLATES: dict[TemplateId, CreativeTemplate] = {
         ),
         image_stub=(
             "AI-only storytelling editorial like sample_infographic_explain_why_airports.png: "
-            "ice-blue BG #E8F0F8, navy #003975 headlines, orange #FFA400 accents, "
+            f"sky-blue BG {JIRAAF_BG}, navy #003975 headlines, orange #FFA400 accents, "
             "hook→stats→reason cards→chart→navy footer. Empty top-right logo pocket. "
             "Insight-led — NEVER textbook, NEVER 'Web Search:' labels, NEVER hub-spoke collage."
         ),
@@ -273,7 +274,9 @@ _TEMPLATES: dict[TemplateId, CreativeTemplate] = {
 
 
 def _is_jiraaf_brand(brand_name: str | None) -> bool:
-    return "jiraaf" in (brand_name or "").casefold()
+    from app.prompts.brand_visual_palette import is_jiraaf_brand
+
+    return is_jiraaf_brand(brand_name)
 
 
 def _neutralize_for_brand(template: CreativeTemplate, brand_name: str) -> CreativeTemplate:

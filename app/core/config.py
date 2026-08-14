@@ -59,15 +59,21 @@ class Settings(BaseSettings):
     image_model: str = "gpt-image-1-mini"
     # gpt-image quality: low | medium | high — high can hang many minutes
     image_quality: str = "high"
-    image_generation_timeout_seconds: float = 180.0
+    # Carousel runs several gpt-image-1 calls; 180s was timing out mid-deck.
+    image_generation_timeout_seconds: float = 300.0
     anthropic_model: str = "claude-sonnet-4-6"
     anthropic_fallback_model: str = "claude-opus-4-5"
     content_format_guide_path: str | None = None
     brave_search_api_key: str | None = None
     brave_search_api_base: str = "https://api.search.brave.com/res/v1/web/search"
     live_research_timeout_seconds: float = 25.0
-    live_research_max_queries: int = 3
-    live_research_max_results_per_query: int = 4
+    # Postgres allows 100 connections. Two processes (api + worker) share it, so
+    # 25 each leaves generous headroom while tripling the old 5+10 default.
+    db_pool_size: int = 15
+    db_max_overflow: int = 10
+    db_pool_timeout_seconds: float = 30.0
+    live_research_max_queries: int = 5
+    live_research_max_results_per_query: int = 6
     live_research_enabled: bool = True
     live_research_search_backend: str = "openai"
     live_research_search_model: str = "gpt-4o-mini"

@@ -26688,11 +26688,15 @@ class AIOrchestratorService:
     def _disclaimer_overlay_guidance(request: AIOrchestrationRequest) -> str:
         # Builds disclaimer overlay guidance from request state for AIOrchestratorService.
         # It calls _normalize_metadata_text while assembling the payload or prompt text.
+        # CAROUSEL ALWAYS reserves disclaimer zone (SEBI Pillow-composited for Jiraaf).
+        studio_panel = getattr(request, "studio_panel", {}) if request is not None else {}
+        studio_panel = studio_panel if isinstance(studio_panel, dict) else {}
+        format_name = AIOrchestratorService._normalize_metadata_text(
+            studio_panel.get("format"), limit=32
+        ).casefold()
         request_brief = getattr(request, "research_editorial_brief", None)
         brief = request_brief if isinstance(request_brief, dict) else {}
-        request_brief = getattr(request, "research_editorial_brief", None)
-        brief = request_brief if isinstance(request_brief, dict) else {}
-        requested = bool(brief.get("disclaimer_requested"))
+        requested = bool(brief.get("disclaimer_requested")) or format_name == "carousel"
         if not requested:
             prompt_lower = str(getattr(request, "prompt", "") or "").casefold()
             requested = "disclaimer" in prompt_lower
@@ -26706,11 +26710,12 @@ class AIOrchestratorService:
             brief.get("disclaimer_style"),
             limit=24,
         ) or "subtle"
-        if placement == "bottom_footer":
+        if placement == "bottom_footer" or format_name == "carousel":
             return (
-                "Reserve the bottom footer-safe strip for a small legal disclaimer overlay. "
-                "Leave that bottom strip completely blank: no text, icons, objects, charts, cards, shadows, patterns, or important visual details. "
-                f"Keep it clean and high-contrast for the backend footer. Disclaimer style: {style}."
+                "CAROUSEL DISCLAIMER LOCK: Reserve the bottom ~14–18% footer-safe strip for the legal disclaimer. "
+                "Leave that bottom strip completely blank: no text, icons, objects, charts, cards, shadows, patterns, "
+                "or important visual details. Do NOT invent SEBI/registration wording — exact disclaimer is "
+                f"Pillow-composited after. Keep it clean and high-contrast for the backend footer. Style: {style}."
             )
         return (
             f"Reserve a small compliant disclaimer zone in the requested placement ({placement}). "
@@ -33779,6 +33784,18 @@ class AIOrchestratorService:
             prompt_limit = AIOrchestratorService.CAROUSEL_IMAGE_PROMPT_MAX_LENGTH
         elif strict_sample_layout_contract and thin_sample_conditioning_contract:
             prompt_limit = AIOrchestratorService.CAROUSEL_STRICT_SAMPLE_IMAGE_PROMPT_MAX_LENGTH
+        try:
+            from app.services.image_generation.carousel_image_prompt import (
+                build_carousel_style_stub,
+            )
+
+            required_sections.insert(
+                0,
+                build_carousel_style_stub()
+                + " Never invent CTA labels or icon captions. Never bake SEBI/legal text.",
+            )
+        except Exception:
+            pass
         prompt = AIOrchestratorService._compose_prompt_sections(
             required_sections=required_sections,
             optional_sections=optional_sections,

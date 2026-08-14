@@ -165,6 +165,53 @@ export default function BlueprintApprovalCard({
         </div>
       </div>
 
+      {draft.agency_brief &&
+        Object.values(draft.agency_brief).some((v) => Boolean(String(v || "").trim())) && (
+          <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-800">
+                Agency Brief
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Strategy locked before hook, storyline, and creative copy
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {(
+                [
+                  ["user_intent", "User intent"],
+                  ["audience", "Audience"],
+                  ["communication_objective", "Communication objective"],
+                  ["brand_truth", "Brand truth"],
+                  ["audience_tension", "Audience tension"],
+                  ["insight", "Insight"],
+                  ["single_minded_proposition", "Single-minded proposition"],
+                  ["creative_territory", "Creative territory"],
+                  ["creative_device", "Creative device"],
+                  ["headline", "Headline"],
+                  ["support", "Support"],
+                  ["visual_metaphor", "Visual metaphor"],
+                  ["format", "Format"],
+                  ["visual_hierarchy", "Visual hierarchy"],
+                ] as const
+              ).map(([key, label]) => (
+                <Field
+                  key={key}
+                  label={label}
+                  value={(draft.agency_brief && draft.agency_brief[key]) || ""}
+                  onChange={(v) =>
+                    setDraft((d) => ({
+                      ...d,
+                      agency_brief: { ...(d.agency_brief || {}), [key]: v },
+                    }))
+                  }
+                  rows={key === "insight" || key === "user_intent" ? 3 : 2}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field
           label="Hook"

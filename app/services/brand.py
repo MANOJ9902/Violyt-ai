@@ -87,6 +87,15 @@ class BrandSpaceService:
         return brand
 
     @staticmethod
+    def _clip_varchar(value: object, *, max_len: int = 255) -> str:
+        text = str(value or "").strip()
+        if len(text) <= max_len:
+            return text
+        if max_len <= 1:
+            return text[:max_len]
+        return text[: max_len - 1].rstrip() + "…"
+
+    @staticmethod
     def _build_guardrail_record(payload: dict) -> dict:
         # Guardrail sections may include asset references and other section-only
         # metadata. The relational guardrails table stores only the core rule set.
@@ -310,8 +319,9 @@ class BrandSpaceService:
         # The payload/context shape drives this branch because downstream serializers depend on consistent
         # fields.
         if payload.section_code == "identity":
-            brand.name = payload.payload.get("brand_name", brand.name)
-            brand.tagline = payload.payload.get("brand_tagline", brand.tagline)
+            brand.name = str(payload.payload.get("brand_name") or brand.name or "").strip() or brand.name
+            tagline_raw = payload.payload.get("brand_tagline", brand.tagline)
+            brand.tagline = str(tagline_raw).strip() if tagline_raw is not None else brand.tagline
             brand.description = payload.payload.get("brand_description", brand.description)
             brand.industry_category = payload.payload.get("industry_category")
             brand.sub_industry = payload.payload.get("sub_industry")
@@ -367,6 +377,13 @@ class BrandSpaceService:
                 }
                 if not str(persona_data.get("name") or "").strip():
                     persona_data["name"] = "Primary Audience"
+                persona_data["name"] = self._clip_varchar(persona_data.get("name"), max_len=255)
+                if persona_data.get("role") is not None:
+                    persona_data["role"] = self._clip_varchar(persona_data.get("role"), max_len=255)
+                if persona_data.get("language_preference") is not None:
+                    persona_data["language_preference"] = self._clip_varchar(
+                        persona_data.get("language_preference"), max_len=255
+                    )
                 created = await self.personas.add(
                     Persona(tenant_id=tenant_id, brand_space_id=brand_space_id, **persona_data)
                 )
@@ -405,8 +422,24 @@ class BrandSpaceService:
                     )
                     if key in item
                 }
-                if not str(objective_data.get("name") or "").strip():
+                raw_name = str(objective_data.get("name") or "").strip()
+                if not raw_name:
                     objective_data["name"] = "Brand Growth"
+                elif len(raw_name) > 255:
+                    # Campaign themes are often long — keep a short label in name, full text in description.
+                    if not str(objective_data.get("description") or "").strip():
+                        objective_data["description"] = raw_name
+                    objective_data["name"] = self._clip_varchar(raw_name, max_len=120) or "Brand Growth"
+                else:
+                    objective_data["name"] = raw_name
+                if objective_data.get("content_type") is not None:
+                    objective_data["content_type"] = self._clip_varchar(
+                        objective_data.get("content_type"), max_len=100
+                    )
+                if objective_data.get("platform_scope") is not None:
+                    objective_data["platform_scope"] = self._clip_varchar(
+                        objective_data.get("platform_scope"), max_len=100
+                    )
                 await self.objectives.add(
                     Objective(tenant_id=tenant_id, brand_space_id=brand_space_id, **objective_data)
                 )
@@ -463,8 +496,18 @@ class BrandSpaceService:
             for section in existing_sections
         }
         for section in payload.sections:
-            await self._apply_section_upsert(tenant_id, brand_space_id, brand, section, existing_sections, section_versions)
-        await self.session.commit()
+            try:
+                await self._apply_section_upsert(
+                    tenant_id, brand_space_id, brand, section, existing_sections, section_versions
+                )
+            except Exception:
+                await self.session.rollback()
+                raise
+        try:
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
         try:
             updated_brand = await self.refresh_context(brand_space_id)
         except Exception:

@@ -6,7 +6,9 @@ export const apiClient = axios.create({
   baseURL: apiOrigin,
   withCredentials: false,
   // Pipeline phase-1/2 can take several minutes (multi-layer LLM + image gen).
-  timeout: 600_000,
+  // Phase 1 lands just over 10 minutes on research-heavy prompts, so a 10 minute
+  // ceiling aborted runs the server had actually completed.
+  timeout: 1_200_000,
 });
 
 apiClient.interceptors.request.use((config) => {

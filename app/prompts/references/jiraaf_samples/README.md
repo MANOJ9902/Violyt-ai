@@ -39,7 +39,9 @@ Code: `INFOGRAPHIC_EXPLAIN_LAYOUT_LOCK` in `brand_copy_tone.py`
 1. Soft sky BG `#D9ECF8` · navy `#033B5E` · orange `#FF8C24`
 2. **NO page numbers** in generated images (no 01 badge, no 1 of N)
 3. Top-right Brand Space logo composite · bottom navy bar + SEBI composite
-4. 10-slide story arc with locked layout + 3D hero per slide position (see `SAMPLE_SLIDE_SPECS`)
+4. Story arc with layout chosen by slide *role*, not position (see `ROLE_LAYOUT_SPECS`).
+   Layouts define geometry only — hero objects come from each slide's own copy, so the
+   sample's props are never reused across topics or brands.
 5. Left-aligned unique UPPERCASE headline + orange underline + short body
 
 ## Carousel PDFs (story arc — Sweep-In / Capital / Gains)

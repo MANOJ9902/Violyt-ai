@@ -13,9 +13,10 @@ from app.prompts.brand_copy_tone import (
     CAROUSEL_AUDIENCE_TONE_LOCK,
     CAROUSEL_CONTENT_DEPTH_LOCK,
     HEADLINE_COLOR_LOCK,
-    JIRAAF_BG,
-    JIRAAF_NAVY,
-    JIRAAF_ORANGE,
+    JIRAAF_CAROUSEL_BG,
+    JIRAAF_CAROUSEL_CARD,
+    JIRAAF_CAROUSEL_NAVY,
+    JIRAAF_CAROUSEL_ORANGE,
 )
 
 CAROUSEL_SAMPLE_DNA = f"""
@@ -26,14 +27,13 @@ Samples: Sweep-In FD | Capital Controls | Unrealized Gains
 
 {CAROUSEL_AUDIENCE_TONE_LOCK}
 
-VISUAL SYSTEM (every slide — copy the sample look exactly):
+VISUAL SYSTEM (every slide — India Building Airports PDF look):
 - Canvas 1080x1350 portrait (4:5)
-- Background: solid ice-blue {JIRAAF_BG} full-bleed
-- Headlines / subheads: dark navy {JIRAAF_NAVY} ONLY — never orange
-- Orange {JIRAAF_ORANGE}: dividers, bullets, bars, accent numbers, CTA fill ONLY
-- ICONS / AVATARS: premium soft clay-3D illustrated objects (wallet, coins, document,
-  lock, shield, chart, phone) — HD sharp, satin + gold accents — like sample PDFs.
-  ONE medium-small accent per slide (~12–16% height), bottom-right or mid-right.
+- Background: solid very pale blue {JIRAAF_CAROUSEL_BG} full-bleed
+- Headlines / subheads: dark navy {JIRAAF_CAROUSEL_NAVY} ONLY — never orange
+- Orange {JIRAAF_CAROUSEL_ORANGE}: accents, key numbers, CTA fill ONLY
+- INFO CARDS: wide rounded soft-blue {JIRAAF_CAROUSEL_CARD} cards — miniature 3D
+  isometric icon LEFT (~25% width), thin divider, concise text RIGHT with bold navy keywords.
   NOT blurry toy blobs. NOT empty slides. NOT giant full-width heroes.
 - Bottom ~14% reserved EMPTY for SEBI legal footer (composited later)
 - EVERY slide MUST have a full navy headline at top-left — NEVER omit, NEVER truncate mid-word
@@ -111,7 +111,6 @@ CAROUSEL ONLY — MATCH SAMPLE PDFs (Sweep-In / Capital / Gains):
 TONE: same plain retail voice as static/infographic — short sentences, ₹/% facts, NO jargon.
 STORY: hook → ₹ scenario (3 blocks) → how it works → choice → pros/cons WITH short reasons → CTA.
 EVERY slide: FULL navy headline top-left (never omit, never truncate mid-word).
-CONTENT DENSE: 2–3 white story cards with simple ₹/% lines — NOT sparse empty slides.
-ICONS/AVATARS: ONE premium HD clay-3D object (~12–16% height) bottom-right.
-Bottom ~14% EMPTY for SEBI. COLOUR: navy {JIRAAF_NAVY}; orange {JIRAAF_ORANGE}; BG {JIRAAF_BG}.
+CONTENT DENSE: 3–4 soft-blue info cards (3D icon left, divider, text right) with ₹/% lines.
+Bottom ~14% EMPTY for SEBI. COLOUR: navy {JIRAAF_CAROUSEL_NAVY}; orange {JIRAAF_CAROUSEL_ORANGE}; BG {JIRAAF_CAROUSEL_BG}.
 """

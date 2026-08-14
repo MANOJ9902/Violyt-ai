@@ -1254,7 +1254,6 @@ export default function BrandSpaceEditor({
 
         try {
             let formSnapshot = formRef.current;
-            const isFirstSaveForBrand = mode !== "edit" && !draftBrandId;
             const currentBrand = await ensureBrand();
             setDraftBrand(currentBrand);
             setDraftBrandId(currentBrand.id);
@@ -1264,11 +1263,6 @@ export default function BrandSpaceEditor({
             if (usageRows?.length) {
                 setSubmissionPhase("Saving capacity usage...");
                 await persistCapacityTargets(currentBrand, usageRows);
-            }
-
-            if (isFirstSaveForBrand) {
-                setSubmissionPhase("Saving structured brand data...");
-                await persistSections(currentBrand, emptyUploadedBrandAssets, formSnapshot);
             }
 
             if (hydratedAttachmentBrandId !== currentBrand.id) {
@@ -1285,45 +1279,66 @@ export default function BrandSpaceEditor({
             }
             setHydratedAttachmentBrandId(currentBrand.id);
 
-            setSubmissionPhase("Uploading and syncing brand files...");
-            formSnapshot = formRef.current;
-            const uploadedAssets = await uploadBrandSpaceAssets(currentBrand.id, formSnapshot, (update) =>
-                applyUploadUpdate(update.itemId, {
-                    uploadedAssetId: update.uploadedAssetId,
-                    storagePath: update.storagePath,
-                    assetUrl: update.assetUrl || undefined,
-                    lifecycleState: update.lifecycleState,
-                    channel: update.channel,
-                    mimeType: update.mimeType,
-                    pageCount: update.pageCount,
-                    processingError: update.processingError,
-                    templateKind: update.templateKind,
-                    analysisJson: update.analysisJson,
-                    fieldKey: update.fieldKey,
-                    assetCategory: update.assetCategory,
-                    validationState: update.validationState,
-                    validationSummaryJson: update.validationSummaryJson,
-                    structuredDataJson: update.structuredDataJson,
-                    normalizedDataJson: update.normalizedDataJson,
-                    processingStatus: update.processingStatus,
-                    routing: update.routing,
-                    isActive: update.isActive,
-                }),
-            );
-            const latestAttachments = await listBrandSpaceAttachments(currentBrand.id);
-            setForm((current) => {
-                const merged = syncActiveColorPaletteFields(
-                    mergeBrandAttachmentsIntoForm(current, latestAttachments),
-                );
-                formRef.current = merged;
-                formSnapshot = merged;
-                return merged;
-            });
-            setHydratedAttachmentBrandId(currentBrand.id);
-
+            // Save typed sections before uploads so a file/OCR failure never blocks field saves.
             setSubmissionPhase("Saving structured brand sections...");
             formSnapshot = formRef.current;
-            await persistSections(currentBrand, uploadedAssets, formSnapshot);
+            await persistSections(currentBrand, emptyUploadedBrandAssets, formSnapshot);
+
+            let uploadedAssets: UploadedBrandAssets = emptyUploadedBrandAssets;
+            let uploadWarning: string | null = null;
+            try {
+                setSubmissionPhase("Uploading and syncing brand files...");
+                formSnapshot = formRef.current;
+                uploadedAssets = await uploadBrandSpaceAssets(currentBrand.id, formSnapshot, (update) =>
+                    applyUploadUpdate(update.itemId, {
+                        uploadedAssetId: update.uploadedAssetId,
+                        storagePath: update.storagePath,
+                        assetUrl: update.assetUrl || undefined,
+                        lifecycleState: update.lifecycleState,
+                        channel: update.channel,
+                        mimeType: update.mimeType,
+                        pageCount: update.pageCount,
+                        processingError: update.processingError,
+                        templateKind: update.templateKind,
+                        analysisJson: update.analysisJson,
+                        fieldKey: update.fieldKey,
+                        assetCategory: update.assetCategory,
+                        validationState: update.validationState,
+                        validationSummaryJson: update.validationSummaryJson,
+                        structuredDataJson: update.structuredDataJson,
+                        normalizedDataJson: update.normalizedDataJson,
+                        processingStatus: update.processingStatus,
+                        routing: update.routing,
+                        isActive: update.isActive,
+                    }),
+                );
+                const latestAttachments = await listBrandSpaceAttachments(currentBrand.id);
+                setForm((current) => {
+                    const merged = syncActiveColorPaletteFields(
+                        mergeBrandAttachmentsIntoForm(current, latestAttachments),
+                    );
+                    formRef.current = merged;
+                    formSnapshot = merged;
+                    return merged;
+                });
+                setHydratedAttachmentBrandId(currentBrand.id);
+            } catch (uploadError) {
+                const uploadDetail = axios.isAxiosError(uploadError)
+                    ? uploadError.response?.data?.detail || uploadError.message
+                    : uploadError instanceof Error
+                        ? uploadError.message
+                        : "File upload failed";
+                uploadWarning =
+                    typeof uploadDetail === "string"
+                        ? uploadDetail
+                        : "Some brand files could not be uploaded. Your typed fields were saved.";
+            }
+
+            if (!uploadWarning) {
+                setSubmissionPhase("Syncing uploaded assets...");
+                formSnapshot = formRef.current;
+                await persistSections(currentBrand, uploadedAssets, formSnapshot);
+            }
 
             let nextBrand = currentBrand;
             if (intent === "publish") {
@@ -1346,6 +1361,13 @@ export default function BrandSpaceEditor({
                     intent === "draft"
                         ? "You can keep editing, add more documents, or publish when you are ready."
                         : undefined,
+                );
+            }
+
+            if (uploadWarning) {
+                showWarningToast(
+                    "Brand fields saved — file upload issue",
+                    `${uploadWarning} You can retry uploading files without losing your typed fields.`,
                 );
             }
 

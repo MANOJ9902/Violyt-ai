@@ -14,6 +14,19 @@ from ocr_processor import GoogleVisionOCRProcessor
 logger = logging.getLogger(__name__)
 
 
+def google_credentials_available() -> bool:
+    import os as _os
+
+    path = (_os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+    if not path:
+        return False
+    candidate = Path(path)
+    if candidate.is_file():
+        return True
+    fallback = Path("/app") / path
+    return fallback.is_file()
+
+
 class OCRService:
     # Groups ocr service behavior for OCR extraction.
     # Callers use this class to produce or evaluate data consumed by asset ingestion.
@@ -59,6 +72,8 @@ class OCRService:
             "could not automatically determine credentials",
             "google_application_credentials",
             "unauthenticated",
+            "no such file or directory",
+            "errno 2",
         )
         return any(marker in message for marker in authentication_markers)
 
@@ -166,7 +181,7 @@ class OCRService:
         if suffix == ".pdf":
             # Skip Google Vision image extraction when credentials are not available;
             # text content from pdfplumber is sufficient for RAG indexing.
-            if not bool(_os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")):
+            if not google_credentials_available():
                 logger.warning(
                     "ocr.extract_visual_candidates.skipped reason=GOOGLE_APPLICATION_CREDENTIALS_not_set file=%s",
                     file_path,
@@ -199,7 +214,7 @@ class OCRService:
                 page_count = len(pdf.pages)
             # Use Google Vision OCR if credentials are available; otherwise fall back to pdfplumber text extraction.
             import os as _os
-            _has_google_creds = bool(_os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+            _has_google_creds = google_credentials_available()
             if _has_google_creds:
                 text = self._with_retry(
                     "extract_text_from_pdf",
@@ -299,7 +314,8 @@ class OCRService:
                 file_path,
                 output_dir=str(scratch_root),
                 progress_callback=progress_callback,
-            )
+                skip_auth_errors=True,
+            ) or []
             return {
                 "text": "",
                 "images": images,

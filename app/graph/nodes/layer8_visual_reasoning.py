@@ -217,57 +217,145 @@ def _is_bare_topic_headline(headline: str, user_prompt: str) -> bool:
     return h_toks.issubset(topic_toks) and len(h_toks) <= 4
 
 
-def _content_fact_lines(bp_slide: object | None, slide_body: str, slide_supporting: str) -> list[str]:
-    """Pull explanation lines to bake as content cards (full sentences, not empty Pros/Cons)."""
+def _content_fact_lines(
+    bp_slide: object | None,
+    slide_body: str,
+    slide_supporting: str,
+    *,
+    parent_blueprint: object | None = None,
+) -> list[str]:
+    """Pull explanation lines to bake as content cards — SLIDE-SPECIFIC content first.
+
+    Priority order (highest → lowest):
+      1. This slide's body text (split into sentences) — unique per slide
+      2. This slide's supporting line
+      3. This slide's own proof_points / stat_highlights
+      4. Parent blueprint sections (body sentences, NOT the global proof_points)
+      5. Parent proof_points ONLY as absolute last resort when the slide has no body
+
+    Root-cause fix: the old code added parent proof_points BEFORE slide body, causing
+    the SAME 3 global facts ("Over 80%", "1944", "4 reasons") to appear on every slide.
+    """
     lines: list[str] = []
+    parent_fallback: list[str] = []
 
-    def _add(s: str, max_len: int = 75) -> None:
-        t = " ".join(str(s).split()).strip()
+    # Patterns that indicate garbage / leaked content — never bake these as cards.
+    _GARBAGE_RE = re.compile(
+        r"""
+        \d{4}\.\d{4,5}                        # arXiv paper ID (e.g. 2211.07180)
+        | \d+\.\d{2}\s+(?:subscribe|buy|get)  # price + action (107.88 24.99 Subscribe)
+        | \b(?:subscribe|skip|download|sign[\s-]up|log[\s-]in|click\s+here
+               |read\s+more|share\s+this|follow\s+us|register|login|signup
+               |dillinger|paywalled?)\b        # web nav / paywall words
+        | \buse\s+as\s+proof\b                 # prompt instruction leak
+        | \bthen\s+explain\b                   # prompt instruction leak
+        | \bexplain\s+implication\b            # prompt instruction leak
+        | \bas\s+(?:a\s+)?source\b             # prompt instruction leak
+        """,
+        re.IGNORECASE | re.VERBOSE,
+    )
+
+    def _clean(s: str, max_len: int = 110) -> str | None:
+        from app.services.image_generation.carousel_image_prompt import (
+            strip_carousel_source_citations,
+        )
+        t = strip_carousel_source_citations(" ".join(str(s).split()).strip())
         if not t:
-            return
-        # Skip bare nav words
-        if _is_nav_chip(t) or (len(t.split()) == 1 and t.lower() in {"selling", "hedging", "leverage", "hold", "sell"}):
-            return
-        if t not in lines:
-            lines.append(t[:max_len])
+            return None
+        if _is_nav_chip(t) or (
+            len(t.split()) == 1
+            and t.lower() in {"selling", "hedging", "leverage", "hold", "sell"}
+        ):
+            return None
+        # Reject scraped web garbage, arXiv IDs, leaked prompt instructions
+        if _GARBAGE_RE.search(t):
+            return None
+        # Reject lines with no real words (all numbers / punctuation)
+        real_words = [w for w in t.split() if re.search(r"[a-zA-Z₹]", w)]
+        if len(real_words) < 3:
+            return None
+        if len(t) > max_len:
+            cut = t[:max_len].rsplit(" ", 1)[0].strip()
+            t = cut or t[:max_len]
+        return t or None
 
-    if bp_slide:
-        for p in list(getattr(bp_slide, "proof_points", None) or [])[:4]:
-            _add(str(p), 90)
-        for p in list(getattr(bp_slide, "stat_highlights", None) or [])[:3]:
-            _add(str(p), 90)
-        # Longer chip phrases that already explain something
+    def _add(target: list[str], s: str, max_len: int = 110) -> None:
+        t = _clean(s, max_len)
+        if t and t not in target:
+            target.append(t)
+
+    def _prefer_numeric(items: list[str]) -> list[str]:
+        return sorted(
+            items,
+            key=lambda x: (
+                0 if re.search(r"\d|₹|%", x) else 1,
+                -len(x.split()),
+            ),
+        )
+
+    # ── 1. Slide body — highest priority, unique to this slide ──────────────
+    body = " ".join((slide_body or "").split()).strip()
+    if body:
+        parts = [p.strip() for p in body.replace(";", ".").split(".") if p.strip()]
+        if len(parts) >= 2:
+            for part in parts[:6]:
+                if len(part.split()) >= 4:
+                    _add(lines, part, 130)
+        else:
+            words = body.split()
+            if len(words) >= 20:
+                third = max(6, len(words) // 3)
+                _add(lines, " ".join(words[:third]), 130)
+                _add(lines, " ".join(words[third : third * 2]), 130)
+                _add(lines, " ".join(words[third * 2 :]), 130)
+            elif len(words) >= 12:
+                mid = len(words) // 2
+                _add(lines, " ".join(words[:mid]), 130)
+                _add(lines, " ".join(words[mid:]), 130)
+            else:
+                _add(lines, body, 140)
+
+    # ── 2. Slide supporting line ─────────────────────────────────────────────
+    if len(lines) < 2 and slide_supporting:
+        _add(lines, slide_supporting, 130)
+
+    # ── 3. Slide-specific proof_points / stat_highlights ────────────────────
+    if bp_slide and len(lines) < 4:
+        for p in list(getattr(bp_slide, "proof_points", None) or [])[:5]:
+            _add(lines, str(p), 130)
+        for p in list(getattr(bp_slide, "stat_highlights", None) or [])[:4]:
+            _add(lines, str(p), 130)
         for c in list(getattr(bp_slide, "chip_labels", None) or [])[:3]:
             s = " ".join(str(c).split()).strip()
             if s and (any(ch.isdigit() for ch in s) or "₹" in s or "%" in s or len(s.split()) >= 3):
-                _add(s, 90)
+                _add(lines, s, 120)
 
-    body = " ".join((slide_body or "").split()).strip()
-    if body:
-        # Prefer sentence chunks as separate cards
-        parts = [p.strip() for p in body.replace(";", ".").split(".") if p.strip()]
-        if len(parts) >= 2:
-            for part in parts[:3]:
-                if len(part.split()) >= 4:
-                    _add(part, 90)
-        else:
-            # Split long body into ~2 chunks by words
-            words = body.split()
-            if len(words) >= 16:
-                mid = len(words) // 2
-                _add(" ".join(words[:mid]), 90)
-                _add(" ".join(words[mid:]), 90)
-            else:
-                _add(body, 110)
+    # ── 4. Parent blueprint SECTIONS (not the global proof_points) ───────────
+    if parent_blueprint is not None and len(lines) < 3:
+        for sec in list(getattr(parent_blueprint, "sections", None) or [])[:8]:
+            body_sec = " ".join(str(getattr(sec, "body", "") or "").split()).strip()
+            label = " ".join(str(getattr(sec, "section_label", "") or "").split()).strip()
+            stat = " ".join(str(getattr(sec, "stat", "") or "").split()).strip()
+            if stat and body_sec:
+                _add(lines, f"{stat} — {body_sec}", 140)
+            elif body_sec:
+                _add(lines, body_sec, 140)
+            elif label and stat:
+                _add(lines, f"{stat} {label}", 120)
 
-    if len(lines) < 2 and slide_supporting:
-        _add(slide_supporting, 90)
+    # ── 5. Parent proof_points — LAST RESORT only when slide has NO body ─────
+    if parent_blueprint is not None and not body and len(lines) < 2:
+        for p in list(getattr(parent_blueprint, "stat_highlights", None) or [])[:5]:
+            _add(parent_fallback, str(p), 130)
+        for p in list(getattr(parent_blueprint, "proof_points", None) or [])[:4]:
+            _add(parent_fallback, str(p), 130)
+        for f in parent_fallback:
+            if f not in lines:
+                lines.append(f)
+            if len(lines) >= 3:
+                break
 
-    # Ensure at least something teachable
-    while len(lines) < 2 and body:
-        _add(body, 110)
-        break
-    return lines[:3]
+    return _prefer_numeric(lines)[:4]
 
 _ROLE_HEROES = {
     "hook": "HD premium clay-3D avatar: soft wallet + rupee coin stack + question spark (curiosity)",
@@ -484,8 +572,10 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         )
 
     # Prefer approved Creative Blueprint text for art direction cues
+    from app.prompts.brand_visual_palette import is_jiraaf_brand as _is_jiraaf_brand
+
     brand_name = (brand_intelligence.brand_core.brand_name or "").strip()
-    is_jiraaf_brand = "jiraaf" in brand_name.casefold()
+    is_jiraaf_brand = _is_jiraaf_brand(brand_name)
     brand_primary_color = ""
     brand_secondary_color = ""
     brand_additional_colors: list[dict] = []
@@ -494,6 +584,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         brand_uuid_early = UUID(str(brand_id)) if not isinstance(brand_id, UUID) else brand_id
         async with AsyncSessionLocal() as session:
             brand_row = await session.get(BrandSpace, brand_uuid_early)
+            # brand_core.brand_name is LLM-derived and can drift from the Brand
+            # Space; the stored name is authoritative for brand detection.
+            if brand_row and not is_jiraaf_brand and _is_jiraaf_brand(getattr(brand_row, "name", "")):
+                is_jiraaf_brand = True
+                brand_name = (getattr(brand_row, "name", "") or brand_name).strip()
+                logger.info("visual_reasoning.jiraaf_detected_from_brand_space", brand_name=brand_name)
             if brand_row and isinstance(brand_row.overview_snapshot, dict):
                 visual_identity = brand_row.overview_snapshot.get("visual_identity") or {}
                 if isinstance(visual_identity, dict):
@@ -507,6 +603,23 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         brand_typography_font = str(typo.get("primary_style") or "").strip()
     except Exception as exc:
         logger.warning("visual_reasoning.brand_palette_load_failed", error=str(exc)[:120])
+
+    jiraaf_palette: dict[str, str] = {}
+    if is_jiraaf_brand:
+        from app.prompts.brand_visual_palette import resolve_jiraaf_palette
+
+        jiraaf_palette = resolve_jiraaf_palette(
+            primary=brand_primary_color,
+            secondary=brand_secondary_color,
+        )
+        logger.info(
+            "visual_reasoning.jiraaf_palette_resolved",
+            headline=jiraaf_palette["headline"],
+            accent=jiraaf_palette["accent"],
+            background=jiraaf_palette["background"],
+            headline_source=jiraaf_palette["headline_source"],
+            accent_source=jiraaf_palette["accent_source"],
+        )
 
     if not is_jiraaf_brand:
         from app.prompts.brand_visual_palette import resolve_brand_palette_lock
@@ -698,13 +811,22 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             + (f"SECTIONS (render these section labels/facts): {sections}\n" if sections else "")
             + (f"PROOF POINTS: {proof_points}\n" if proof_points else "")
             + (f"STAT HIGHLIGHTS: {stat_highlights}\n" if stat_highlights else "")
-            + (f"SOURCE FOOTER: \"{source_footer}\"\n" if source_footer else "")
+            + (
+                # Carousel: NEVER bake source / survey names into slide images.
+                ""
+                if fmt == "carousel"
+                else (f"SOURCE FOOTER: \"{source_footer}\"\n" if source_footer else "")
+            )
             + f"layout_type={layout_type} layout={blueprint.layout_archetype} purpose={blueprint.purpose}\n"
             + "════════════════════════════════════════\n"
             + "CRITICAL: Generate a FINISHED creative. Render the approved strings as sharp typography in the image. "
             "Do not leave empty shells. Do not invent alternate copy. The approved headline/body/sections are FINAL — do not rewrite them. "
             + (
-                "REQUIRED: navy #003975 + orange #FFA400 accents (orange text+accents >=~2% of image); "
+                (
+                    f"REQUIRED: navy {jiraaf_palette.get('headline', '#003975')} + orange "
+                    f"{jiraaf_palette.get('accent', '#FFA400')} accents "
+                    "(orange text+accents >=~2% of image); "
+                )
                 if is_jiraaf_brand
                 else (
                     f"REQUIRED: use {brand_name}'s EXACT Brand Space palette — "
@@ -718,11 +840,17 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             )
             + "ULTRA-PREMIUM clay-3D icons; content must fit fully. "
             + (
-                f'Bake compact footer text EXACTLY as: "{source_footer}". '
-                if source_footer
-                else "If no source_footer, omit Source line (do not invent domains). "
+                "CAROUSEL: do NOT bake any Source line, survey name, or institution cite into slides. "
+                if fmt == "carousel"
+                else (
+                    (
+                        f'Bake compact footer text EXACTLY as: "{source_footer}". '
+                        if source_footer
+                        else "If no source_footer, omit Source line (do not invent domains). "
+                    )
+                    + SOURCE_FOOTER_RULE
+                )
             )
-            + SOURCE_FOOTER_RULE
         )
 
     # Size computation early — needed by expander prompts AND image generation
@@ -840,7 +968,15 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         else:
                             incs_txt = str(incs)
                         exact_lock += f'{i}. "{lab}" | "{st}" | "{incs_txt}"\n'
-            image_gen_prompt = (expanded_prompt + exact_lock + f"\n{ICON_STYLE_LOCK}\n")[:6000]
+            palette_lock = ""
+            if is_jiraaf_brand and jiraaf_palette:
+                from app.prompts.brand_visual_palette import jiraaf_palette_override_block
+
+                palette_lock = jiraaf_palette_override_block(jiraaf_palette)
+            # Trim the body, never the palette — truncation must not drop brand colours.
+            image_gen_prompt = (expanded_prompt + exact_lock + f"\n{ICON_STYLE_LOCK}\n")[
+                : 6000 - len(palette_lock)
+            ] + palette_lock
             if not is_jiraaf_brand:
                 # Keep premium icon quality, but drop Jiraaf-only finance object examples / palette defaults.
                 brand_icon_lock = (
@@ -902,7 +1038,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         composite_sebi_footer: bool = False,
         image_quality: str | None = None,
         skip_extra_locks: bool = False,
+        letterbox_to_aspect: bool = False,
+        composite_jiraaf_close_mascot: bool = False,
     ) -> str:
+        # Always wipe the reserved logo pocket before compositing — used by both
+        # DALL·E success path and the SDXL fallback (NameError if left undefined).
+        wipe_reserved_corner = True
         extra = ""
         if not skip_extra_locks:
             if composite_sebi_footer:
@@ -951,6 +1092,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 # so AI-drawn decorative icons (leaf, compass, etc.) are removed.
                 wipe_reserved_corner=True,
                 quality=image_quality,
+                letterbox_to_aspect=letterbox_to_aspect,
+                composite_jiraaf_close_mascot=composite_jiraaf_close_mascot,
             )
             logger.info(
                 "visual_reasoning.dalle_success",
@@ -974,7 +1117,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                     prompt=safe_prompt,
                     size=image_size,
                 )
-                if logo_storage_path or composite_sebi_footer or wipe_reserved_corner:
+                if (
+                    logo_storage_path
+                    or composite_sebi_footer
+                    or wipe_reserved_corner
+                    or composite_jiraaf_close_mascot
+                ):
                     storage = get_object_storage()
                     rel_path = sdxl_url.removeprefix("/storage/").lstrip("/")
                     raw_bytes = storage.read_bytes(rel_path)
@@ -985,6 +1133,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         logo_zone_instruction=logo_zone_instruction,
                         composite_sebi_footer=composite_sebi_footer,
                         wipe_reserved_corner=wipe_reserved_corner,
+                        composite_jiraaf_close_mascot=composite_jiraaf_close_mascot,
                     )
                     filename = f"sdxl-branded-{uuid4().hex[:8]}.png"
                     stored = storage.save_bytes(
@@ -1194,12 +1343,17 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             ):
                 slide_headline = f"What investors should know next"
 
-            # Keep headlines short enough to bake fully (samples use ~6–10 words)
+            # Keep headlines short enough to fit fully — Airport PDF uses 4–7 words max.
             hl_words = str(slide_headline).split()
-            if len(hl_words) > 10:
-                slide_headline = " ".join(hl_words[:10]).rstrip(".,;:")
+            if len(hl_words) > 6:
+                slide_headline = " ".join(hl_words[:6]).rstrip(".,;:")
 
-            fact_lines = _content_fact_lines(bp_slide, str(slide_body or ""), str(slide_supporting or ""))
+            fact_lines = _content_fact_lines(
+                bp_slide,
+                str(slide_body or ""),
+                str(slide_supporting or ""),
+                parent_blueprint=blueprint,
+            )
             # Filter nav chips out of bottoms
             bottoms = tuple(
                 ("Fact" if _is_nav_chip(x) else x) for x in bottoms
@@ -1210,12 +1364,9 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 bottoms = derived
 
             hl = _q(slide_headline, 80)
-            sup = _q(slide_supporting, 110)
-            body_txt = _q(slide_body, 260)
-            fact_q = [_q(f, 90) for f in fact_lines[:3]]
-            while len(fact_q) < 3:
-                fact_q.append('""')
-            f0, f1, f2 = fact_q[0], fact_q[1], fact_q[2]
+            sup = _q(slide_supporting, 140)
+            body_txt = _q(slide_body, 320)
+            fact_q = [_q(f, 110) for f in fact_lines[:4]]
             prior = "; ".join(used_headlines[-3:]) if used_headlines else "(none yet)"
             used_headlines.append(str(slide_headline or "")[:60])
 
@@ -1223,15 +1374,24 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 build_brand_carousel_slide_image_prompt,
                 build_carousel_slide_image_prompt,
                 strip_carousel_heading_numbers,
+                strip_carousel_source_citations,
             )
 
             story_blocks = [
                 str(x).strip('"')
-                for x in (f0, f1, f2)
+                for x in fact_q
                 if str(x).strip() and str(x).strip() != '""'
             ]
             story_blocks = [b.strip('"') for b in story_blocks if b.strip('"')]
             slide_headline = strip_carousel_heading_numbers(str(slide_headline or ""))
+            slide_headline = strip_carousel_source_citations(str(slide_headline or ""))
+            slide_supporting = strip_carousel_source_citations(str(slide_supporting or ""))
+            slide_body = strip_carousel_source_citations(str(slide_body or ""))
+            story_blocks = [
+                strip_carousel_source_citations(b) for b in story_blocks if b
+            ]
+            # PDF info pages carry 3-4 cards — builder enforces the final cap.
+            story_blocks = [b for b in story_blocks if b][:4]
 
             color_behavior = ""
             if brand_intelligence and brand_intelligence.visual_behavior:
@@ -1251,6 +1411,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                     topic=str(topic_lock or ""),
                     is_last=is_last,
                     prior_headlines=list(used_headlines[:-1]) if used_headlines else [],
+                    # Brand Space-resolved Jiraaf palette only — never another brand's colours.
+                    palette=jiraaf_palette or None,
                 )
                 carousel_style_extra = style_stub + "\n" + CAROUSEL_TONE_IMAGE_STUB
             else:
@@ -1271,6 +1433,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                     color_behavior=color_behavior,
                     primary_color=brand_primary_color,
                     secondary_color=brand_secondary_color,
+                    accent_color=brand_secondary_color,
                 )
                 carousel_style_extra = (
                     f"Brand carousel — use {brand_name} colours only. NOT Jiraaf template.\n"
@@ -1301,6 +1464,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 f"-slide-{n}",
                 # Jiraaf-only legal footer — never bake onto other brands.
                 composite_sebi_footer=is_jiraaf_brand,
+                # Jiraaf carousel LAST slide only — giraffe mascot from creative samples.
+                composite_jiraaf_close_mascot=bool(is_jiraaf_brand and is_last),
             )
             generated_urls.append(slide_url)
     else:
@@ -1313,17 +1478,29 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 color_behavior = str(brand_intelligence.visual_behavior.color_behavior or "")
 
             if is_jiraaf_brand:
-                from app.services.image_generation.explain_image_prompt import (
-                    build_explain_infographic_prompt,
+                from app.services.image_generation.data_story_image_prompt import (
+                    build_data_story_prompt,
                 )
 
-                explain_prompt = build_explain_infographic_prompt(
+                explain_prompt = build_data_story_prompt(
                     blueprint,
                     canvas_desc=canvas_desc,
                     supporting=supporting or "",
-                    customer_quote=customer_quote or "",
+                    palette=jiraaf_palette,
+                )
+                logger.info(
+                    "visual_reasoning.data_story_prompt_built",
+                    stats=len(blueprint.stat_highlights or []),
+                    sections=len(blueprint.sections or []),
                 )
             else:
+                from app.services.image_generation.dense_content_bake import (
+                    DENSE_LAYOUT_LOCK,
+                    extract_dense_cards,
+                    format_dense_cards_block,
+                    format_dense_stats_block,
+                )
+
                 explain_prompt = _prompt_builder.build_expander_user(
                     brand_name=brand_name,
                     visual_mood=brand_intelligence.visual_behavior.visual_mood,
@@ -1360,11 +1537,17 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                     slides=[],
                     canvas=canvas_desc,
                 )
-                explain_prompt = (
-                    explain_prompt
-                    + f"\n\nBRAND DNA LOCK: Use ONLY {brand_name} Brand Space colors ({color_behavior or 'from visual identity'}). "
+                dense_cards = extract_dense_cards(blueprint, max_cards=8)
+                dense_extra = (
+                    f"\n\n{DENSE_LAYOUT_LOCK}\n"
+                    + format_dense_stats_block(blueprint)
+                    + format_dense_cards_block(dense_cards)
+                    + f"\nBRAND DNA LOCK: Use ONLY {brand_name} Brand Space colors "
+                    f"({color_behavior or 'from visual identity'}). "
                     "NEVER Jiraaf navy #003975, orange #FFA400, or ice-blue #E8F0F8. NO SEBI footer.\n"
+                    "Bake EVERY insight card TITLE + BODY paragraph. Small icons. Latest facts first.\n"
                 )
+                explain_prompt = explain_prompt + dense_extra
             logger.info(
                 "visual_reasoning.explain_ai_prompt",
                 prompt_len=len(explain_prompt),
@@ -1383,12 +1566,17 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                             "Render ONLY the quoted COPY block — zero paraphrase.\n"
                         )
                     single_url = await _generate_one_image(
-                        prompt_try[:6000],
+                        # The structured data-story prompt runs ~5.8k; a 6k cap
+                        # silently amputated the AVOID block at the end.
+                        prompt_try[:9000],
                         size,
                         suffix,
                         composite_sebi_footer=False,
                         image_quality="high",
                         skip_extra_locks=True,
+                        # Fit 2:3 API canvas into 4:5 without chopping headline
+                        # or takeaway — centre-crop was amputating edge text.
+                        letterbox_to_aspect=is_jiraaf_brand,
                     )
                     generated_urls.append(single_url)
                     break
@@ -1404,19 +1592,26 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                     f"Explain infographic image failed after 2 attempts: {last_err}"
                 ) from last_err
         else:
+            from app.services.image_generation.dense_content_bake import (
+                DENSE_LAYOUT_LOCK,
+                extract_dense_cards,
+                format_dense_cards_block,
+                format_dense_stats_block,
+                scrub as _dense_scrub,
+            )
+
             text_bake_suffix = _error_free_text_block(
                 [
                     ("HEADLINE", _q(sanitize_ranking_text(str(headline or "")), 140)),
-                    ("SUPPORTING LINE", _q(sanitize_ranking_text(str(supporting or "")), 180)),
-                    ("BODY", _q(body, 260)),
+                    ("SUPPORTING LINE", _q(sanitize_ranking_text(str(supporting or "")), 200)),
+                    ("BODY", _q(body, 320)),
                     ("CTA", _q(sanitize_ranking_text(str(cta or "")), 40)),
-                    ("PROBLEM", _q(problem_statement, 160)),
-                    ("SOLUTION", _q(solution_statement, 160)),
-                    ("SECTIONS", _q(sections, 220)),
-                    ("STATS", _q(stat_highlights, 160)),
-                    ("PROOF POINTS", _q(proof_points, 180)),
-                    ("PROCESS STEPS", _q(process_steps, 160)),
-                    ("QUOTE", _q(customer_quote, 160)),
+                    ("PROBLEM", _q(problem_statement, 180)),
+                    ("SOLUTION", _q(solution_statement, 180)),
+                    ("STATS", _q(stat_highlights, 220)),
+                    ("PROOF POINTS", _q(proof_points, 220)),
+                    ("PROCESS STEPS", _q(process_steps, 180)),
+                    ("QUOTE", _q(customer_quote, 180)),
                     ("QUOTE ATTRIBUTION", _q(customer_name, 60)),
                     (
                         "SOURCE FOOTER",
@@ -1424,56 +1619,65 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                             sanitize_ranking_text(
                                 str((blueprint.source_footer if blueprint else "") or "")
                             ),
-                            80,
+                            100,
                         ),
                     ),
                 ],
                 is_carousel=False,
             )
             card_bake = ""
-            if blueprint and (blueprint.sections or []):
-                is_education_layout = layout_type == "carousel_story"
-                is_rank_layout = layout_type == "static_ranking"
+            is_rank_layout = layout_type == "static_ranking"
+            if blueprint:
+                dense_cards = extract_dense_cards(blueprint, max_cards=8 if not is_rank_layout else 12)
                 card_lines = [
-                    "\nEXACT CARD / ROW TEXT — bake ONLY these quoted strings (zero invented words):\n"
+                    "\nEXACT CARD / ROW TEXT — bake ONLY these quoted strings (zero invented words):\n",
+                    DENSE_LAYOUT_LOCK,
+                    "\n",
+                    format_dense_stats_block(blueprint, max_stats=6),
                 ]
-                for i, sec in enumerate((blueprint.sections or [])[:15], start=1):
-                    raw_label = (sec.section_label or "").strip()
-                    if not raw_label or raw_label.casefold() in {"item", f"item {i}"}:
-                        body = (sec.body or "").strip()
+                if is_rank_layout and (blueprint.sections or []):
+                    # Ranking keeps name + metric rows, but still include BODY so-what when present.
+                    for i, sec in enumerate((blueprint.sections or [])[:12], start=1):
+                        raw_label = (sec.section_label or "").strip()
+                        sec_body = (sec.body or "").strip()
                         first = next(
                             (str(x).strip() for x in (sec.includes or []) if str(x).strip()),
                             "",
                         )
-                        raw_label = " ".join((body or first).split()[:8]).rstrip(".,;:") or f"Point {i}"
-                    label = sanitize_ranking_text(raw_label)
-                    max_facts = 2
-                    facts = [
-                        sanitize_ranking_text(str(x).strip())
-                        for x in (sec.includes or [])
-                        if str(x).strip()
-                    ][:max_facts]
-                    stat = sanitize_ranking_text(str(sec.stat or "").strip())
-                    if stat and is_rank_layout:
-                        import re as _re
+                        if not raw_label or raw_label.casefold() in {"item", f"item {i}"}:
+                            raw_label = " ".join((sec_body or first).split()[:8]).rstrip(".,;:") or f"Point {i}"
+                        label = sanitize_ranking_text(raw_label)
+                        stat = sanitize_ranking_text(str(sec.stat or "").strip())
+                        if stat:
+                            import re as _re
 
-                        stat = _re.sub(r"US\s*\$", "USD ", stat, flags=_re.I)
-                        stat = _re.sub(r"\$", "", stat)
-                        facts = [stat] + facts
-                    facts = facts[:max_facts]
-                    if is_education_layout:
-                        card_lines.append(f'CARD {i} HEADING: "{label}"\n')
-                        for j, fact in enumerate(facts, start=1):
-                            # Keep up to 20 words — enough for a complete sentence
-                            short = " ".join(fact.split()[:20])
-                            card_lines.append(f'CARD {i} EXPLANATION {j}: "{short}"\n')
-                    else:
-                        card_lines.append(f'CARD {i} name: "{label}"\n')
-                        for j, fact in enumerate(facts, start=1):
-                            # Keep up to 15 words — complete sentence, not truncated bullets
-                            short = " ".join(fact.split()[:15])
-                            card_lines.append(f'CARD {i} line {j}: "{short}"\n')
-                card_lines.append(f"Layout: {creative_template.image_stub}\n")
+                            stat = _re.sub(r"US\s*\$", "USD ", stat, flags=_re.I)
+                            stat = _re.sub(r"\$", "", stat)
+                        body_line = _dense_scrub(sec_body or first, max_words=22)
+                        card_lines.append(f'ROW {i} name: "{label}"\n')
+                        if stat:
+                            card_lines.append(f'ROW {i} metric: "{stat}"\n')
+                        if body_line:
+                            card_lines.append(f'ROW {i} BODY: "{body_line}"\n')
+                elif dense_cards:
+                    card_lines.append(format_dense_cards_block(dense_cards))
+                elif blueprint.sections:
+                    for i, sec in enumerate((blueprint.sections or [])[:8], start=1):
+                        label = sanitize_ranking_text((sec.section_label or f"Point {i}").strip())
+                        body_line = _dense_scrub(sec.body or "", max_words=28)
+                        if not body_line:
+                            first = next(
+                                (str(x).strip() for x in (sec.includes or []) if str(x).strip()),
+                                "",
+                            )
+                            body_line = _dense_scrub(first, max_words=28)
+                        card_lines.append(
+                            f'CARD {i}: SMALL ICON + TITLE "{label}" + BODY "{body_line}"\n'
+                        )
+                card_lines.append(
+                    f"Layout: {creative_template.image_stub}\n"
+                    "Icons SMALL. Bake every TITLE + BODY. Prefer latest numbers.\n"
+                )
                 card_bake = "".join(card_lines)
 
             layout_hint = creative_template.l8_image_hint(canvas_desc=canvas_desc)
@@ -1482,9 +1686,11 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             layout_hint += (
                 f"Canvas size LOCKED: {canvas_desc}. Fit every element inside with >=6% margins.\n"
                 "Never clip CTA/text/icons. CTA COMPACT <=28% width, <=4 words.\n"
+                "STATIC/INFOGRAPHIC: dense structured cards with small icons + neat paragraphs.\n"
             )
+            # Put dense card copy first so the 6000-char API cut never drops the facts.
             single_url = await _generate_one_image(
-                (image_gen_prompt + layout_hint + card_bake + text_bake_suffix)[:6000],
+                (card_bake + text_bake_suffix + layout_hint + image_gen_prompt)[:6000],
                 size,
                 composite_sebi_footer=False,
             )

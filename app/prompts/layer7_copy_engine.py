@@ -22,6 +22,7 @@ from app.prompts.brand_copy_tone import (
     STATIC_HORIZONTAL_BAR_DNA_LOCK,
     STATIC_HORIZONTAL_BAR_IMAGE_STUB,
     INFOGRAPHIC_AUDIENCE_TONE_LOCK,
+    RETAIL_TONE_LOCK,
     INFOGRAPHIC_RANKING_FORMAT_LOCK,
     INFOGRAPHIC_TRADE_BOARD_LOCK,
     RANKING_IMAGE_STUB,
@@ -107,14 +108,13 @@ A) COUNTRY / TOP-N RANK (FDI, inflation ranks) — MATCH sample_top_countries_in
 {INFOGRAPHIC_RANKING_FORMAT_LOCK}
 - Fill infographic_sections with ranked rows.
 - section_label = real country (USA, Singapore, Japan, UK, UAE — NEVER HAE / ASA)
-- includes = [ONE plain phrase ≤5 words] — copy this sample tone EXACTLY:
-  "Top investor in India" | "Strong economic ties" | "Growing interest" |
-  "Diverse sectors" | "Strategic partnerships"
+- includes = [ONE plain phrase ≤5 words] describing THAT row's entity, written fresh
+  from this run's research — never reused from any sample creative
   NEVER jargon, NEVER essays, NEVER duplicate the amount as a phrase
-- stat = "₹50B" / "₹45B" style for India FDI ranks (NEVER "US $" / "$" / "ESD")
+- stat = "₹50B" style for India FDI ranks (NEVER "US $" / "$" / "ESD")
   Inflation ranks → "6.5%" ; if source USD → "USD 50 Bn" letters only
-- supporting_line like: "A strong signal from global investors."
-- cta = "Explore more" (2–3 words ONLY — never "Explore Investment Opportunities")
+- supporting_line = one soft factual line about the user's own topic
+- cta = 2–3 words ONLY — never a sentence like "Explore Investment Opportunities"
 - Row COUNT must match the user request (top 6 → 6 rows).
 - SPELLING: UAE not HAE; USA not ASA; tech/infrastructure letter-perfect.
 
@@ -137,18 +137,21 @@ paragraph-length CTAs.
 
     _INFOGRAPHIC_SYSTEM_SUFFIX = f"""
 INFOGRAPHIC FORMAT — CRITICAL ADDITIONAL RULES:
-{INFOGRAPHIC_AUDIENCE_TONE_LOCK}
+{RETAIL_TONE_LOCK}
 Match Jiraaf sample tone — scannable, short labels — NOT textbook essays / teaser ads.
 
-Pick structure from USER INTENT (do NOT default to comparison):
-- WHY / explain / how / what is → multi-section editorial (sample_infographic_explain_rbi_polymer.png)
-  Section headings + 3-col icon cards + callout box — NOT bond benefit cards
-- Ranking / top-N / country-wise / FDI → ranked rows ({INFOGRAPHIC_RANKING_FORMAT_LOCK})
-- Trade deficit → dual-bar year board ({INFOGRAPHIC_TRADE_BOARD_LOCK})
+The LOCKED layout_type above already decides the structure. Detailed rules for the
+chosen structure are appended below. Do NOT borrow another structure's rules, and do
+NOT borrow any sample creative's subject matter, entities, phrases or numbers:
+- WHY / explain / how / what is → multi-section storytelling editorial
+  Section headings + icon cards + callout box — NOT ranked rows, NOT bond benefit cards
+- Ranking / top-N / country-wise / FDI → ranked rows (ONLY if the user asked to rank)
+- Trade deficit → dual-bar year board
 - Bank penalties / key rules → bank fact cards
 
 When infographic explain (why/how/what is):
-- 2–4 section blocks: section_label = heading, includes = "Title | explanation" sub-points
+- The DATA-STORY CONTENT CONTRACT appended below owns the exact section and
+  stat counts. Follow it literally — do not substitute your own structure.
 - customer_quote = final callout insight; source_footer when research exists
 - FORBIDDEN: Capital Preservation / Regular Income on unrelated topics
 
@@ -164,12 +167,44 @@ INFOGRAPHIC EXPLAIN (layout_type=carousel_story on infographic) — sample DNA, 
 {INFOGRAPHIC_EXPLAIN_LAYOUT_LOCK}
 {INFOGRAPHIC_EXPLAIN_ORANGE_STUB}
 {INFOGRAPHIC_EXPLAIN_QUALITY_LOCK}
-- headline (question OK, ≤10 words) + supporting_line (1 line, ≤14 words)
-- 2–3 UNIQUE sections[]: section_label = short heading (≤8 words)
-- includes[] = 2–3 items "Mini-title | short fact" — explanation ≤10 words, mini-title ≤4 words
-- customer_quote = ONE sentence callout (≤16 words); source_footer when available
-- cta = "Learn more" / "Share the news!" ONLY — NEVER bond/investment CTA on RBI/currency topics
-FORBIDDEN: long paragraphs, full-width orange headers, duplicate headings, typos, bond CTAs off-topic
+DATA-STORY CONTENT CONTRACT — the layout renders these slots literally, so fill
+every one. Big numbers carry the story; prose is support, never the main event.
+- headline ≤8 words (a claim or question) + supporting_line ≤12 words
+- stat_highlights = UP TO 4 headline figures for the hero band.
+  Format each as "<figure> <short label>" — e.g. "15.4% annual growth in traffic",
+  "352 MN+ passengers in FY2024", "2.7X increase in aircraft movements".
+  The figure comes FIRST and must be a real number from approved evidence.
+- sections[] = UP TO 6, split into two groups:
+  * numbered proof (up to 3): each sets stat to a real figure ("148", "120+", "79")
+    with section_label = ≤6-word label for that figure.
+  * supporting insights (up to 3): leave stat EMPTY, section_label = ≤5-word
+    heading, body = ONE concrete so-what (≤12 words) naming a real driver or
+    outcome — e.g. "UDAN links Tier-2 cities to metros", "Cargo hubs cut logistics cost",
+    "Greenfield airports unlock new tourism belts". MUST be specific. Ban filler:
+    "everything you need to know", "India needs a lot", "key insight", "why it matters".
+NO-REPEAT RULE (most important): every figure and every fact appears EXACTLY ONCE
+across the whole output. A number used in stat_highlights must NOT reappear as a
+section stat, label or body. Restating one fact in different words counts as a
+repeat and is a failure.
+FEWER IS BETTER THAN REPEATED: if approved evidence supports only 3 distinct
+facts, return only 3. Do NOT pad the remaining slots by rephrasing or reusing a
+fact, and never invent a figure. An honest short poster beats a padded one.
+- This is a POSTER, not an essay. Keep the total word count low: 4 hero figures
+  plus 3 numbered proofs are the 7 data points that carry the story.
+- Leave the top-level body EMPTY. Never write a paragraph — paragraphs get
+  clipped mid-sentence when rendered.
+- Write every string COMPLETE. Never end a label or clause on a dangling
+  connector ("and", "or", "that", "with", "for", "to", "of").
+- Keep money units glued to the figure: "₹98,000 cr total investment" — never
+  leave "crore" alone in the label where the image can wrap it as "cr ore".
+- customer_quote = closing line 1 (≤8 words, punchy insight — not a slogan)
+- cta = closing line 2 (≤10 words, forward-looking)
+- source_footer = "Source: <named institutions>" whenever evidence has sources
+NEVER invent a figure. If evidence supports fewer than 4 hero figures, use the
+real ones you have and leave the rest out rather than fabricating.
+FORBIDDEN: long paragraphs, full-width orange headers, duplicate headings, typos,
+bond CTAs off-topic, placeholder text, numbered stubs like "Rationale 1",
+teaser filler ("everything you need to know", "India needs a lot more")
 """
 
     _STATIC_EXPLAIN_SUFFIX = f"""
@@ -293,7 +328,10 @@ No preamble. No explanations. Return ONLY raw JSON."""
             base += self._INFOGRAPHIC_EXPLAIN_SUFFIX
         elif layout_type == "carousel_story" and format_name == "static":
             base += self._STATIC_EXPLAIN_SUFFIX
-        if layout_type == "carousel_story" or format_name == "carousel":
+        # layout_type "carousel_story" is the internal marker for a story/explain
+        # structure, not an actual carousel. Appending slide rules to an
+        # infographic told the model to emit slide_copy instead of sections.
+        if format_name == "carousel":
             base += self._CAROUSEL_STORY_SUFFIX
         return base
 

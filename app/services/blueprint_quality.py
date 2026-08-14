@@ -14,6 +14,65 @@ from app.prompts.jiraaf_layout import LayoutType, source_domains_for_footer
 if TYPE_CHECKING:
     from app.graph.models.layer7c_models import CreativeBlueprint
 
+# Bodies that look like copy but say nothing — these passed QA because digits
+# lived in the hero stats while the insight panels were empty slogans.
+_EMPTY_INSIGHT = re.compile(
+    r"(everything you need(?:\s+to\s+know)?|"
+    r"need to know|"
+    r"needs? a lot|"
+    r"\ba lot more\b|"
+    r"^(key|important|main)\s+(insight|point|reason|takeaway)\b|"
+    r"^(learn more|read more|stay tuned|explore more)\b|"
+    r"lorem ipsum|"
+    r"simple view before wider adoption|"
+    r"^why it matters\b|"
+    r"^the big picture\b)",
+    re.I,
+)
+
+
+def is_empty_insight(text: str) -> bool:
+    """True when a section body / reason line has no usable insight."""
+    t = re.sub(r"\s+", " ", (text or "").strip())
+    if not t:
+        return True
+    words = t.split()
+    if len(words) < 4 and not re.search(r"\d", t):
+        return True
+    if _EMPTY_INSIGHT.search(t):
+        return True
+    # Tautology / self-echo: "India needs a lot. India needs a lot more airports."
+    parts = [p.strip() for p in re.split(r"[.!?]+", t) if p.strip()]
+    if len(parts) >= 2:
+        a, b = parts[0].casefold(), parts[1].casefold()
+        if a and b and (a == b or a in b or b in a):
+            return True
+    return False
+
+
+def count_empty_insight_sections(blueprint: Any) -> int:
+    """How many sections carry empty / filler insight copy."""
+    n = 0
+    for sec in blueprint.sections or []:
+        blob = " ".join(
+            [
+                sec.body or "",
+                " ".join(str(x) for x in (sec.includes or [])),
+            ]
+        ).strip()
+        # Real proof rows with a serious figure and a non-filler label/body are fine.
+        real_proof = bool(
+            (sec.stat or "").strip()
+            and re.search(r"[₹$%]|[0-9]{2,}", sec.stat or "")
+            and not is_empty_insight(blob)
+        )
+        if real_proof:
+            continue
+        if is_empty_insight(blob):
+            n += 1
+    return n
+
+
 _TEASER_HEADLINE = re.compile(
     r"^\s*(what are your|are you aware|discover how|learn the|surprising costs|"
     r"did you know|ready to|unlock|ever wondered)\b",
@@ -1125,28 +1184,28 @@ def condense_explain_blueprint_copy(
     if blueprint.format not in ("infographic",) or layout_type != "carousel_story":
         return blueprint
 
-    blueprint.headline = _clip_complete(blueprint.headline or blueprint.title or "", 12)
+    blueprint.headline = _clip_complete(blueprint.headline or blueprint.title or "", 14)
     blueprint.title = blueprint.headline
-    blueprint.supporting_line = _clip_complete(blueprint.supporting_line or "", 20)
-    blueprint.customer_quote = _clip_complete(blueprint.customer_quote or "", 22)
+    blueprint.supporting_line = _clip_complete(blueprint.supporting_line or "", 28)
+    blueprint.customer_quote = _clip_complete(blueprint.customer_quote or "", 28)
 
     condensed: list[BlueprintInfographicSection] = []
     for sec in blueprint.sections or []:
         includes_out: list[str] = []
-        for raw in (sec.includes or [])[:3]:
+        for raw in (sec.includes or [])[:4]:
             fact = str(raw).strip()
             if "|" in fact:
                 title, rest = [p.strip() for p in fact.split("|", 1)]
                 includes_out.append(
-                    f"{_clip_complete(title, 6)} | {_clip_complete(rest, 16)}"
+                    f"{_clip_complete(title, 8)} | {_clip_complete(rest, 22)}"
                 )
             else:
-                includes_out.append(_clip_complete(fact, 20))
+                includes_out.append(_clip_complete(fact, 28))
         condensed.append(
             BlueprintInfographicSection(
                 section_label=_clip_complete(sec.section_label or "", 12),
                 includes=includes_out,
-                body=_clip_complete(sec.body or "", 24),
+                body=_clip_complete(sec.body or "", 36),
                 icon_hint=sec.icon_hint,
                 stat=sec.stat,
             )
@@ -1168,7 +1227,9 @@ def ensure_explain_sections(
         return blueprint
     if layout_type in ("static_hub_facts", "static_ranking"):
         return blueprint
-    if blueprint.sections and len(blueprint.sections) >= 2:
+    # The sample explain editorials carry 4-6 reason cards. Accepting 2 produced
+    # sparse posters that looked nothing like the reference.
+    if blueprint.sections and len(blueprint.sections) >= 4:
         return blueprint
 
     is_polymer = _is_polymer_explain_topic(user_prompt, blueprint)
@@ -1225,18 +1286,14 @@ def ensure_explain_sections(
             blueprint.headline = "RBI TO TEST PLASTIC CURRENCY NOTES"
             blueprint.title = blueprint.headline
     else:
-        facts = list(blueprint.proof_points or [])[:6]
+        facts = [f for f in (blueprint.proof_points or []) if str(f).strip()][:6]
         if not facts and (blueprint.body or "").strip():
             facts = [(blueprint.body or "").strip()[:120]]
         if not facts:
-            facts = [
-                "Why it matters | Clear benefit for Indian savers with real ₹/% impact.",
-                "How it works | Simple practical change explained in plain language.",
-                "What to watch | One key signal to track before wider adoption.",
-            ]
-        # Pack into sample-like sections
-        while len(facts) < 6:
-            facts.append(facts[-1])
+            # Nothing real to build from. Inventing filler here is what baked
+            # "Here's the simple view before wider adoption" into artwork, so
+            # leave it empty and let the quality gate route this to repair.
+            return blueprint
         seeded = [
             BlueprintInfographicSection(
                 section_label="Why it matters",
@@ -1244,23 +1301,16 @@ def ensure_explain_sections(
                 body="",
                 icon_hint="icons",
             ),
-            BlueprintInfographicSection(
-                section_label="How it works",
-                includes=[str(f)[:140] for f in facts[3:6]],
-                body="Here's the simple view before wider adoption:",
-                icon_hint="clay-3D",
-            ),
-            BlueprintInfographicSection(
-                section_label="What to watch",
-                includes=[],
-                body=(
-                    str(facts[0]).split("|")[-1].strip()[:180]
-                    if facts
-                    else "Watch the next official update before drawing conclusions."
-                ),
-                icon_hint="text",
-            ),
         ]
+        if len(facts) > 3:
+            seeded.append(
+                BlueprintInfographicSection(
+                    section_label="How it works",
+                    includes=[str(f)[:140] for f in facts[3:6]],
+                    body="",
+                    icon_hint="clay-3D",
+                )
+            )
         if not (blueprint.customer_quote or "").strip():
             blueprint.customer_quote = (
                 "Start with the facts, then decide what this means for your money."
@@ -1307,11 +1357,13 @@ def score_blueprint_editorial_qa(
         for s in (blueprint.sections or [])
         if _sloganish.search((s.body or "").strip()) and not re.search(r"\d", s.body or "")
     )
+    empty_insights = count_empty_insight_sections(blueprint)
 
     answers_why = 7 if re.search(r"\bwhy\b", prompt_l) and (
         "because" in text_blob.casefold()
         or "economic" in text_blob.casefold()
         or "connect" in text_blob.casefold()
+        or "decentral" in text_blob.casefold()
     ) else (8 if not re.search(r"\bwhy\b", prompt_l) else 4)
     has_real_data = min(10, 3 + number_count // 2)
     if sloganish >= 2:
@@ -1321,7 +1373,14 @@ def score_blueprint_editorial_qa(
         approved = sum(1 for e in content_intelligence.evidence if e.approved_for_creative)
         claims_verified = min(10, 4 + approved)
     narrative = 7 if (blueprint.sections and len(blueprint.sections) >= 3) else 4
-    copy_complete = 2 if (has_adan or dangling) else 8
+    if empty_insights:
+        # Digits in the hero band must not mask empty insight panels.
+        narrative = min(narrative, 3)
+        copy_complete = 3
+    else:
+        copy_complete = 2 if (has_adan or dangling) else 8
+    if has_adan or dangling:
+        copy_complete = min(copy_complete, 2)
     visual_usable = 7
     on_brand = 6
     if content_intelligence and (content_intelligence.insight_thesis or ""):
@@ -1372,6 +1431,9 @@ def editorial_qa_repair_instructions(scores: dict[str, int], user_prompt: str = 
         "REQUIREMENTS:",
         "- Prefer APPROVED statistics with real numbers (crore/lakh/%/counts).",
         "- Answer WHY if the prompt asks why — thesis + evidence, not slogans.",
+        "- Supporting insights must name a concrete driver or outcome (decentralisation,",
+        "  cargo, UDAN, tourism, jobs). Ban filler like 'everything you need to know'",
+        "  or 'India needs a lot more airports'.",
         "- Complete sentences only — never truncate mid-word (no 'Transfor-', no ending on 'with').",
         "- Spell UDAN correctly (never ADAN).",
         "- Infographic: 1 hero statistic + 3–5 supporting data cards + 1 insight body each.",
@@ -1380,6 +1442,68 @@ def editorial_qa_repair_instructions(scores: dict[str, int], user_prompt: str = 
     if re.search(r"\bwhy\b", (user_prompt or ""), re.I):
         lines.append("- Explicitly explain the economic rationale, not just 'more airports'.")
     return "\n".join(lines)
+
+
+# Wording that only ever belongs to a reference sample creative. Each entry maps the
+# phrase to the topic tokens that make it legitimate; seen anywhere else it means the
+# copy engine reproduced the sample instead of the user's brief.
+_SAMPLE_SIGNATURE_PHRASES: dict[str, tuple[str, ...]] = {
+    "top investor in india": ("fdi", "invest", "countries", "country"),
+    "strong economic ties": ("fdi", "invest", "countries", "country", "trade"),
+    "strategic partnerships": ("fdi", "invest", "countries", "country", "trade"),
+    "diverse sectors": ("fdi", "invest", "countries", "country"),
+    "countries investing in india": ("fdi", "invest", "countries", "country"),
+    "a strong signal from global investors": ("fdi", "invest", "countries", "country"),
+    "capital preservation": ("bond", "debenture", "ncd", "fixed income", "invest"),
+    "regular income": ("bond", "debenture", "ncd", "fixed income", "income"),
+    "penalty rates": ("penalty", "penalties", "fd", "bank"),
+}
+
+_TOPIC_STOPWORDS = frozenset(
+    """a an and are as at be by can create design for from generate give how i
+    in infographic image is it list make me my of on or post please poster real
+    ranking show static carousel that the their there these this to us use using
+    want we what when where which why with you your data point points""".split()
+)
+
+
+def detect_sample_contamination(
+    blueprint: CreativeBlueprint, user_prompt: str
+) -> list[str]:
+    """Detect copy lifted from a reference sample instead of the user's brief."""
+    prompt_l = (user_prompt or "").casefold()
+    text_l = " ".join(
+        [
+            blueprint.headline or "",
+            blueprint.supporting_line or "",
+            blueprint.body or "",
+            blueprint.cta or "",
+            " ".join(s.section_label or "" for s in (blueprint.sections or [])),
+            " ".join(s.body or "" for s in (blueprint.sections or [])),
+            " ".join(
+                str(i) for s in (blueprint.sections or []) for i in (s.includes or [])
+            ),
+        ]
+    ).casefold()
+    if not text_l.strip():
+        return []
+
+    reasons: list[str] = []
+    for phrase, allowed in _SAMPLE_SIGNATURE_PHRASES.items():
+        if phrase in text_l and not any(tok in prompt_l for tok in allowed):
+            reasons.append(f"sample copy '{phrase}' reused on an unrelated topic")
+
+    topic_words = {
+        w.rstrip("s")
+        for w in re.findall(r"[a-z]{4,}", prompt_l)
+        if w not in _TOPIC_STOPWORDS
+    }
+    if topic_words and not any(w in text_l for w in topic_words):
+        reasons.append(
+            "no word from the user's topic appears in the creative "
+            f"(expected one of: {', '.join(sorted(topic_words)[:6])})"
+        )
+    return reasons
 
 
 def evaluate_blueprint_gate(
@@ -1460,6 +1584,48 @@ def evaluate_blueprint_gate(
     repair_target: str | None = None
 
     # Hard failures
+    # Explain editorials must carry the sample's card density; 2-3 cards renders
+    # as a sparse poster nothing like the reference creative.
+    is_explain = (blueprint.layout_type or "") == "carousel_story" or (
+        blueprint.format == "infographic"
+        and (blueprint.layout_type or "") not in ("static_ranking", "static_hub_facts")
+    )
+    sparse = is_explain and not blueprint.slides and len(blueprint.sections or []) < 4
+    if sparse:
+        format_fit = min(format_fit, 0.35)
+        repairs.append(
+            RepairInstruction(
+                target_layer="l7_copy_engine",
+                failure_reason=(
+                    f"Explain infographic has only {len(blueprint.sections or [])} sections; "
+                    "the sample carries 4-6 distinct reason cards"
+                ),
+                repair_action=(
+                    "Rebuild 5-6 unique reason sections, each a different story beat with its "
+                    "own real number, plus 3-4 at-a-glance stat highlights"
+                ),
+                priority="critical",
+            )
+        )
+        repair_target = "l7"
+
+    contamination = detect_sample_contamination(blueprint, user_prompt)
+    if contamination:
+        brief_alignment = min(brief_alignment, 0.2)
+        originality = min(originality, 0.2)
+        repairs.append(
+            RepairInstruction(
+                target_layer="l7_copy_engine",
+                failure_reason="Reference-sample copy reproduced instead of the user's topic: "
+                + "; ".join(contamination),
+                repair_action=(
+                    "Rewrite every line from this run's own research on the user's topic. "
+                    "Reference samples define layout only — never their words, entities or numbers."
+                ),
+                priority="critical",
+            )
+        )
+        repair_target = "l7"
     if has_adan:
         repairs.append(
             RepairInstruction(
@@ -1469,7 +1635,7 @@ def evaluate_blueprint_gate(
                 priority="critical",
             )
         )
-        repair_target = "l7c"
+        repair_target = repair_target or "l7c"
     if dangling:
         repairs.append(
             RepairInstruction(
@@ -1479,7 +1645,7 @@ def evaluate_blueprint_gate(
                 priority="critical",
             )
         )
-        repair_target = "l7c"
+        repair_target = repair_target or "l7c"
     if must_why and scores.get("answers_why", 0) < 6:
         repairs.append(
             RepairInstruction(
@@ -1533,7 +1699,13 @@ def evaluate_blueprint_gate(
         )
         repair_target = "l7"
 
-    hard_fail = has_adan or dangling or (must_why and scores.get("answers_why", 0) < 6)
+    hard_fail = (
+        bool(contamination)
+        or sparse
+        or has_adan
+        or dangling
+        or (must_why and scores.get("answers_why", 0) < 6)
+    )
     editorial_pass = blueprint_passes_editorial_qa(scores)
     overall_pass = (
         editorial_pass
@@ -1561,12 +1733,13 @@ def evaluate_blueprint_gate(
         format_fit_score=round(format_fit, 2),
         brand_uniqueness_score=round(distinct, 2),
         strategic_quality_score=round(insight_q, 2),
-        contamination_risk="high" if has_adan else "low",
+        contamination_risk="high" if (contamination or has_adan) else "low",
         overall_pass=overall_pass,
         required_repairs=repairs,
         evaluator_reasoning=(
             f"editorial={scores}; factual={factual:.2f}; insight={insight_q:.2f}; "
             f"hard_fail={hard_fail}; target={repair_target}"
+            + (f"; contamination={contamination}" if contamination else "")
         ),
     )
     return evaluation, repair_target
@@ -1593,6 +1766,8 @@ def enforce_intelligence_on_blueprint(
         scores.get("has_real_data", 0) < 6
         or scores.get("answers_why", 0) < 6
         or scores.get("copy_complete", 0) < 6
+        or scores.get("narrative_coherent", 0) < 6
+        or count_empty_insight_sections(blueprint) > 0
     )
     if not weak:
         blueprint.brand_alignment_notes = notes[:8]
@@ -1660,6 +1835,158 @@ def enforce_intelligence_on_blueprint(
     return blueprint
 
 
+def ensure_insightful_sections(
+    blueprint: CreativeBlueprint,
+    *,
+    content_intelligence: Any | None,
+    user_prompt: str = "",
+) -> CreativeBlueprint:
+    """Replace empty / filler insight panels with approved evidence so-whats.
+
+    Runs even when hero stats already have numbers — that was how
+    'Everything you need to know' reached the poster with has_real_data=10.
+    """
+    from app.graph.models.layer7c_models import BlueprintInfographicSection
+
+    if not content_intelligence:
+        return blueprint
+    if count_empty_insight_sections(blueprint) == 0 and (
+        blueprint.sections and len(blueprint.sections) >= 3
+    ):
+        # Still refresh supporting_line / closing if they are filler.
+        pass
+
+    approved = [
+        e for e in (content_intelligence.evidence or []) if e.approved_for_creative
+    ]
+    fa = getattr(content_intelligence, "format_architecture", None)
+    thesis = (
+        (getattr(content_intelligence, "insight_thesis", None) or "")
+        or (getattr(fa, "core_insight", None) if fa else "")
+        or ""
+    ).strip()
+    data_points = list(getattr(fa, "supporting_data_points", None) or []) if fa else []
+    hero = (getattr(fa, "hero_statistic", None) or "") if fa else ""
+
+    # Build insight paragraphs: prefer claim+value, fall back to thesis slices.
+    insights: list[tuple[str, str, str]] = []
+    for e in approved[:8]:
+        claim = re.sub(r"\bADAN\b", "UDAN", str(e.claim or ""), flags=re.I).strip()
+        value = re.sub(r"\bADAN\b", "UDAN", str(e.value or claim), flags=re.I).strip()
+        interpretation = re.sub(
+            r"\bADAN\b",
+            "UDAN",
+            str(getattr(e, "interpretation", "") or ""),
+            flags=re.I,
+        ).strip()
+        if not claim and not value:
+            continue
+        # Each panel gets its own so-what — keep enough words for a neat paragraph.
+        if interpretation and len(interpretation.split()) >= 6:
+            body = _clip_complete(interpretation, 28)
+        elif claim and len(claim.split()) >= 4:
+            body = _clip_complete(claim, 28)
+        elif value and thesis:
+            body = _clip_complete(f"{value} — {thesis}", 28)
+        elif value:
+            body = _clip_complete(f"{value} is reshaping regional opportunity.", 22)
+        else:
+            body = _clip_complete(thesis or claim, 28)
+        label = _clip_complete(claim, 6) or _clip_complete(value, 6) or "Key driver"
+        # Avoid label == body echo.
+        if re.sub(r"[^a-z0-9]+", "", label.casefold()) == re.sub(
+            r"[^a-z0-9]+", "", body.casefold()
+        ):
+            label = _clip_complete(value, 6) or "Key driver"
+        insights.append((label, value if re.search(r"\d", value) else "", body))
+    if not insights and data_points:
+        for point in data_points[:6]:
+            point = re.sub(r"\bADAN\b", "UDAN", str(point), flags=re.I).strip()
+            if not point:
+                continue
+            insights.append(
+                (
+                    _clip_complete(point, 6) or "Key driver",
+                    point if re.search(r"\d", point) else "",
+                    _clip_complete(thesis or point, 28),
+                )
+            )
+    if not insights:
+        return blueprint
+
+    sections = list(blueprint.sections or [])
+    insight_i = 0
+    rebuilt: list[Any] = []
+    for sec in sections:
+        blob = " ".join(
+            [sec.body or "", " ".join(str(x) for x in (sec.includes or []))]
+        ).strip()
+        # Fake proof rows (stat="1" + slogan body) must be replaced too —
+        # digits in the hero band used to let these through.
+        real_proof = bool(
+            (sec.stat or "").strip()
+            and re.search(r"[₹$%]|[0-9]{2,}", sec.stat or "")
+            and not is_empty_insight(blob)
+        )
+        if (not real_proof) and is_empty_insight(blob) and insight_i < len(insights):
+            label, value, body = insights[insight_i]
+            insight_i += 1
+            rebuilt.append(
+                BlueprintInfographicSection(
+                    section_label=label,
+                    # Supporting insights stay without a duplicate hero number.
+                    stat=None,
+                    includes=[value] if value else [],
+                    body=body,
+                    icon_hint=sec.icon_hint,
+                )
+            )
+        else:
+            rebuilt.append(sec)
+
+    # If the poster had only proof/empty rows, append remaining insights.
+    while insight_i < len(insights) and len(rebuilt) < 8:
+        label, value, body = insights[insight_i]
+        insight_i += 1
+        rebuilt.append(
+            BlueprintInfographicSection(
+                section_label=label,
+                stat=None,
+                includes=[value] if value else [],
+                body=body,
+            )
+        )
+
+    blueprint.sections = rebuilt[:8]
+
+    # Hero stats from format architecture when the LLM left soft labels.
+    if hero and not (blueprint.stat_highlights or []):
+        points = [hero] + [p for p in data_points if p != hero]
+        blueprint.stat_highlights = [
+            _clip_complete(re.sub(r"\bADAN\b", "UDAN", str(p), flags=re.I), 16)
+            for p in points[:6]
+            if str(p).strip()
+        ]
+
+    if thesis and (
+        not (blueprint.supporting_line or "").strip()
+        or is_empty_insight(blueprint.supporting_line or "")
+        or _SLOGANISH.search((blueprint.supporting_line or "").strip())
+    ):
+        blueprint.supporting_line = _clip_complete(thesis, 24)
+
+    if thesis and (
+        not (blueprint.customer_quote or "").strip()
+        or is_empty_insight(blueprint.customer_quote or "")
+    ):
+        blueprint.customer_quote = _clip_complete(thesis, 18)
+
+    notes = list(blueprint.brand_alignment_notes or [])
+    notes.append("insight_panels_filled_from_content_intelligence")
+    blueprint.brand_alignment_notes = notes[:8]
+    return blueprint
+
+
 def enrich_blueprint_with_research_insights(
     blueprint: CreativeBlueprint,
     *,
@@ -1719,7 +2046,9 @@ def enrich_blueprint_with_research_insights(
     def _is_shallow(sec: Any) -> bool:
         body = str(getattr(sec, "body", "") or "")
         includes = " ".join(str(x) for x in (getattr(sec, "includes", None) or []))
-        blob = f"{body} {includes}"
+        blob = f"{body} {includes}".strip()
+        if is_empty_insight(blob):
+            return True
         has_number = bool(re.search(r"\d", blob))
         return (not has_number) or bool(_SHALLOW.search(body.strip()))
 
@@ -1806,6 +2135,43 @@ def finalize_blueprint_for_card(
     if not blueprint.layout_archetype:
         blueprint.layout_archetype = layout_type
 
+    # Mirror Content Intelligence agency brief onto the approval card (above hook/storyline).
+    if content_intelligence is not None:
+        ab = getattr(content_intelligence, "agency_brief", None)
+        if ab is not None:
+            try:
+                from app.graph.models.content_intelligence_models import AgencyBrief
+
+                if isinstance(ab, AgencyBrief):
+                    blueprint.agency_brief = ab
+                elif isinstance(ab, dict):
+                    blueprint.agency_brief = AgencyBrief.model_validate(ab)
+                else:
+                    blueprint.agency_brief = AgencyBrief.model_validate(
+                        ab.model_dump() if hasattr(ab, "model_dump") else {}
+                    )
+            except Exception:
+                pass
+            # Seed empty creative fields from brief so the card never jumps past strategy.
+            ab_obj = blueprint.agency_brief
+            if ab_obj:
+                if not (blueprint.audience or "").strip() and ab_obj.audience:
+                    blueprint.audience = ab_obj.audience
+                if not (blueprint.purpose or "").strip() and ab_obj.communication_objective:
+                    blueprint.purpose = ab_obj.communication_objective
+                if not (blueprint.hook or "").strip() and ab_obj.audience_tension:
+                    blueprint.hook = ab_obj.audience_tension[:160]
+                if not (blueprint.headline or "").strip() and ab_obj.headline:
+                    blueprint.headline = ab_obj.headline
+                if not (blueprint.supporting_line or "").strip() and ab_obj.support:
+                    blueprint.supporting_line = ab_obj.support
+                if not blueprint.visual_hierarchy and ab_obj.visual_hierarchy:
+                    blueprint.visual_hierarchy = [
+                        p.strip()
+                        for p in re.split(r"\s*→\s*|->|,", ab_obj.visual_hierarchy)
+                        if p.strip()
+                    ]
+
     blueprint = apply_text_hygiene(blueprint, user_prompt=user_prompt)
     blueprint = attach_sources_from_research(
         blueprint, live_research, user_prompt=user_prompt
@@ -1814,6 +2180,11 @@ def finalize_blueprint_for_card(
         blueprint, live_research=live_research, user_prompt=user_prompt
     )
     blueprint = enforce_intelligence_on_blueprint(
+        blueprint,
+        content_intelligence=content_intelligence,
+        user_prompt=user_prompt,
+    )
+    blueprint = ensure_insightful_sections(
         blueprint,
         content_intelligence=content_intelligence,
         user_prompt=user_prompt,

@@ -80,6 +80,15 @@ class LiveResearchService:
         re.IGNORECASE,
     )
     URL_PATTERN = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
+    # Design-request wording searches badly ("create an infographic ..." returns
+    # design tutorials), so it is stripped before querying for facts.
+    DESIGN_INTENT_PATTERN = re.compile(
+        r"\b(?:create|make|design|build|generate|draft|prepare|give me|show me)\b"
+        r"|\b(?:an?|the)\s+(?:infographic|poster|carousel|creative|static|image|post|banner)\b"
+        r"|\b(?:infographic|carousel|poster|linkedin|instagram|social media)\b"
+        r"|\bwith\s+real\s+data\s+points?\b|\breal\s+data\s+points?\b",
+        re.IGNORECASE,
+    )
 
     def __init__(self) -> None:
         # Wires the repositories and helper services this workflow reuses across its public methods.
@@ -177,10 +186,31 @@ class LiveResearchService:
             self.CURRENT_SIGNAL_PATTERN.search(prompt_text)
             or self.DATA_SURFACE_SIGNAL_PATTERN.search(prompt_text)
         )
-        queries = [prompt_text]
+        # Data-seeking variants. Appending the platform/format ("linkedin
+        # infographic") returned design articles instead of statistics and
+        # starved the poster of facts, so it is no longer used as a query.
+        topic = self.DESIGN_INTENT_PATTERN.sub(" ", prompt_text)
+        topic = re.sub(r"\s+", " ", topic).strip(" ,.;:-")
+        topic = re.sub(r"^(?:on|about|for|of|regarding|around|covering)\s+", "", topic, flags=re.IGNORECASE)
+        topic = topic.strip(" ,.;:-") or prompt_text
+        queries = [topic]
         if knowledge_line:
-            queries.append(f"{prompt_text} {knowledge_line}")
-        queries.append(f"{prompt_text} {platform} {format_name}")
+            queries.append(f"{topic} {knowledge_line}")
+        queries.extend(
+            [
+                f"{topic} statistics data",
+                f"{topic} official report figures",
+                f"{topic} latest numbers year-on-year growth",
+            ]
+        )
+        seen_q: set[str] = set()
+        deduped_queries: list[str] = []
+        for query in queries:
+            key = query.casefold()
+            if query and key not in seen_q:
+                seen_q.add(key)
+                deduped_queries.append(query)
+        queries = deduped_queries
         facts_to_verify = ["exact values", "dates", "percentages", "chart labels", "sources"]
         explicit_count = self._explicit_top_n_count(prompt_text)
         if explicit_count:

@@ -3,6 +3,7 @@
 import os
 import io
 import json
+from pathlib import Path
 import pdfplumber
 import numpy as np
 from PIL import Image
@@ -19,9 +20,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-if google_credentials:
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = google_credentials
+
+def _resolve_google_credentials_path() -> str | None:
+    configured = (os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+    candidates: list[Path] = []
+    if configured:
+        configured_path = Path(configured)
+        candidates.append(configured_path)
+        if not configured_path.is_absolute():
+            candidates.append(Path("/app") / configured)
+    candidates.append(Path("/app/google_credentials.json"))
+    candidates.append(Path("google_credentials.json"))
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return str(candidate.resolve())
+        except OSError:
+            continue
+    return None
+
+
+_resolved_google_credentials = _resolve_google_credentials_path()
+if _resolved_google_credentials:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _resolved_google_credentials
+elif os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    # Avoid pointing Google SDK at a missing file path.
+    os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
 
 class GoogleVisionOCRProcessor:
