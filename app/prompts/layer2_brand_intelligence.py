@@ -80,8 +80,25 @@ No preamble. No explanation. No markdown. JSON only."""
             if brand_name
             else ""
         )
+        pack = kwargs.get("visual_pack") or {}
+        pack_block = ""
+        if isinstance(pack, dict) and pack.get("primary"):
+            pack_block = (
+                "\nBRAND SPACE VISUAL PACK (authoritative colours — do not invent other hexes):\n"
+                f"- brand_name: {pack.get('brand_name') or brand_name}\n"
+                f"- primary: {pack.get('primary')}\n"
+                f"- secondary: {pack.get('secondary')}\n"
+                f"- accent: {pack.get('accent')}\n"
+                f"- background: {pack.get('background')}\n"
+                f"- cards: {pack.get('card')}\n"
+                f"- font: {pack.get('font_primary') or 'Brand Space typography'}\n"
+                f"- design: {pack.get('design_system_summary') or '(none)'}\n"
+                "Retrieved vector chunks are for voice, audience, facts, and mood ONLY.\n"
+                "If a chunk mentions navy, orange, gold, teal, or any hex not listed above, ignore it.\n"
+                "visual_behavior.color_behavior MUST describe ONLY these Brand Space hexes.\n"
+            )
         return f"""{name_line}Brand ID: {brand_id}
-
+{pack_block}
 HIGH RELEVANCE BRAND DATA:
 {self._format_chunks(high_context)}
 
@@ -97,7 +114,11 @@ Build the complete brand behavior model."""
             return "No chunks available."
         return "\n---\n".join(
             [
-                f"Source: {c.source}\nSection: {c.section}\nInfluence area: {c.influence_area}\nContent: {c.content_summary}"
+                (
+                    f"Source: {c.source}\nSection: {c.section}\n"
+                    f"Influence area: {c.influence_area}\n"
+                    f"Content: {(getattr(c, 'content', '') or c.content_summary or '')}"
+                )
                 for c in chunks
             ]
         )

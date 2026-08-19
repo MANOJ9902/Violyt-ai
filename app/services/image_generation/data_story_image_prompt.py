@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Build AI image prompts for the JIRAAF DATA-STORY infographic.
+"""Build AI image prompts for the data-story infographic.
 
 Layout DNA is measured from sample_infographic_data_story_airports.png: a
 gradient ice-blue canvas, a hero stat band of big numbers, two side-by-side
@@ -15,22 +15,20 @@ import re
 from typing import Any
 
 from app.prompts.brand_copy_tone import (
-    JIRAAF_DATA_BG_BOTTOM,
-    JIRAAF_DATA_BG_MID,
-    JIRAAF_DATA_BG_TOP,
-    JIRAAF_NAVY,
-    JIRAAF_ORANGE,
+    NEUTRAL_BG,
+    NEUTRAL_HEADLINE,
+    NEUTRAL_ACCENT,
 )
 from app.services.image_generation.ranking_board import sanitize_ranking_text
 
-DATA_BG_TOP = JIRAAF_DATA_BG_TOP
-DATA_BG_MID = JIRAAF_DATA_BG_MID
-DATA_BG_BOTTOM = JIRAAF_DATA_BG_BOTTOM
-DATA_NAVY = JIRAAF_NAVY
-DATA_ORANGE = JIRAAF_ORANGE
-DATA_BODY = "#4A6076"
-DATA_PANEL = "#EAF4FD"
-DATA_HAIRLINE = "#C6DDF0"
+DATA_BG_TOP = NEUTRAL_BG
+DATA_BG_MID = NEUTRAL_BG
+DATA_BG_BOTTOM = NEUTRAL_BG
+DATA_HEADLINE = NEUTRAL_HEADLINE
+DATA_ACCENT = NEUTRAL_ACCENT
+DATA_BODY = "#374151"
+DATA_PANEL = "#F3F4F6"
+DATA_HAIRLINE = "#E5E7EB"
 
 _SAFE_CHARS = re.compile(r"[^\w\s₹%&.,'\"?!():;\-–/×+]")
 
@@ -170,8 +168,13 @@ def build_data_story_prompt(
     palette: dict[str, str] | None = None,
 ) -> str:
     palette = palette or {}
-    navy = palette.get("headline") or DATA_NAVY
-    orange = palette.get("accent") or DATA_ORANGE
+    headline_c = palette.get("headline") or palette.get("primary") or DATA_HEADLINE
+    secondary_c = palette.get("secondary") or palette.get("card") or DATA_PANEL
+    accent_c = palette.get("accent") or DATA_ACCENT
+    bg = palette.get("background") or DATA_BG_TOP
+    card = palette.get("card") or secondary_c or DATA_PANEL
+    body_c = palette.get("body") or palette.get("muted") or DATA_BODY
+    hairline = palette.get("muted") or DATA_HAIRLINE
 
     headline = _scrub(
         getattr(blueprint, "headline", None) or getattr(blueprint, "title", None) or "",
@@ -297,8 +300,8 @@ def build_data_story_prompt(
     if n_cards >= 4:
         panel_zone = (
             f"SUPPORTING INSIGHTS — {n_cards} soft rounded cards in a neat 2-column grid\n"
-            "   (2×2 / 2×3). Every card: SMALL clay-3D icon (~8–11% of card height) on\n"
-            "   the left, bold navy TITLE, then a neat 2–3 line BODY paragraph with the\n"
+            f"   (2×2 / 2×3). Every card: SMALL clay-3D icon (~8–11% of card height) on\n"
+            f"   the left, bold TITLE in {headline_c}, then a neat 2–3 line BODY paragraph with the\n"
             "   latest / most important so-what. Equal card height, soft shadow, clear\n"
             "   hierarchy. Bake EVERY card — do not omit or invent filler."
         )
@@ -322,9 +325,9 @@ def build_data_story_prompt(
     n_hero = len(hero) or 4
 
     return (
-        "Create a PREMIUM LinkedIn editorial infographic poster matching Jiraaf sample\n"
-        "quality: claymorphic 3D icons, clean navy/orange hierarchy, soft sky-blue\n"
-        "gradient, rounded insight cards, generous whitespace, ultra-sharp typography.\n"
+        "Create a PREMIUM LinkedIn editorial infographic poster.\n"
+        "Claymorphic 3D icons, strong type hierarchy, rounded insight cards,\n"
+        "generous whitespace, ultra-sharp typography.\n"
         f"Vertical portrait {canvas_desc}, ultra HD, consulting-report craft.\n\n"
         "================= 1. CONTENT =================\n"
         "Bake ONLY the strings below, letter-perfect and COMPLETE. Render nothing that is\n"
@@ -336,8 +339,8 @@ def build_data_story_prompt(
         f"{hero_block}\n"
         "SUPPORTING INSIGHT CARDS:\n"
         f"{insight_block}\n"
-        + (f'TAKEAWAY LINE 1 (navy): "{closing}"\n' if closing else "")
-        + (f'TAKEAWAY LINE 2 (orange): "{cta}"\n' if cta else "")
+        + (f'TAKEAWAY LINE 1 (colour {headline_c}): "{closing}"\n' if closing else "")
+        + (f'TAKEAWAY LINE 2 (colour {accent_c}): "{cta}"\n' if cta else "")
         + (f'SOURCE LINE: "{source_footer}"\n' if source_footer else "")
         + "Dense but neat: bake ALL listed stats and insight cards. Prefer latest verified\n"
         "numbers and so-what paragraphs — never replace with generic sample filler.\n\n"
@@ -345,26 +348,26 @@ def build_data_story_prompt(
         "Top-to-bottom story. Strong alignment. Clear section breathing room — mapped,\n"
         "not dumped. MARGINS: ≥5% inset. Every string fully inside the frame.\n"
         "ZONE A — HEADER:\n"
-        "  LEFT ~55%: huge bold navy ALL-CAPS headline (max 3 lines), tight leading.\n"
-        f"  Short thick orange rule (~80×6px, colour {orange}) under the first headline line.\n"
-        "  One-line subtitle under the rule in quieter navy/body grey.\n"
+        f"  LEFT ~55%: huge bold ALL-CAPS headline in {headline_c} (max 3 lines), tight leading.\n"
+        f"  Short thick accent rule (~80×6px, colour {accent_c}) under the first headline line.\n"
+        f"  One-line subtitle under the rule in {body_c}.\n"
         "  RIGHT ~40%: ONE large hero clay-3D illustration of the TOPIC (not a logo).\n"
         "  Hero sits on a soft contact shadow / subtle podium. Glossy, dimensional,\n"
         "  studio-lit — like a product still. NO text, NO wordmark inside the hero.\n"
         "  TOP-RIGHT ~22%×11% logo pocket COMPLETELY BLANK (brand logo composited later).\n"
         "ZONE B — KEY STATISTICS:\n"
-        f"  Small navy/orange ALL-CAPS label 'KEY STATISTICS' + thin hairline rule.\n"
+        f"  Small ALL-CAPS label 'KEY STATISTICS' in {headline_c} + thin hairline rule.\n"
         f"  {n_hero} equal columns across the width. NO boxes around the columns.\n"
         "  Each column stack (top→bottom):\n"
         "    1) SMALL clay-3D icon (~8–11% of column width) with soft shadow\n"
-        "    2) VERY LARGE bold navy figure (largest type after the headline)\n"
-        "    3) 1–2 line short label in body grey\n"
+        f"    2) VERY LARGE bold figure in {headline_c} (largest type after the headline)\n"
+        f"    3) 1–2 line short label in {body_c}\n"
         "  Icons must be different objects that literally mean their own figure.\n"
         f"ZONE C — SUPPORTING INSIGHTS:\n"
         f"  Small ALL-CAPS label 'SUPPORTING INSIGHTS' + hairline.\n"
         f"  {panel_zone}\n"
         "ZONE D — CLOSE:\n"
-        "  Centred navy takeaway line, then bold orange ALL-CAPS second line.\n"
+        f"  Centred takeaway line in {headline_c}, then bold ALL-CAPS second line in {accent_c}.\n"
         "  Tiny centred source line at the very bottom.\n\n"
         "================= 3. VISUAL STYLE =================\n"
         "Premium consulting-report craft with claymorphic icons — NOT a sparse sample\n"
@@ -375,7 +378,7 @@ def build_data_story_prompt(
         "- Each icon is a miniature you could hold: hourglass, stacked notes, % glyph,\n"
         "  map pin, shield+lock, coins, water drop, recycle, bar chart, wallet, etc.\n"
         "  Pick the object that matches THAT card's meaning — never reuse an icon.\n"
-        f"- Materials: glossy navy {navy}, vivid orange {orange}, soft white, light blue\n"
+        f"- Materials: glossy {headline_c} and {accent_c}, soft white, Brand Space card {card}\n"
         "  glass. Consistent lighting direction across the whole poster.\n"
         "- Icon scale is SMALL–MEDIUM and consistent (~8–11% of card/column) so TEXT\n"
         "  and numbers stay the hero. Never giant icons that crowd out paragraphs.\n"
@@ -389,14 +392,20 @@ def build_data_story_prompt(
         "CRITICAL: every string fits fully — never clip, crop, or truncate a word.\n"
         "Bake the BODY paragraphs letter-perfect — they carry the insight.\n\n"
         "================= 4. BRAND STYLE =================\n"
-        "Use ONLY these colours. Do NOT introduce any additional colour.\n"
+        "Use ONLY these Brand Space hex colours. Do NOT invent tints or another palette.\n"
+        f"  primary/headlines {headline_c}\n"
+        f"  secondary {secondary_c} — MUST appear as card/panel fills\n"
+        f"  accent {accent_c} — CTA, accent rule, key-number emphasis only\n"
+        f"  background {bg} · body {body_c} · cards {card} · hairline {hairline}.\n"
         "BACKGROUND: smooth VERTICAL GRADIENT, full-bleed edge to edge —\n"
-        f"  top {DATA_BG_TOP} -> middle {DATA_BG_MID} -> bottom {DATA_BG_BOTTOM}.\n"
-        "  Light sky-blue. NEVER saturated blue, NEVER white page, NEVER cream/grey.\n"
-        "  NO border, frame, outline or margin band — gradient bleeds all four edges.\n"
-        f"PRIMARY TEXT: navy {navy}. ACCENT orange {orange} for the rule, small labels,\n"
-        f"  key numbers emphasis and the final takeaway line only.\n"
-        f"BODY COPY: {DATA_BODY}. PANELS: {DATA_PANEL} fill, {DATA_HAIRLINE} border.\n\n"
+        f"  top {bg} -> middle {bg} -> bottom {bg}.\n"
+        "  NEVER a second page colour. NO border or frame.\n"
+        f"PRIMARY TEXT: {headline_c}. SECONDARY FILLS: {secondary_c}. "
+        f"ACCENT {accent_c} for the rule, small labels, and the final takeaway line only.\n"
+        f"BODY COPY: {body_c}. PANELS: {card} fill, {hairline} border.\n"
+        "COLOUR BAN: do not paint navy, orange, gold, teal, or ice-blue unless that\n"
+        "exact hex is listed above. Never skip the secondary hex. Never invent a tint\n"
+        "of primary for cards or background.\n\n"
         "================= 5. AVOID =================\n"
         "No PowerPoint look, no sparse empty poster that drops the blueprint facts,\n"
         "no giant icons drowning text, no hub-and-spoke diagram, no ranking table,\n"

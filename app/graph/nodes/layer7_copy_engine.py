@@ -5,7 +5,7 @@ from app.core.logging import get_logger
 from app.graph.models.layer7_models import CopyOutput
 from app.graph.state import ViolytState
 from app.prompts.layer7_copy_engine import CopyEnginePromptBuilder
-from app.prompts.jiraaf_layout import classify_layout, needs_live_research
+from app.prompts.layout_router import classify_layout, needs_live_research
 from app.services.live_research import LiveResearchService
 from app.services.llm.llm_router import LLMRouter
 

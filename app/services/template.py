@@ -77,7 +77,6 @@ class TemplateService:
         "smarter",
         "structured",
         "your",
-        "jiraaf",
     }
     TEMPLATE_TOPIC_GENERIC_TOKENS = TEMPLATE_MATCH_STOPWORDS | {
         "adaptation",

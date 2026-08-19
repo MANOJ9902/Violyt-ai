@@ -156,9 +156,9 @@ class VisualReasoningOutput(BaseModel):
     composition_logic: str = "Top-down educational hierarchy with hero visual and structured content blocks"
     focal_point: str = "Central soft matte clay-3D icon cluster"
     negative_space_plan: str = "Generous margins; keep logo-safe top-right corner clear"
-    color_behavior: str = "Navy typography on light cool background with orange/gold accents"
+    color_behavior: str = "Brand Space primary typography on Brand Space background with Brand Space accent"
     logo_zone_instruction: str = "Top-right corner with ~32px padding, keep clear for logo compositing"
-    typography_behavior: Optional[str] = "Bold navy sans headlines, readable gray body, baked into image"
+    typography_behavior: Optional[str] = "Bold Brand Space primary sans headlines, readable body, baked into image"
     image_prompt_direction: str = ""
     content_sections: List[ContentSection] = Field(default_factory=list)
     text_overlay_plan: List[TextOverlayElement] = Field(default_factory=list)

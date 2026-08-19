@@ -10,7 +10,6 @@ exact brand logo — AI models cannot accurately render arbitrary logos.
 import base64
 import re
 from io import BytesIO
-from pathlib import Path
 from urllib.request import urlopen
 from uuid import UUID, uuid4
 
@@ -20,17 +19,12 @@ from PIL import Image
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.integrations.object_storage import get_object_storage
-from app.prompts.brand_copy_tone import (
-    JIRAAF_BG,
-    JIRAAF_NAVY,
-    JIRAAF_ORANGE,
-    JIRAAF_SEBI_DISCLAIMER,
-)
+from app.utils.palette_roles import normalize_hex
 
 logger = get_logger(__name__)
 
 # Keep logo clearly visible in top-right (samples show readable wordmark).
-# Airport PDF reference logo is ~13% of canvas width — 0.14 avoids headline overlap.
+# Logo ~14% of canvas width — keeps wordmark readable without covering the headline.
 _LOGO_MAX_WIDTH_RATIO = 0.14
 # Minimum logo short-side in pixels (prevents tiny, unreadable logos).
 _LOGO_MIN_PX = 72
@@ -39,40 +33,24 @@ _LOGO_EDGE_PADDING = 18
 # Logo background fill color (used only for solid-background logos without transparency).
 _LOGO_BG_COLOR = (255, 255, 255, 0)  # transparent
 def _rgba(hex_color: str) -> tuple[int, int, int, int]:
-    h = hex_color.lstrip("#")
+    h = (normalize_hex(hex_color) or "#FFFFFF").lstrip("#")
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
 
 
-_SEBI_FOOTER_COLOR = (104, 116, 125, 255)  # muted gray #68747D — matches Airport PDF footer
-# Composited fills derive from the brand palette so they can never drift from prompts.
-_SEBI_FOOTER_BG = _rgba(JIRAAF_BG)
-_CAROUSEL_FOOTER_BG = _rgba(JIRAAF_NAVY)
-_CAROUSEL_FOOTER_TEXT = (255, 255, 255, 255)
-_CAROUSEL_FOOTER_ACCENT = _rgba(JIRAAF_ORANGE)
-_CAROUSEL_BRAND_TAGLINE = (
-    "Innovating today for a stronger, smarter and sustainable tomorrow"
-)
+_LEGAL_FOOTER_COLOR = (104, 116, 125, 255)
+_DEFAULT_CANVAS_BG = "#FFFFFF"
 
 
-def _flatten_rgba_to_brand_bg(img: Image.Image) -> Image.Image:
-    """Flatten any transparency onto the brand background colour.
-
-    Some generated images and composited logo assets can retain transparency.
-    Saving RGBA directly as RGB turns transparent areas black, which caused the
-    sudden black-slide bug. Always flatten before saving.
-    """
+def _flatten_rgba_to_brand_bg(img: Image.Image, bg_hex: str = _DEFAULT_CANVAS_BG) -> Image.Image:
+    """Flatten any transparency onto the Brand Space background colour."""
     rgba = img.convert("RGBA")
-    bg = Image.new("RGBA", rgba.size, _SEBI_FOOTER_BG)
+    bg = Image.new("RGBA", rgba.size, _rgba(bg_hex or _DEFAULT_CANVAS_BG))
     bg.alpha_composite(rgba)
     return bg
 
 
-def _ensure_light_brand_background(img: Image.Image) -> Image.Image:
-    """If AI returned a near-black canvas, rekey dark background to ice-blue.
-
-    Corner-sample check: when most edge samples are near-black, treat contiguous
-    near-black pixels as background (keeps navy icons/text). Fixes sudden black slides.
-    """
+def _ensure_light_brand_background(img: Image.Image, bg_hex: str = _DEFAULT_CANVAS_BG) -> Image.Image:
+    """If AI returned a near-black canvas, rekey dark background to Brand Space bg."""
     rgba = img.convert("RGBA")
     w, h = rgba.size
     if w < 8 or h < 8:
@@ -100,7 +78,7 @@ def _ensure_light_brand_background(img: Image.Image) -> Image.Image:
     # Rekey near-black background pixels to brand ice-blue (preserve colored content)
     datas = list(rgba.getdata())
     out = []
-    br, bg_, bb_, ba_ = _SEBI_FOOTER_BG
+    br, bg_, bb_, ba_ = _rgba(bg_hex or _DEFAULT_CANVAS_BG)
     for r, g, b, a in datas:
         if (r + g + b) / 3 < 38 and abs(r - g) < 18 and abs(g - b) < 18:
             out.append((br, bg_, bb_, 255))
@@ -120,7 +98,7 @@ def _is_logo_pad_rgb(r: int, g: int, b: int, *, jpeg_mode: bool = False) -> bool
     lum = (r + g + b) / 3
     white_cut = 215 if jpeg_mode else 230
     soft_cut = 200 if jpeg_mode else 218
-    # Pure / near-white and cream pads (the white box behind Jiraaf JPG logos).
+    # Pure / near-white and cream pads (the white box behind JPG logos with white pads).
     if r > white_cut and g > white_cut and b > white_cut:
         return True
     if r > soft_cut and g > soft_cut and b > soft_cut - 8 and lum > soft_cut:
@@ -346,7 +324,7 @@ def _wrap_footer_lines(text: str, font, max_width: int, draw) -> list[str]:
     return lines
 
 
-def _composite_sebi_footer(
+def _composite_legal_footer(
     base_bytes: bytes,
     canvas_width: int,
     canvas_height: int,
@@ -354,15 +332,14 @@ def _composite_sebi_footer(
     *,
     carousel_sample_chrome: bool = False,
 ) -> bytes:
-    """Paint SEBI disclaimer as text only — same background as the slide.
+    """Paint Brand Space legal footer as text only — same background as the slide.
 
-    The India Building Airports carousel sample has ONE continuous light canvas.
-    Never paint a separate footer rectangle (navy or light) — that reads as a
-    second background band. Legal copy sits on the existing pixels.
+    Never paint a separate footer rectangle — that reads as a second background
+    band. Legal copy sits on the existing pixels.
     """
     from PIL import ImageDraw
 
-    text = (footer_text or JIRAAF_SEBI_DISCLAIMER).strip()
+    text = (footer_text or "").strip()
     if not text:
         return base_bytes
 
@@ -372,7 +349,7 @@ def _composite_sebi_footer(
     # Legacy navy chrome is disabled for product carousels. Keeping the branch
     # unreachable unless explicitly requested, so we never reintroduce a band.
     if carousel_sample_chrome:
-        logger.warning("dalle.sebi_navy_chrome_ignored", reason="uniform_slide_bg_required")
+        logger.warning("dalle.legal_navy_chrome_ignored", reason="uniform_slide_bg_required")
 
     font_size = max(11, min(14, int(canvas_width * 0.012)))
     font = _load_footer_font(font_size)
@@ -404,9 +381,9 @@ def _composite_sebi_footer(
     # NO filled rectangle — text floats on the slide's own background.
     y = canvas_height - band_pad_y - text_block_h
     y = max(int(canvas_height * 0.88), y)
-    # Airport PDF footer is LEFT-aligned small gray text.
+    # Legal footer is LEFT-aligned small muted text from Brand Space.
     for i, line in enumerate(lines):
-        draw.text((side_pad, y), line, font=font, fill=_SEBI_FOOTER_COLOR)
+        draw.text((side_pad, y), line, font=font, fill=_LEGAL_FOOTER_COLOR)
         y += line_heights[i] + line_gap
 
     out = BytesIO()
@@ -469,10 +446,10 @@ def _resize_to_export(
 ) -> bytes:
     """Fit the API canvas to the exact export size.
 
-    Default is a stretch (keeps one seamless field). For Jiraaf portrait posters,
+    Default is a stretch (keeps one seamless field). For portrait posters,
     pass letterbox=True so 2:3 -> 4:5 never chops the headline or takeaway —
     centre-crop was cutting ~8% off the top and bottom and amputating text.
-    allow_crop is retained for callers but is no longer used for Jiraaf posters.
+    allow_crop is retained for callers but is no longer used for portrait posters.
     """
     img = _ensure_light_brand_background(Image.open(BytesIO(image_bytes)))
     src_w, src_h = img.size
@@ -514,43 +491,22 @@ def _resize_to_export(
     return out.getvalue()
 
 
-def _jiraaf_close_mascot_path() -> Path | None:
-    """Bundled Jiraaf giraffe mascot for carousel close slides only."""
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "prompts"
-        / "references"
-        / "jiraaf_samples"
-        / "jiraaf_carousel_close_mascot.png"
-    )
-    return path if path.is_file() else None
-
-
-def _composite_jiraaf_close_mascot(
+def _composite_close_mascot(
     base_bytes: bytes,
     canvas_width: int,
     canvas_height: int,
+    mascot_bytes: bytes,
+    *,
+    canvas_bg_hex: str = _DEFAULT_CANVAS_BG,
 ) -> bytes:
-    """Paste the Jiraaf giraffe mascot on the carousel LAST slide (Jiraaf only).
-
-    Matches creative-sample close energy: large character lower-right, above SEBI,
-    never covering the top-right wordmark logo pocket.
-    """
-    mascot_path = _jiraaf_close_mascot_path()
-    if not mascot_path:
-        logger.warning("dalle.close_mascot_missing")
-        return base_bytes
-
+    """Paste a Brand Space mascot on the carousel last slide."""
     base_img = Image.open(BytesIO(base_bytes)).convert("RGBA")
-    mascot_raw = Image.open(mascot_path)
-    # White studio BG → transparent so ice-blue slide shows through.
+    mascot_raw = Image.open(BytesIO(mascot_bytes))
     mascot = _make_background_transparent(mascot_raw).convert("RGBA")
     box = mascot.getbbox()
     if box:
         mascot = mascot.crop(box)
 
-    # Large presence on close slide (Airport PDF slide 6 DNA) — ~52% of canvas
-    # height, kept above the composited gray footer text.
     max_h = max(int(canvas_height * 0.52), 180)
     max_w = max(int(canvas_width * 0.48), 160)
     mw, mh = mascot.size
@@ -559,16 +515,15 @@ def _composite_jiraaf_close_mascot(
     new_h = max(int(mh * scale), 1)
     mascot = mascot.resize((new_w, new_h), Image.LANCZOS)
 
-    # Lower-right, clear of the footer text (starts ~88% height) and the logo pocket.
     margin_x = max(int(canvas_width * 0.04), 16)
-    sebi_top = int(canvas_height * 0.87)
+    footer_top = int(canvas_height * 0.87)
     x = canvas_width - new_w - margin_x
-    y = sebi_top - new_h - max(int(canvas_height * 0.02), 8)
+    y = footer_top - new_h - max(int(canvas_height * 0.02), 8)
     y = max(int(canvas_height * 0.28), y)
 
     base_img.paste(mascot, (x, y), mascot)
     out = BytesIO()
-    _flatten_rgba_to_brand_bg(base_img).convert("RGB").save(out, format="PNG", optimize=False)
+    _flatten_rgba_to_brand_bg(base_img, canvas_bg_hex).convert("RGB").save(out, format="PNG", optimize=False)
     logger.info(
         "dalle.close_mascot_composited",
         size=f"{new_w}x{new_h}",
@@ -584,18 +539,31 @@ def apply_brand_image_overlays(
     storage,
     logo_storage_path: str | None = None,
     logo_zone_instruction: str | None = None,
-    composite_sebi_footer: bool = False,
+    composite_legal_footer: bool = False,
     wipe_reserved_corner: bool = False,
-    composite_jiraaf_close_mascot: bool = False,
+    composite_close_mascot: bool = False,
+    legal_footer_text: str = "",
+    close_mascot_storage_path: str = "",
+    canvas_bg_hex: str = _DEFAULT_CANVAS_BG,
+    composite_sebi_footer: bool | None = None,
+    composite_jiraaf_close_mascot: bool | None = None,
 ) -> bytes:
-    """Apply corner wipe, brand logo, optional close mascot, and optional SEBI footer."""
+    """Apply brand overlays.
+
+    Accept both the current neutral flags and legacy Jiraaf-specific flag names so
+    mixed deploys do not crash during the DALL·E -> SDXL fallback path.
+    """
+    if composite_sebi_footer is not None:
+        composite_legal_footer = composite_legal_footer or composite_sebi_footer
+    if composite_jiraaf_close_mascot is not None:
+        composite_close_mascot = composite_close_mascot or composite_jiraaf_close_mascot
     if wipe_reserved_corner and not logo_storage_path:
         try:
             base_img = Image.open(BytesIO(image_bytes))
             real_w, real_h = base_img.size
             wiped = _wipe_top_right_corner(base_img.convert("RGBA"), real_w, real_h)
             out = BytesIO()
-            _flatten_rgba_to_brand_bg(wiped).convert("RGB").save(out, format="PNG", optimize=False)
+            _flatten_rgba_to_brand_bg(wiped, canvas_bg_hex).convert("RGB").save(out, format="PNG", optimize=False)
             image_bytes = out.getvalue()
             logger.info("dalle.corner_wiped", canvas=f"{real_w}x{real_h}")
         except Exception as wipe_exc:
@@ -629,27 +597,33 @@ def apply_brand_image_overlays(
                 error=str(logo_exc)[:300],
             )
 
-    # Jiraaf carousel LAST slide only — giraffe mascot from creative samples.
-    if composite_jiraaf_close_mascot:
+    if composite_close_mascot and close_mascot_storage_path:
         try:
-            base_img = Image.open(BytesIO(image_bytes))
-            real_w, real_h = base_img.size
-            image_bytes = _composite_jiraaf_close_mascot(image_bytes, real_w, real_h)
+            mascot_bytes = storage.read_bytes(close_mascot_storage_path)
+            if mascot_bytes:
+                base_img = Image.open(BytesIO(image_bytes))
+                real_w, real_h = base_img.size
+                image_bytes = _composite_close_mascot(
+                    image_bytes, real_w, real_h, mascot_bytes, canvas_bg_hex=canvas_bg_hex
+                )
+            else:
+                logger.warning("dalle.close_mascot_empty", path=close_mascot_storage_path)
         except Exception as mascot_exc:
             logger.warning("dalle.close_mascot_failed", error=str(mascot_exc)[:300])
 
-    if composite_sebi_footer:
+    if composite_legal_footer and (legal_footer_text or "").strip():
         try:
             base_img = Image.open(BytesIO(image_bytes))
             real_w, real_h = base_img.size
-            image_bytes = _composite_sebi_footer(
+            image_bytes = _composite_legal_footer(
                 base_bytes=image_bytes,
                 canvas_width=real_w,
                 canvas_height=real_h,
+                footer_text=legal_footer_text,
             )
-            logger.info("dalle.sebi_footer_composited", canvas=f"{real_w}x{real_h}")
+            logger.info("dalle.legal_footer_composited", canvas=f"{real_w}x{real_h}")
         except Exception as footer_exc:
-            logger.warning("dalle.sebi_footer_failed", error=str(footer_exc)[:300])
+            logger.warning("dalle.legal_footer_failed", error=str(footer_exc)[:300])
 
     return image_bytes
 
@@ -682,11 +656,14 @@ class DalleService:
         size: str = "1024x1024",
         logo_storage_path: str | None = None,
         logo_zone_instruction: str | None = None,
-        composite_sebi_footer: bool = False,
+        composite_legal_footer: bool = False,
         wipe_reserved_corner: bool = False,
         quality: str | None = None,
         letterbox_to_aspect: bool = False,
-        composite_jiraaf_close_mascot: bool = False,
+        composite_close_mascot: bool = False,
+        legal_footer_text: str = "",
+        close_mascot_storage_path: str = "",
+        canvas_bg_hex: str = _DEFAULT_CANVAS_BG,
     ) -> str:
         """Call gpt-image-1, optionally composite the brand logo, save, and return URL path.
 
@@ -699,10 +676,9 @@ class DalleService:
                 If provided, the logo will be composited onto the generated image.
             logo_zone_instruction: Free-text description of logo placement
                 (e.g. "bottom-right corner, 40px margin").
-            composite_sebi_footer: When True, paint exact SEBI legal footer via Pillow.
+            composite_legal_footer: When True, paint Brand Space legal footer via Pillow.
                 Pass True for carousel slides only — static/infographic must stay False.
-            composite_jiraaf_close_mascot: Jiraaf carousel LAST slide only — paste
-                the bundled giraffe mascot (creative-sample close character).
+            composite_close_mascot: Carousel LAST slide only — paste Brand Space mascot.
         """
         if not self.client:
             logger.error("dalle.client_not_configured")
@@ -816,15 +792,18 @@ class DalleService:
         except Exception as resize_exc:
             logger.warning("dalle.resize_failed", error=str(resize_exc)[:200])
 
-        # Strip AI logos / composite brand logo / close mascot / SEBI footer
+        # Strip AI logos / composite brand logo / close mascot / legal footer
         image_bytes = apply_brand_image_overlays(
             image_bytes,
             storage=self.storage,
             logo_storage_path=logo_storage_path,
             logo_zone_instruction=logo_zone_instruction,
-            composite_sebi_footer=composite_sebi_footer,
+            composite_legal_footer=composite_legal_footer,
             wipe_reserved_corner=wipe_reserved_corner,
-            composite_jiraaf_close_mascot=composite_jiraaf_close_mascot,
+            composite_close_mascot=composite_close_mascot,
+            legal_footer_text=legal_footer_text,
+            close_mascot_storage_path=close_mascot_storage_path,
+            canvas_bg_hex=canvas_bg_hex,
         )
 
         # ── Save final image to object storage ───────────────────────────────────

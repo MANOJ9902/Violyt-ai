@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.core.logging import get_logger
 from app.integrations.object_storage import get_object_storage
-from app.prompts.brand_copy_tone import JIRAAF_BG, JIRAAF_NAVY, JIRAAF_ORANGE
+from app.prompts.brand_copy_tone import NEUTRAL_BG, NEUTRAL_HEADLINE, NEUTRAL_ACCENT
 from app.services.image_generation.dalle_service import _composite_logo
 
 logger = get_logger(__name__)
@@ -115,7 +115,7 @@ _COUNTRY_ISO: dict[str, str] = {
 def _hex_rgb(hex_code: str) -> tuple[int, int, int]:
     h = (hex_code or "").lstrip("#")
     if len(h) != 6:
-        return (0, 57, 117)
+        return (31, 41, 55)  # neutral #1F2937
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
@@ -374,9 +374,9 @@ def render_ranking_board_png(
     - EACH row: orange rank square | rounded flag | NAME + one short phrase | ₹ amount | coin icon
     - thin light dividers · compact orange CTA
     """
-    bg = _hex_rgb(JIRAAF_BG)  # #E8F0F8 — NEVER dark navy
-    navy = _hex_rgb(JIRAAF_NAVY)
-    orange = _hex_rgb(JIRAAF_ORANGE)
+    bg = _hex_rgb(NEUTRAL_BG)
+    navy = _hex_rgb(NEUTRAL_HEADLINE)
+    orange = _hex_rgb(NEUTRAL_ACCENT)
     gray = (74, 85, 104)
     white = (255, 255, 255)
     divider = (210, 220, 232)

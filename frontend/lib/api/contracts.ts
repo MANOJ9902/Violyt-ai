@@ -1058,6 +1058,53 @@ export interface FinalOutputResponse {
   message: string;
 }
 
+export interface EvaluationOutputResponse {
+  brand_alignment_score: number;
+  prompt_match_score: number;
+  audience_relevance_score: number;
+  originality_score: number;
+  visual_quality_score: number;
+  format_fit_score: number;
+  brand_uniqueness_score: number;
+  strategic_quality_score: number;
+  contamination_risk: "low" | "medium" | "high";
+  overall_pass: boolean;
+  evaluator_reasoning?: string;
+  required_repairs?: Array<{
+    target_layer: string;
+    failure_reason: string;
+    repair_action: string;
+    priority: string;
+  }>;
+}
+
+export interface PipelineProgressEvent {
+  event: string;
+  layer?: string | null;
+  latency_ms?: number | null;
+  message?: string | null;
+  ts?: number | null;
+}
+
+export interface PipelineCostBreakdown {
+  total_cost_usd: number;
+  text_cost_usd?: number;
+  image_cost_usd?: number;
+  image_count?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+export interface PipelineScoresResponse {
+  run_id: string;
+  status?: string;
+  evaluation?: EvaluationOutputResponse | null;
+  total_cost_usd?: number | null;
+  cost?: PipelineCostBreakdown | null;
+  repair_instructions?: string[] | null;
+  repair_count?: number;
+}
+
 export interface PipelineRunResponse {
   run_id?: string;
   status: string;
@@ -1075,9 +1122,14 @@ export interface PipelineRunResponse {
   creative_blueprint?: CreativeBlueprintResponse;
   visual_reasoning?: VisualReasoningOutputResponse;
   scene_graph?: SceneGraphOutputResponse;
+  evaluation?: EvaluationOutputResponse;
   final_output?: FinalOutputResponse;
   layer_latencies?: Record<string, number>;
   token_usage?: Record<string, { input_tokens: number; output_tokens: number }>;
+  total_cost_usd?: number | null;
+  cost?: PipelineCostBreakdown | null;
+  progress?: PipelineProgressEvent | null;
+  progress_events?: PipelineProgressEvent[] | null;
   error?: string | null;
 }
 

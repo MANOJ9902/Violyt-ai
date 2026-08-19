@@ -18,7 +18,7 @@ _SIZES: dict[str, dict[str, FormatPlatformSize]] = {
         "default": (1080, 1080),
     },
     "carousel": {
-        # Jiraaf education carousels are 4:5 portrait on LinkedIn/IG
+        # Education carousels are 4:5 portrait on LinkedIn/IG
         "linkedin": (1080, 1350),
         "instagram": (1080, 1350),
         "x": (1080, 1080),  # X carousels fit better square

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import time
+
 from app.core.logging import get_logger
+from app.graph.checkpoint import append_checkpoint_event
 from app.graph.models.layer7c_models import CreativeBlueprint
 from app.graph.state import ViolytState
-from app.prompts.jiraaf_layout import classify_layout
+from app.prompts.layout_router import classify_layout
 from app.prompts.layer7c_content_prep import ContentPrepPromptBuilder
 from app.services.blueprint_quality import (
     blueprint_passes_editorial_qa,
@@ -30,6 +33,24 @@ _QA_DIMENSIONS = (
     "narrative_coherent",
     "copy_complete",
 )
+
+
+def _emit_l7c_progress(run_id: str, message: str) -> None:
+    if not run_id:
+        return
+    try:
+        append_checkpoint_event(
+            run_id,
+            {
+                "event": "layer_start",
+                "layer": "l7c_content_prep",
+                "latency_ms": None,
+                "message": message,
+                "ts": time.time(),
+            },
+        )
+    except Exception:
+        pass
 
 
 def _scores_improved(new: dict, old: dict) -> bool:
@@ -152,6 +173,8 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
         fmt = "static"
 
     layout = classify_layout(user_prompt, fmt)
+    run_id = str(state.get("run_id") or "")
+    _emit_l7c_progress(run_id, "Building blueprint")
 
     if not copy or not brand_intelligence or not format_plan:
         logger.error("content_prep.missing_inputs")
@@ -161,11 +184,13 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
         )
 
     brand_name = (brand_intelligence.brand_core.brand_name or "").strip()
+    visual_pack = state.get("visual_pack") or {}
     system = _prompt_builder.build_system(
         format_name=fmt,
         user_prompt=user_prompt,
         layout_type=layout.layout_type,
         brand_name=brand_name,
+        visual_pack=visual_pack,
     )
     base_user = _prompt_builder.build_user(
         user_prompt=user_prompt,
@@ -177,6 +202,7 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
         copy=copy,
         layout_type=layout.layout_type,
         live_research=live_research,
+        visual_pack=visual_pack,
     )
     try:
         from app.services.content_intelligence import content_intelligence_prompt_block
@@ -205,6 +231,7 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
     prev_scores: dict | None = None
 
     for attempt in range(MAX_BLUEPRINT_REGENERATIONS + 1):
+        _emit_l7c_progress(run_id, f"blueprint_attempt_{attempt}")
         user = base_user
         if attempt > 0 and last_scores:
             user = (
@@ -239,20 +266,6 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
             live_research=live_research,
             content_intelligence=content_intelligence,
         )
-        try:
-            draft = await proofread_blueprint(draft, use_llm=False)
-            draft.format = fmt  # type: ignore[assignment]
-            draft.platform = platform
-            draft.layout_type = layout.layout_type
-            draft = finalize_blueprint_for_card(
-                draft,
-                layout_type=layout.layout_type,
-                user_prompt=user_prompt,
-                live_research=live_research,
-                content_intelligence=content_intelligence,
-            )
-        except Exception as exc:
-            logger.warning("content_prep.proofread_failed", error=str(exc))
 
         last_scores = score_blueprint_editorial_qa(
             draft,
@@ -290,6 +303,21 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
         )
 
     assert output is not None
+
+    try:
+        output = await proofread_blueprint(output, use_llm=False)
+        output.format = fmt  # type: ignore[assignment]
+        output.platform = platform
+        output.layout_type = layout.layout_type
+        output = finalize_blueprint_for_card(
+            output,
+            layout_type=layout.layout_type,
+            user_prompt=user_prompt,
+            live_research=live_research,
+            content_intelligence=content_intelligence,
+        )
+    except Exception as exc:
+        logger.warning("content_prep.proofread_failed", error=str(exc))
 
     logger.info(
         "content_prep.complete",

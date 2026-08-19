@@ -71,11 +71,11 @@ def main() -> int:
             ok = status == 200 and isinstance(saved, dict) and saved.get("id") == brand_id
             results.append(f"[{'PASS' if ok else 'FAIL'}] Brand Space save: HTTP {status}")
 
-    from app.prompts.jiraaf_sample_templates import resolve_creative_template
+    from app.prompts.creative_templates import resolve_creative_template
 
-    cognixia = resolve_creative_template("RBI plastic currency", "carousel", brand_name="Cognixia")
-    dna_ok = "Never use Jiraaf navy" in cognixia.visual_lock
-    results.append(f"[{'PASS' if dna_ok else 'FAIL'}] Non-Jiraaf template neutralized")
+    acme = resolve_creative_template("RBI plastic currency", "carousel", brand_name="Acme")
+    dna_ok = "Acme" in acme.visual_lock and "003975" not in acme.visual_lock
+    results.append(f"[{'PASS' if dna_ok else 'FAIL'}] Template uses Brand Space lock only")
 
     sidebar = (ROOT / "frontend" / "lib" / "sidebarItems.ts").read_text(encoding="utf-8")
     retrieval_removed = "brand-retrieval" not in sidebar and "Brand Retrieval" not in sidebar

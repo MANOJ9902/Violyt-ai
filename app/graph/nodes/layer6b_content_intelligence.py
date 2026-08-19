@@ -8,7 +8,7 @@ Runs after L4 and BEFORE L5/L6 so Conceptualize/Plan are insight-led.
 
 from app.core.logging import get_logger
 from app.graph.state import ViolytState
-from app.prompts.jiraaf_layout import classify_layout
+from app.prompts.layout_router import classify_layout
 
 logger = get_logger(__name__)
 

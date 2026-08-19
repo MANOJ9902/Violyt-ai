@@ -8,6 +8,7 @@ Optional LLM polish is time-boxed so the pipeline never hangs.
 
 import asyncio
 import re
+import time
 from typing import TYPE_CHECKING, Any, Iterable
 
 from app.core.logging import get_logger
@@ -20,12 +21,11 @@ logger = get_logger(__name__)
 
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]{2,}")
 _LLM_PROOFREAD_TIMEOUT_SEC = 45.0
+_SPELLCHECK_BUDGET_SEC = 2.0
 _SPELL: Any = None
 _SPELL_LOCK = asyncio.Lock()
 
 _PROTECTED_TERMS = {
-    "jiraaf",
-    "cognixia",
     "violyt",
     "linkedin",
     "instagram",
@@ -84,7 +84,8 @@ def _blueprint_cls():
 def _build_spellchecker():
     from spellchecker import SpellChecker
 
-    spell = SpellChecker(distance=2)
+    # distance=2 + candidates() holds the GIL for minutes and freezes the API.
+    spell = SpellChecker(distance=1)
     spell.word_frequency.load_words(_PROTECTED_TERMS)
     return spell
 
@@ -117,6 +118,11 @@ def _iter_string_paths(obj: Any, path: tuple = ()) -> Iterable[tuple[tuple, str]
                 "zone_id",
                 "role",
                 "icon_hint",
+                "sources",
+                "url",
+                "href",
+                "image_url",
+                "generated_image_url",
             }:
                 if isinstance(value, str):
                     continue
@@ -142,17 +148,16 @@ def _local_spellcheck_text(text: str, spell) -> str:
         lower = word.lower()
         if lower in _PROTECTED_TERMS or any(ch.isdigit() for ch in word):
             return word
-        if spell.unknown([lower]):
-            candidates = spell.candidates(lower) or set()
-            if not candidates:
-                return word
-            best = min(candidates, key=lambda c: (abs(len(c) - len(lower)), c))
-            if word.isupper():
-                return best.upper()
-            if word[0].isupper():
-                return best.capitalize()
-            return best
-        return word
+        if len(lower) > 24 or not spell.unknown([lower]):
+            return word
+        suggestion = spell.correction(lower)
+        if not suggestion or suggestion == lower:
+            return word
+        if word.isupper():
+            return suggestion.upper()
+        if word[0].isupper():
+            return suggestion.capitalize()
+        return suggestion
 
     return _WORD_RE.sub(replace, text)
 
@@ -161,7 +166,11 @@ def _apply_local_spellcheck(blueprint: CreativeBlueprint, spell) -> CreativeBlue
     CreativeBlueprint = _blueprint_cls()
     data = blueprint.model_dump()
     fixes = 0
+    deadline = time.monotonic() + _SPELLCHECK_BUDGET_SEC
     for path, value in _iter_string_paths(data):
+        if time.monotonic() > deadline:
+            logger.warning("copy_proofread.spellcheck_budget_exceeded", fixes=fixes)
+            break
         corrected = _local_spellcheck_text(value, spell)
         if corrected != value:
             _set_path(data, path, corrected)
@@ -243,17 +252,17 @@ NO_AI_LOGO_RULE = (
     "\n\nABSOLUTE BRAND / WATERMARK BAN (NON-NEGOTIABLE — READ TWICE):\n"
     "- Do NOT invent ANY watermark, stamp, seal, ghost logo, translucent brand shape, "
     "giant letter mark, monogram, or faded brand silhouette in the background.\n"
-    "- Do NOT invent giraffe / stylized J marks as decoration.\n"
-    "- Do NOT invent brand marketing lines like \"Follow Jiraaf…\", \"Follow JIRAAF for more…\", "
-    "or any brand-name CTA — leave brand presence to the real logo only.\n"
-    "- NEVER draw JIRAAF / Jiraaf / brand-name wordmark text anywhere in the image.\n"
+    "- Do NOT invent mascot silhouettes or letter marks as decoration.\n"
+    "- Do NOT invent brand marketing lines or Follow-brand CTAs — "
+    "leave brand presence to the real Brand Space logo only.\n"
+    "- NEVER draw the brand wordmark / brand-name text anywhere in the image.\n"
     "- NEVER draw placeholder labels: \"Brand Logo\", \"Logo\", \"Your Logo Here\", "
     "\"brand logo\", or any dashed / dotted rectangle with logo text inside.\n"
     "- NEVER draw a second logo box, watermark frame, or template placeholder in any corner.\n"
-    "- Leave ONLY a plain empty ice-blue top-right corner — no text, no box, no icon there.\n"
+    "- Leave ONLY a plain empty top-right corner — no text, no box, no icon there.\n"
     "- The real logo is composited later by backend — you must NOT pre-draw it.\n"
     "- Keep the FULL headline clear — never clip it for a logo band.\n"
-    "- Background stays clean ice-blue / soft white — no orange ghost marks behind content.\n"
+    "- Background stays the Brand Space canvas colour — no ghost marks behind content.\n"
 )
 
 SPELLING_ACCURACY_RULE = (
@@ -262,7 +271,7 @@ SPELLING_ACCURACY_RULE = (
     "Copy letter-by-letter. Do not invent, truncate, hyphenate, or remix words.\n"
     "2) FONT — Bold clean sans-serif / block lettering only. Sharp edges, even spacing, "
     "no decorative or serif display fonts that blur letters.\n"
-    "3) CONTRAST — Dark navy (#003975) text on brand sky-blue (#87CEFA) or white cards. "
+    "3) CONTRAST — Brand Space primary text on Brand Space background or white cards. "
     "Never light-on-light or busy-background text.\n"
     "4) SHORT + CLEAR — Prefer short headlines and short bullets. Dense paragraphs cause "
     "spelling errors — keep each card to at most 2 short lines (≤10 words each).\n"

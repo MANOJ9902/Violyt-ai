@@ -1,43 +1,36 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import StreamingResponse
 
+from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.graph.checkpoint import (
     delete_checkpoint,
+    fail_if_stale,
     get_checkpoint,
+    get_checkpoint_record,
     save_checkpoint,
     serialize_state_for_checkpoint,
     update_checkpoint_status,
 )
-from app.graph.graph import build_phase1_graph, build_phase2_graph
-from app.graph.models.layer1_models import BrandContextOutput
-from app.graph.models.layer2_models import BrandIntelligenceOutput
-from app.graph.models.layer3_models import CampaignBriefOutput
-from app.graph.models.layer4_models import StrategicReasoningOutput
-from app.graph.models.layer5_models import CreativeConceptsOutput
-from app.graph.models.layer6_models import FormatPlanOutput
-from app.graph.models.content_intelligence_models import ContentIntelligenceOutput
-from app.graph.models.layer7_models import CopyOutput
-from app.graph.models.layer7b_models import ContentValidationOutput
-from app.graph.models.layer7c_models import CreativeBlueprint
-from app.graph.models.layer8_models import VisualReasoningOutput
-from app.graph.models.layer9_models import SceneGraphOutput
-from app.graph.state import ViolytState
+from app.graph.hydrate import hydrate_state
 from app.schemas.pipeline import (
     PipelineApproveRequest,
     PipelineEditImageTextRequest,
     PipelineEditImageTextResponse,
+    PipelineProgressEvent,
     PipelineRejectRequest,
     PipelineRunRequest,
     PipelineRunResponse,
 )
-from app.services.copy_proofread import proofread_blueprint
 from app.services.image_text_edit import apply_text_edits
-from app.services.blueprint_quality import finalize_blueprint_for_card
-from app.prompts.jiraaf_layout import classify_layout
-from app.core.logging import get_logger
+from app.services.pipeline.progress import TERMINAL_STATUSES
+from app.services.pipeline.runner import execute_phase1, execute_phase2
 
 logger = get_logger(__name__)
 
@@ -48,55 +41,8 @@ def _dump(obj):
     return obj.model_dump() if hasattr(obj, "model_dump") else obj
 
 
-def _hydrate_state(raw: dict) -> ViolytState:
-    """Rebuild Pydantic layer outputs from a serialized checkpoint dict."""
-    state: ViolytState = {
-        "user_prompt": raw.get("user_prompt", ""),
-        "brand_id": raw.get("brand_id", ""),
-        "platform": raw.get("platform", "linkedin"),
-        "format": raw.get("format", "static"),
-        "run_id": raw.get("run_id"),
-        "org_id": raw.get("org_id"),
-        "data_version": raw.get("data_version"),
-        "repair_count": raw.get("repair_count", 0),
-        "force_repair": raw.get("force_repair", False),
-        "layer_latencies": raw.get("layer_latencies") or {},
-        "token_usage": raw.get("token_usage") or {},
-        "error": raw.get("error"),
-        "retrieval_log": raw.get("retrieval_log"),
-        "repair_instructions": raw.get("repair_instructions"),
-        "final_output": raw.get("final_output"),
-        "live_research": raw.get("live_research") or {},
-    }
-
-    mapping = [
-        ("brand_context", BrandContextOutput),
-        ("brand_intelligence", BrandIntelligenceOutput),
-        ("campaign_brief", CampaignBriefOutput),
-        ("strategic_reasoning", StrategicReasoningOutput),
-        ("creative_concepts", CreativeConceptsOutput),
-        ("format_plan", FormatPlanOutput),
-        ("content_intelligence", ContentIntelligenceOutput),
-        ("copy", CopyOutput),
-        ("content_validation", ContentValidationOutput),
-        ("creative_blueprint", CreativeBlueprint),
-        ("visual_reasoning", VisualReasoningOutput),
-        ("scene_graph", SceneGraphOutput),
-    ]
-    for key, model in mapping:
-        val = raw.get(key)
-        if val is None:
-            continue
-        if isinstance(val, model):
-            state[key] = val  # type: ignore[literal-required]
-        elif isinstance(val, dict):
-            try:
-                state[key] = model.model_validate(val)  # type: ignore[literal-required]
-            except Exception:
-                # Skip non-critical corrupt checkpoint fields; Phase 2 needs blueprint/copy/etc.
-                continue
-
-    return state
+def _hydrate_state(raw: dict):
+    return hydrate_state(raw)
 
 
 def _response_from_state(
@@ -109,7 +55,21 @@ def _response_from_state(
     request_format: str,
     state: dict,
     error: str | None = None,
+    cost: dict | None = None,
+    events: list | None = None,
 ) -> PipelineRunResponse:
+    progress = None
+    if events:
+        last = events[-1]
+        try:
+            progress = PipelineProgressEvent.model_validate(last)
+        except Exception:
+            progress = None
+    total_cost = None
+    if isinstance(cost, dict):
+        total_cost = cost.get("total_cost_usd")
+    elif state.get("total_cost_usd") is not None:
+        total_cost = state.get("total_cost_usd")
     return PipelineRunResponse(
         run_id=run_id,
         status=status,
@@ -129,27 +89,82 @@ def _response_from_state(
         creative_blueprint=_dump(state.get("creative_blueprint")),
         visual_reasoning=_dump(state.get("visual_reasoning")),
         scene_graph=_dump(state.get("scene_graph")),
+        evaluation=_dump(state.get("evaluation")),
         final_output=state.get("final_output"),
         layer_latencies=state.get("layer_latencies"),
         token_usage=state.get("token_usage"),
+        total_cost_usd=total_cost,
+        cost=cost or state.get("cost"),
+        progress=progress,
+        progress_events=events,
         error=error or state.get("error"),
     )
 
 
+def _response_from_record(run_id: str, rec: dict) -> PipelineRunResponse:
+    state = rec.get("state") or {}
+    return _response_from_state(
+        run_id=run_id,
+        status=str(rec.get("status") or "pending"),
+        request_brand_id=str(state.get("brand_id", "")),
+        request_prompt=str(state.get("user_prompt", "")),
+        request_platform=str(state.get("platform", "linkedin")),
+        request_format=str(state.get("format", "static")),
+        state=state,
+        error=state.get("error"),
+        cost=rec.get("cost") or state.get("cost"),
+        events=list(rec.get("events") or []),
+    )
+
+
+def _enqueue_phase1(background_tasks: BackgroundTasks, run_id: str, payload: dict) -> None:
+    settings = get_settings()
+    if settings.pipeline_use_celery:
+        try:
+            from app.workers.pipeline_worker import run_phase1_task
+
+            run_phase1_task.delay(run_id, payload)
+            logger.info("pipeline.enqueued_celery", run_id=run_id, phase="1")
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("pipeline.celery_enqueue_failed", run_id=run_id, error=str(exc)[:160])
+    background_tasks.add_task(execute_phase1, run_id, payload)
+
+
+def _enqueue_phase2(
+    background_tasks: BackgroundTasks,
+    run_id: str,
+    creative_blueprint: dict | None,
+) -> None:
+    settings = get_settings()
+    if settings.pipeline_use_celery:
+        try:
+            from app.workers.pipeline_worker import run_phase2_task
+
+            run_phase2_task.delay(run_id, creative_blueprint)
+            logger.info("pipeline.enqueued_celery", run_id=run_id, phase="2")
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("pipeline.celery_enqueue_failed", run_id=run_id, error=str(exc)[:160])
+    background_tasks.add_task(execute_phase2, run_id, creative_blueprint)
+
+
 @router.post("/run", response_model=PipelineRunResponse, status_code=202)
-async def run_pipeline(request: PipelineRunRequest) -> PipelineRunResponse:
-    """Phase 1: run L1→L7c and pause for Creative Blueprint approval."""
+async def run_pipeline(
+    request: PipelineRunRequest,
+    background_tasks: BackgroundTasks,
+) -> PipelineRunResponse:
+    """Submit Phase 1. Returns job_id immediately; poll GET /{run_id}/status or stream."""
     run_id = str(uuid4())
     logger.info(
-        "pipeline.run.start",
+        "pipeline.run.accepted",
         run_id=run_id,
         brand_id=request.brand_id,
         platform=request.platform,
         format=request.format,
         prompt_preview=(request.user_prompt or "")[:120],
     )
-
-    initial_state: ViolytState = {
+    initial = {
         "user_prompt": request.user_prompt,
         "brand_id": request.brand_id,
         "platform": request.platform,
@@ -157,146 +172,38 @@ async def run_pipeline(request: PipelineRunRequest) -> PipelineRunResponse:
         "run_id": run_id,
         "repair_count": 0,
     }
-
-    # Intent router: pick layout + format from the prompt.
-    # Strong data intents (trade / rank / hub) OVERRIDE a wrong format click
-    # so the user does NOT need to rewrite the prompt.
-    fmt_in = str(request.format or "").strip().lower()
-    layout = classify_layout(request.user_prompt, fmt_in or None)
-    if (
-        not fmt_in
-        or fmt_in == "auto"
-        or layout.reason.startswith("intent_")
-    ):
-        initial_state["format"] = layout.suggested_format
-        logger.info(
-            "pipeline.run.layout_routed",
-            layout=layout.layout_type,
-            format=layout.suggested_format,
-            reason=layout.reason,
-            user_format=fmt_in or "auto",
-        )
-
-    try:
-        graph = build_phase1_graph().compile()
-        final_state = await graph.ainvoke(initial_state)
-    except Exception as exc:
-        logger.error("pipeline.run.failed", run_id=run_id, error=str(exc), exc_info=True)
-        return _response_from_state(
-            run_id=run_id,
-            status="failed",
-            request_brand_id=request.brand_id,
-            request_prompt=request.user_prompt,
-            request_platform=request.platform,
-            request_format=request.format,
-            state=dict(initial_state),
-            error=str(exc),
-        )
-
-    serialized = serialize_state_for_checkpoint(dict(final_state))
-    save_checkpoint(run_id, serialized, status="awaiting_blueprint_approval")
-    logger.info("pipeline.run.phase1_complete", run_id=run_id, status="awaiting_blueprint_approval")
-
+    save_checkpoint(run_id, serialize_state_for_checkpoint(initial), status="pending")
+    _enqueue_phase1(background_tasks, run_id, request.model_dump())
     return _response_from_state(
         run_id=run_id,
-        status="awaiting_blueprint_approval",
+        status="pending",
         request_brand_id=request.brand_id,
         request_prompt=request.user_prompt,
         request_platform=request.platform,
         request_format=request.format,
-        state=final_state,
+        state=initial,
     )
 
 
-@router.post("/approve", response_model=PipelineRunResponse)
-async def approve_blueprint(request: PipelineApproveRequest) -> PipelineRunResponse:
-    """Phase 2: apply approved blueprint and run L8→renderer."""
-    logger.info("pipeline.approve.start", run_id=request.run_id)
-    raw = get_checkpoint(request.run_id)
-    if not raw:
-        logger.warning("pipeline.approve.missing_checkpoint", run_id=request.run_id)
+@router.post("/approve", response_model=PipelineRunResponse, status_code=202)
+async def approve_blueprint(
+    request: PipelineApproveRequest,
+    background_tasks: BackgroundTasks,
+) -> PipelineRunResponse:
+    """Submit Phase 2 (L8→L9→L10→renderer). Returns immediately; poll status."""
+    logger.info("pipeline.approve.accepted", run_id=request.run_id)
+    rec = get_checkpoint_record(request.run_id)
+    if not rec:
         raise HTTPException(
             status_code=404,
             detail="Pipeline run not found or expired. Start a new run (server restarts clear old in-memory runs; checkpoints are now saved to disk).",
         )
-
-    if request.creative_blueprint is not None:
-        try:
-            bp = CreativeBlueprint.model_validate(request.creative_blueprint)
-        except Exception as exc:
-            raise HTTPException(status_code=422, detail=f"Invalid creative_blueprint: {exc}") from exc
-        try:
-            bp = await proofread_blueprint(bp, use_llm=False)
-            logger.info("pipeline.approve.proofread_ok")
-        except Exception as exc:
-            logger.warning("pipeline.approve.proofread_failed", error=str(exc))
-        user_prompt = str(raw.get("user_prompt", ""))
-        fmt = str(raw.get("format", bp.format or "static"))
-        layout = classify_layout(user_prompt, fmt)
-        bp = finalize_blueprint_for_card(
-            bp,
-            layout_type=layout.layout_type,
-            user_prompt=user_prompt,
-            live_research=raw.get("live_research") or {},
-        )
-        if bp.missing_critical:
-            logger.warning(
-                "pipeline.approve.blueprint_quality_flags",
-                missing=bp.missing_critical,
-                layout=layout.layout_type,
-            )
-        raw["creative_blueprint"] = bp.model_dump()
-
-    if not raw.get("creative_blueprint"):
+    raw = rec.get("state") or {}
+    if not raw.get("creative_blueprint") and request.creative_blueprint is None:
         raise HTTPException(status_code=400, detail="No creative_blueprint available to approve")
-
-    # Always proofread checkpoint blueprint even if client didn't resend edits
-    if request.creative_blueprint is None and raw.get("creative_blueprint"):
-        try:
-            bp = CreativeBlueprint.model_validate(raw["creative_blueprint"])
-            bp = await proofread_blueprint(bp, use_llm=False)
-            user_prompt = str(raw.get("user_prompt", ""))
-            fmt = str(raw.get("format", bp.format or "static"))
-            layout = classify_layout(user_prompt, fmt)
-            bp = finalize_blueprint_for_card(
-                bp,
-                layout_type=layout.layout_type,
-                user_prompt=user_prompt,
-                live_research=raw.get("live_research") or {},
-            )
-            raw["creative_blueprint"] = bp.model_dump()
-        except Exception as exc:
-            logger.warning("pipeline.approve.checkpoint_proofread_failed", error=str(exc))
     update_checkpoint_status(request.run_id, "generating")
-    state = _hydrate_state(raw)
-
-    try:
-        graph = build_phase2_graph().compile()
-        final_state = await graph.ainvoke(state)
-    except Exception as exc:
-        update_checkpoint_status(request.run_id, "failed")
-        return _response_from_state(
-            run_id=request.run_id,
-            status="failed",
-            request_brand_id=str(raw.get("brand_id", "")),
-            request_prompt=str(raw.get("user_prompt", "")),
-            request_platform=str(raw.get("platform", "linkedin")),
-            request_format=str(raw.get("format", "static")),
-            state=raw,
-            error=str(exc),
-        )
-
-    delete_checkpoint(request.run_id)
-
-    return _response_from_state(
-        run_id=request.run_id,
-        status="complete",
-        request_brand_id=str(raw.get("brand_id", "")),
-        request_prompt=str(raw.get("user_prompt", "")),
-        request_platform=str(raw.get("platform", "linkedin")),
-        request_format=str(raw.get("format", "static")),
-        state=final_state,
-    )
+    _enqueue_phase2(background_tasks, request.run_id, request.creative_blueprint)
+    return _response_from_record(request.run_id, {**rec, "status": "generating"})
 
 
 @router.post("/reject", response_model=PipelineRunResponse)
@@ -316,6 +223,71 @@ async def reject_blueprint(request: PipelineRejectRequest) -> PipelineRunRespons
         request_format=str(raw.get("format", "static")),
         state=raw,
     )
+
+
+@router.get("/{run_id}/status", response_model=PipelineRunResponse)
+async def pipeline_status(run_id: str) -> PipelineRunResponse:
+    rec = fail_if_stale(run_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Pipeline run not found or expired")
+    return _response_from_record(run_id, rec)
+
+
+@router.get("/{run_id}/scores")
+async def pipeline_scores(run_id: str) -> dict:
+    rec = get_checkpoint_record(run_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Pipeline run not found or expired")
+    state = rec.get("state") or {}
+    return {
+        "run_id": run_id,
+        "status": rec.get("status"),
+        "evaluation": state.get("evaluation"),
+        "total_cost_usd": (rec.get("cost") or state.get("cost") or {}).get("total_cost_usd")
+        if isinstance(rec.get("cost") or state.get("cost"), dict)
+        else state.get("total_cost_usd"),
+        "cost": rec.get("cost") or state.get("cost"),
+        "repair_instructions": state.get("repair_instructions"),
+        "repair_count": state.get("repair_count", 0),
+    }
+
+
+@router.get("/{run_id}/retrieval-log")
+async def pipeline_retrieval_log(run_id: str) -> dict:
+    rec = get_checkpoint_record(run_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Pipeline run not found or expired")
+    state = rec.get("state") or {}
+    log = state.get("retrieval_log")
+    if not log:
+        raise HTTPException(status_code=404, detail="No retrieval log for this run yet")
+    return {"run_id": run_id, "retrieval_log": log}
+
+
+@router.get("/{run_id}/stream")
+async def pipeline_stream(run_id: str) -> StreamingResponse:
+    rec = get_checkpoint_record(run_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Pipeline run not found or expired")
+
+    async def gen():
+        last = 0
+        while True:
+            current = get_checkpoint_record(run_id)
+            if not current:
+                yield f"data: {json.dumps({'event': 'pipeline_failed', 'message': 'missing'})}\n\n"
+                break
+            events = list(current.get("events") or [])
+            for ev in events[last:]:
+                yield f"data: {json.dumps(ev, default=str)}\n\n"
+            last = len(events)
+            status = str(current.get("status") or "")
+            if status in TERMINAL_STATUSES:
+                yield f"data: {json.dumps({'event': 'pipeline_complete', 'status': status})}\n\n"
+                break
+            await asyncio.sleep(0.8)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @router.post("/edit-image-text", response_model=PipelineEditImageTextResponse)

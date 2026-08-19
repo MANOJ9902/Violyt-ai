@@ -26,13 +26,13 @@ export function buildBrandChatHref(brand: RoutableBrand, chatId: string) {
 }
 
 export function buildBrandEditHref(brand: RoutableBrand) {
-  return `${buildBrandWorkspaceHref(brand)}/edit`;
+  return `/brand_space/edit/${resolveBrandRouteKey(brand)}`;
 }
 
 export function buildBrandViewHref(brand: RoutableBrand) {
-  return `${buildBrandWorkspaceHref(brand)}/view`;
+  return `/brand_space/view/${resolveBrandRouteKey(brand)}`;
 }
 
 export function buildBrandSharingHref(brand: RoutableBrand) {
-  return `${buildBrandWorkspaceHref(brand)}/sharing`;
+  return `/brand_space/sharing/${resolveBrandRouteKey(brand)}`;
 }

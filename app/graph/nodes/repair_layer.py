@@ -16,10 +16,13 @@ async def repair_layer(state: ViolytState) -> dict:
     if evaluation and evaluation.required_repairs:
         for r in evaluation.required_repairs:
             instructions.append(f"{r.target_layer}: {r.repair_action} ({r.failure_reason})")
-            # Infer target from first critical/major repair if unset
             if not repair_target:
                 layer = (r.target_layer or "").lower()
-                if "l6b" in layer or "content_intelligence" in layer or "insight" in layer:
+                if "l8" in layer or "visual" in layer:
+                    repair_target = "l8"
+                elif "l9" in layer or "scene" in layer:
+                    repair_target = "l9"
+                elif "l6b" in layer or "content_intelligence" in layer or "insight" in layer:
                     repair_target = "l6b"
                 elif "l5" in layer or "concept" in layer:
                     repair_target = "l5"
@@ -29,14 +32,16 @@ async def repair_layer(state: ViolytState) -> dict:
                     repair_target = "l7"
 
     if not repair_target:
-        repair_target = "l5"
+        repair_target = "l8" if state.get("visual_reasoning") else "l5"
 
     if not instructions:
         defaults = {
             "l6b": "content_intelligence: strengthen verify/prioritize/insight — answer WHY with must_know evidence",
             "l5": "concept_engine: regenerate concepts that express PRIMARY INSIGHT with brand-specific tension",
-            "l7": "copy_engine: rewrite copy from ranked evidence + primary insight; complete sentences; UDAN not ADAN",
+            "l7": "copy_engine: rewrite copy from ranked evidence + primary insight; complete sentences",
             "l7c": "content_prep: rebuild blueprint hierarchy — hero stat + insight sections; no truncation",
+            "l8": "visual_reasoning: regenerate brand-conditioned artwork with clearer hierarchy and logo-safe zone",
+            "l9": "scene_graph: rebuild renderer-safe layout with resolved assets and platform ratios",
         }
         instructions.append(defaults.get(repair_target, defaults["l5"]))
 

@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { Archive, Edit3Icon, Eye, MoreVertical, NotebookPen, Trash2 } from "lucide-react";
 import { StatusChip } from "@/components/common/DesignPrimitives";
 import {
@@ -71,10 +70,10 @@ export default function BrandSpaces({
                 <DropdownMenuContent align="end" className="w-44">
                   {!canManage ? (
                     <DropdownMenuItem asChild>
-                      <Link href={buildBrandViewHref(item)}>
+                      <a href={buildBrandViewHref(item)}>
                         <Eye />
                         View
-                      </Link>
+                      </a>
                     </DropdownMenuItem>
                   ) : null}
                   {canManage && lifecycleState === "draft" ? (
@@ -101,10 +100,10 @@ export default function BrandSpaces({
                   ) : null}
                   {canManage ? (
                     <DropdownMenuItem asChild>
-                      <Link href={buildBrandEditHref(item)}>
+                      <a href={buildBrandEditHref(item)}>
                           <Edit3Icon />
                         View/Edit Brand Space
-                      </Link>
+                      </a>
                     </DropdownMenuItem>
                   ) : null}
                   {canManage ? (
@@ -117,7 +116,7 @@ export default function BrandSpaces({
               </DropdownMenu>
             </div>
 
-            <Link href={buildBrandWorkspaceHref(item)} className="block">
+            <a href={buildBrandWorkspaceHref(item)} className="block">
               <div className="flex min-h-[56px] items-center justify-center py-3">
                 {logoUrl ? (
                   <div className="relative h-24 w-48 overflow-hidden">
@@ -141,7 +140,7 @@ export default function BrandSpaces({
                 <p className="text-sm font-medium text-[#2F3342]">{item.name}</p>
                 {/* <p className="text-sm text-[#7A7F8F]">Open workspace</p> */}
               </div>
-            </Link>
+            </a>
           </div>
         );
       })}

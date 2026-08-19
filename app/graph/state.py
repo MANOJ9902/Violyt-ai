@@ -30,6 +30,9 @@ class ViolytState(TypedDict):
     format: NotRequired[str]
     run_id: NotRequired[str]
     org_id: NotRequired[str]
+    tenant_id: NotRequired[str]
+    brand_name: NotRequired[str]
+    visual_pack: NotRequired[dict]
     data_version: NotRequired[int]  # brand.data_version — used as cache key in L2
 
     # ── Layer outputs (set progressively) ─────────────────────
@@ -58,3 +61,5 @@ class ViolytState(TypedDict):
     layer_latencies: Annotated[dict, _merge_dicts]
     token_usage: Annotated[dict, _merge_dicts]
     error: NotRequired[Optional[str]]
+    total_cost_usd: NotRequired[float]
+    cost: NotRequired[dict]

@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+    async rewrites() {
+        return [
+            { source: "/brand_space/:brandSlug/edit", destination: "/brand_space/edit/:brandSlug" },
+            { source: "/brand_space/:brandSlug/view", destination: "/brand_space/view/:brandSlug" },
+            { source: "/brand_space/:brandSlug/sharing", destination: "/brand_space/sharing/:brandSlug" },
+        ];
+    },
     // Allow Cloudflare quick tunnels to hit the Next.js dev server without "Unauthorized".
     allowedDevOrigins: [
         "*.trycloudflare.com",

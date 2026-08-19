@@ -9,6 +9,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.services.llm.json_utils import parse_structured_output
 
 logger = get_logger(__name__)
 
@@ -82,7 +83,7 @@ class OpenAIService:
             output_tokens=output_tokens,
         )
 
-        parsed = output_model.model_validate_json(raw)
+        parsed = parse_structured_output(raw, output_model, layer=layer)
 
         metadata = {
             "layer": layer,

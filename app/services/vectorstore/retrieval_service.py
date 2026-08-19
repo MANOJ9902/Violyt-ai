@@ -197,11 +197,16 @@ class BrandRetrievalService:
         return missing
 
     def _to_model(self, c: RankedChunk, used: bool) -> RetrievedChunk:
+        full = (c.content or "").strip()
+        summary = (c.content_summary or "").strip() or full[:160]
+        # Visual / compliance chunks keep enough JSON for palette + fonts.
+        content_cap = 2400 if c.influence_area in {"visual", "compliance"} else 900
         return RetrievedChunk(
             chunk_id=c.chunk_id,
             source=c.source,
             section=c.section,
-            content_summary=c.content_summary or c.content[:160],
+            content_summary=summary[:400],
+            content=full[:content_cap],
             relevance_score=c.composite_score,
             used_in_output=used,
             influence_area=c.influence_area,

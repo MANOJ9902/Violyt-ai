@@ -9,13 +9,12 @@ Do NOT use for ranking / top-N list boards — those stay on ranking_board.py.
 import re
 from typing import Any
 
-from app.prompts.brand_copy_tone import JIRAAF_BG, JIRAAF_NAVY, JIRAAF_ORANGE
+from app.prompts.brand_copy_tone import NEUTRAL_BG, NEUTRAL_HEADLINE, NEUTRAL_ACCENT
 from app.services.image_generation.ranking_board import sanitize_ranking_text
 
-# LOCKED Jiraaf sample DNA — match sample_infographic_explain_rbi_polymer.png exactly
-EXPLAIN_BG = JIRAAF_BG          # #87CEFA brand sky-blue (NOT white, NOT cream)
-EXPLAIN_HEADING = JIRAAF_NAVY   # #003975
-EXPLAIN_ORANGE = JIRAAF_ORANGE  # #FFA400 vivid orange (NOT yellow/gold/amber)
+EXPLAIN_BG = NEUTRAL_BG
+EXPLAIN_HEADING = NEUTRAL_HEADLINE
+EXPLAIN_ORANGE = NEUTRAL_ACCENT
 EXPLAIN_SECONDARY_BLUE = "#2D8CFF"
 EXPLAIN_CARD = "#F8FBFF"
 EXPLAIN_BORDER = "#DCEAF5"
@@ -65,12 +64,21 @@ def build_explain_infographic_prompt(
     canvas_desc: str,
     supporting: str = "",
     customer_quote: str = "",
+    palette: dict[str, str] | None = None,
 ) -> str:
     """LOCKED premium paragraph/info LinkedIn infographic prompt (not ranking).
 
     Uses the actual blueprint content — headline, sections, CTA — NOT hardcoded defaults.
-    The layout and aesthetic are locked (Jiraaf premium), but ALL copy comes from the blueprint.
+    Layout structure is fixed; colours come from Brand Space and ALL copy comes from the blueprint.
     """
+    pal = palette or {}
+    heading = pal.get("headline") or pal.get("primary") or EXPLAIN_HEADING
+    secondary = pal.get("secondary") or pal.get("card") or EXPLAIN_CARD
+    accent = pal.get("accent") or EXPLAIN_ORANGE
+    bg = pal.get("background") or EXPLAIN_BG
+    card = pal.get("card") or secondary
+    body_c = pal.get("body") or EXPLAIN_BODY
+    hairline = pal.get("muted") or EXPLAIN_BORDER
     sections = getattr(blueprint, "sections", None) or []
 
     # ── Extract headline, supporting, CTA from blueprint ──────────────────────
@@ -123,48 +131,47 @@ def build_explain_infographic_prompt(
     grid_desc = f"2 rows x {(num_cards + 1) // 2} columns" if num_cards > 2 else f"{num_cards} cards"
 
     return (
-        "=== LOCKED FORMAT: JIRAAF INFOGRAPHIC EXPLAIN — STORYTELLING (NOT TEXTBOOK) ===\n"
-        "Reference DNA: sample_infographic_explain_why_airports.png + rbi plastic perfect.\n"
-        "NOT a ranking board. NOT hub-and-spoke web-search collage. NOT cream/white page.\n"
+        "=== LOCKED FORMAT: INFOGRAPHIC EXPLAIN — STORYTELLING (NOT TEXTBOOK) ===\n"
+        "NOT a ranking board. NOT hub-and-spoke web-search collage.\n"
         f"Canvas: {canvas_desc or '1080x1350'} portrait 4:5. Ultra HD LinkedIn-ready.\n\n"
-        f"BACKGROUND: full-bleed sky-blue {EXPLAIN_BG} ONLY — NEVER pure white, NEVER cream, NEVER grey.\n"
+        f"BACKGROUND: full-bleed {bg} (Brand Space background).\n"
         "BRANDING: empty TOP-RIGHT corner (~24% width × ~12% height) — COMPLETELY BLANK background only. "
-        "NEVER draw any logo, leaf, compass, badge, giraffe, or wordmark in the top-right. "
+        "NEVER draw any logo, badge, or wordmark in the top-right. "
         "Real Brand Space logo is composited in post.\n"
-        "NO SEBI disclaimer on this infographic.\n\n"
-        "COLOUR PALETTE (UNIVERSAL JIRAAF — identical to ranking/lists):\n"
-        f"- Headlines / section titles: navy {EXPLAIN_HEADING} ONLY\n"
-        f"- Accent orange {EXPLAIN_ORANGE} (#FFA400) — CTA, dividers, highlight keyword, chart accents\n"
-        "  NEVER yellow/gold/mustard/teal as primary accent. NEVER teal section titles.\n"
-        f"- Soft white cards: {EXPLAIN_CARD} floating on ice-blue\n"
-        f"- Card border: {EXPLAIN_BORDER}\n"
-        f"- Body text: {EXPLAIN_BODY}\n"
-        "Orange ≥2% of image.\n\n"
+        "Do not bake a legal disclaimer on this infographic.\n\n"
+        "COLOUR PALETTE (Brand Space only):\n"
+        f"- Headlines / section titles: {heading}\n"
+        f"- Secondary {secondary} — MUST appear as card/panel fills\n"
+        f"- Accent {accent} — CTA, dividers, highlight keyword\n"
+        f"- Soft cards: {card} floating on the page background\n"
+        f"- Card border: {hairline}\n"
+        f"- Body text: {body_c}\n"
         "STORY ARC (required): hook headline → insight thesis line → at-a-glance stats → "
-        "4–6 reason cards (each a story beat) → one proof chart → navy footer tagline.\n"
+        "4–6 reason cards (each a story beat) → one proof chart → Brand Space primary footer tagline.\n"
         "Language: everyday investor, insight-led, COMPLETE sentences. No textbook essays.\n"
         "FORBIDDEN baked text: 'Web Search:', 'Answer WHY', research meta-labels, mid-sentence cuts, ADAN.\n\n"
         "TYPOGRAPHY: bold geometric sans. Hierarchy = huge title > section > body.\n\n"
-        "TITLE (3-line layout, key middle word LARGEST — allow ONE orange keyword):\n"
+        f"TITLE (3-line layout, key middle word LARGEST — allow ONE keyword in {accent}):\n"
         f"{headline_lines}\n\n"
         "HERO (under logo pocket — NO text on hero):\n"
-        "Premium photoreal/3D topic object (airport/plane/infra) — studio lit, soft shadow.\n\n"
-        "CARDS: rounded ~20px, soft shadow, float on ice-blue. ONE SMALL clay-3D icon each "
+        "Premium photoreal/3D topic object — studio lit, soft shadow.\n\n"
+        "CARDS: rounded ~20px, soft shadow, float on Brand Space background. ONE SMALL clay-3D icon each "
         "(~8–11% of card) + bold TITLE + neat 2–3 line BODY paragraph.\n"
-        "ICON STYLE: glossy 3D navy/orange — NOT flat, NOT emoji, NOT giant icons crowding text.\n\n"
+        f"ICON STYLE: glossy 3D in {heading}/{accent} — NOT flat, NOT emoji, NOT giant icons crowding text.\n\n"
         "LAYOUT:\n"
-        "1) TOP: navy headline + gray insight supporting line + empty top-right logo pocket\n"
+        f"1) TOP: headline in {heading} + insight supporting line in {body_c} + empty top-right logo pocket\n"
         f'   Supporting thesis: "{sub_headline}"\n'
         "2) Optional at-a-glance stat strip (3–5 latest numbers)\n"
         f"3) MIDDLE: {grid_desc} reason cards — bake EVERY section body (REQUIRED)\n"
-        "4) BOTTOM: navy full-width footer bar + WHITE tagline; optional orange CTA pill\n"
+        f"4) BOTTOM: optional compact CTA pill in {accent} with white text\n"
         "5) NEVER empty cards. NEVER repeated titles. NEVER replace facts with sample filler.\n\n"
         "RENDER: Octane/Redshift look — crisp edges, GI, HDR.\n"
-        "NEGATIVE: cream BG, teal titles, gold-as-orange, hub-spoke web-search UI, clipart, "
-        "watermark, neon, handwritten fonts, truncated text.\n\n"
+        "NEGATIVE: cream BG, teal titles, generic navy/orange, hub-spoke web-search UI, clipart, "
+        "watermark, neon, handwritten fonts, truncated text.\n"
+        f"COLOUR BAN: never paint navy/orange/gold/ice-blue unless that hex is {heading}, {secondary}, or {accent}.\n\n"
         "=== BAKE ONLY THIS COPY (letter-perfect, COMPLETE sentences) ===\n"
         f'HEADLINE: "{hl}"\n'
-        + (f'CTA (orange fill, white text, compact pill): "{cta_text}"\n' if cta_text else "")
+        + (f'CTA (fill {accent}, white text, compact pill): "{cta_text}"\n' if cta_text else "")
         + f'SUPPORTING LINE: "{sub_headline}"\n'
         f"SECTION CARDS ({num_cards} cards total):\n"
         f"{card_lines}\n"
@@ -179,7 +186,7 @@ def _pick_icon_hint(text: str) -> str:
     if any(k in t for k in ("airport", "flight", "air", "runway", "terminal", "plane", "udan")):
         return "3D glossy airplane or airport tower with soft shadow"
     if any(k in t for k in ("money", "invest", "fund", "crore", "lakh", "₹", "revenue", "cost")):
-        return "3D gold coins or rising bar chart"
+        return "3D coins or rising bar chart"
     if any(k in t for k in ("job", "employ", "work", "labour", "skill")):
         return "3D briefcase or handshake"
     if any(k in t for k in ("connect", "route", "region", "city", "map", "network")):

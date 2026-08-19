@@ -4825,7 +4825,7 @@ class RendererService:
         light_text: tuple[int, int, int],
     ) -> tuple[Image.Image, dict[str, object]]:
         # ── Premium LinkedIn Infographic Renderer ────────────────────────────
-        # Renders a multi-section infographic poster with the Jiraaf brand design system.
+        # Renders a multi-section infographic poster using Brand Space palette.
         # Pure white canvas, flat vector-style cards, purple/orange/yellow palette.
         import math as _math
         W = size["width"]
@@ -5096,7 +5096,7 @@ class RendererService:
         default_features = [
             {"label": "AI-Powered\nIntelligence",  "stat": "",     "includes": [], "body": "Advanced analysis of market trends, behavior, and goals.", "icon": "brain",       "color": purple},
             {"label": "Diversified\nPortfolios",   "stat": "",     "includes": [], "body": "Curated portfolios across asset classes to balance risk.", "icon": "portfolio",   "color": blue},
-            {"label": "Goal-Based\nApproach",      "stat": "",     "includes": [], "body": "Define your goals — Jiraaf guides you every step.",       "icon": "target",      "color": orange},
+            {"label": "Goal-Based\nApproach",      "stat": "",     "includes": [], "body": "Define your goals — we guide you every step.",       "icon": "target",      "color": orange},
             {"label": "Risk-First\nPhilosophy",    "stat": "",     "includes": [], "body": "We understand and manage risk for long-term stability.",  "icon": "shield",      "color": red_pill},
             {"label": "Simple &\nAccessible",      "stat": "",     "includes": [], "body": "Easy to use, whether you are a beginner or expert.",     "icon": "checkmark",   "color": success},
         ]
@@ -5212,13 +5212,13 @@ class RendererService:
         left_z2 = self._zone_manifest("cta_left", "body", (margin_x, y + 8, W // 2, y + 36), 2)
         self._draw_text_block(draw, cta_text or "Ready to take control of your financial future?", type("Z", (), left_z2)(), purple, 15, padding=0, weight="bold")
         sub_z2 = self._zone_manifest("cta_sub", "body", (margin_x, y + 38, W // 2, y + cta_h - 6), 1)
-        self._draw_text_block(draw, "Join Jiraaf today and invest with clarity and confidence.", type("Z", (), sub_z2)(), sec_text, 12, padding=0)
+        self._draw_text_block(draw, "Start today and invest with clarity and confidence.", type("Z", (), sub_z2)(), sec_text, 12, padding=0)
         btn_w2, btn_h2 = 180, 38
         btn_x2 = W - margin_x - btn_w2
         btn_y2 = y + (cta_h - btn_h2) // 2
         draw.rounded_rectangle((btn_x2, btn_y2, btn_x2 + btn_w2, btn_y2 + btn_h2), radius=19, fill=orange)
         btn_z2 = self._zone_manifest("cta_btn", "cta", (btn_x2 + 10, btn_y2 + 8, btn_x2 + btn_w2 - 10, btn_y2 + btn_h2 - 8), 1)
-        self._draw_text_block(draw, "www.jiraaf.com", type("Z", (), btn_z2)(), (255, 255, 255), 13, padding=0, weight="bold", align="center")
+        self._draw_text_block(draw, "Learn more", type("Z", (), btn_z2)(), (255, 255, 255), 13, padding=0, weight="bold", align="center")
         zones_used.append(self._zone_manifest("cta_section", "cta", cta_box2))
         y += cta_h + 6
 

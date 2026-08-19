@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from typing import Any, Type, TypeVar
 
@@ -10,6 +9,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.services.llm.json_utils import parse_structured_output
 
 logger = get_logger(__name__)
 
@@ -44,105 +44,6 @@ class ClaudeService:
         if self._api_key:
             timeout = float(getattr(settings, "llm_request_timeout_seconds", 180.0) or 180.0)
             self._client = anthropic.AsyncAnthropic(api_key=self._api_key, timeout=timeout)
-
-    # ── JSON extraction ───────────────────────────────────────────────────────
-
-    @staticmethod
-    def _extract_json(raw: str) -> str:
-        """Extract valid JSON from Claude output.
-
-        Handles:
-        1. Plain JSON (no fences)
-        2. ```json ... ``` fenced blocks
-        3. Truncated output — walks character-by-character to find the last
-           complete JSON object, then closes any missing braces.
-        """
-        raw = raw.strip()
-
-        # Strip markdown code fences
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            start_line = 1  # skip ```json or ``` opening line
-            end_line = len(lines)
-            for i in range(len(lines) - 1, 0, -1):
-                if lines[i].strip().startswith("```"):
-                    end_line = i
-                    break
-            raw = "\n".join(lines[start_line:end_line]).strip()
-
-        # Fast path: already valid JSON
-        try:
-            json.loads(raw)
-            return raw
-        except json.JSONDecodeError:
-            pass
-
-        # Locate the first opening brace
-        start_idx = raw.find("{")
-        if start_idx == -1:
-            return raw  # no JSON — let caller raise a clear Pydantic error
-
-        # Walk character-by-character tracking brace depth.
-        # This correctly handles nested objects and stops at the matching close.
-        depth = 0
-        in_string = False
-        escape_next = False
-        last_valid_end = -1
-
-        for i, ch in enumerate(raw[start_idx:], start=start_idx):
-            if escape_next:
-                escape_next = False
-                continue
-            if in_string:
-                if ch == "\\":
-                    escape_next = True
-                elif ch == '"':
-                    in_string = False
-                continue
-            if ch == '"':
-                in_string = True
-            elif ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    last_valid_end = i
-                    break
-
-        if last_valid_end != -1:
-            # Found a complete top-level object
-            candidate = raw[start_idx: last_valid_end + 1]
-            try:
-                json.loads(candidate)
-                return candidate
-            except json.JSONDecodeError:
-                pass
-
-        # Output was truncated — take everything from the opening brace and
-        # close the missing levels so Pydantic can at least partially parse it.
-        truncated = raw[start_idx:]
-        open_depth = 0
-        in_str = False
-        esc = False
-        for ch in truncated:
-            if esc:
-                esc = False
-                continue
-            if in_str:
-                if ch == "\\":
-                    esc = True
-                elif ch == '"':
-                    in_str = False
-                continue
-            if ch == '"':
-                in_str = True
-            elif ch == "{":
-                open_depth += 1
-            elif ch == "}":
-                open_depth -= 1
-
-        repaired = truncated + "}" * max(0, open_depth)
-        return repaired
 
     # ── Core API call (retriable) ─────────────────────────────────────────────
 
@@ -204,8 +105,7 @@ class ClaudeService:
             logger.error("llm.truncated_empty", model=model, layer=layer, max_tokens=max_tokens)
             raise TruncatedOutputError(f"Output fully truncated at {max_tokens} tokens for {layer}")
 
-        raw = self._extract_json(raw_text)
-        parsed = output_model.model_validate_json(raw)
+        parsed = parse_structured_output(raw_text, output_model, layer=layer)
 
         return parsed, {
             "layer": layer,

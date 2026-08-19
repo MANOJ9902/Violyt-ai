@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Clock, Coins, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { EvaluationOutputResponse } from "@/lib/api/contracts";
 
 export type LayerTokenUsage = {
   input_tokens: number;
@@ -13,6 +14,8 @@ type Props = {
   layerLatencies?: Record<string, number>;
   tokenUsage?: Record<string, LayerTokenUsage>;
   imageCount?: number;
+  evaluation?: EvaluationOutputResponse | null;
+  totalCostUsd?: number | null;
   className?: string;
 };
 
@@ -57,9 +60,9 @@ const LAYER_MODELS: Record<string, string> = {
   l8_visual_reasoning: "GPT-4o + DALL·E",
   l8_prompt_expander: "GPT-4o",
   l9_scene_graph: "GPT-4o mini",
-  l10_evaluation: "Rules + Editorial QA",
+  l10_evaluation: "Claude + editorial QA",
   repair: "Router",
-  renderer: "Pillow",
+  renderer: "Scene graph",
 };
 
 function formatMs(ms: number): string {
@@ -76,10 +79,28 @@ function layerModel(key: string): string {
   return LAYER_MODELS[key] || "LLM";
 }
 
+function formatUsd(value: number): string {
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+const SCORE_LABELS: Array<{ key: keyof EvaluationOutputResponse; label: string }> = [
+  { key: "brand_alignment_score", label: "Brand alignment" },
+  { key: "prompt_match_score", label: "Prompt match" },
+  { key: "audience_relevance_score", label: "Audience" },
+  { key: "originality_score", label: "Originality" },
+  { key: "visual_quality_score", label: "Visual quality" },
+  { key: "format_fit_score", label: "Format fit" },
+  { key: "brand_uniqueness_score", label: "Brand uniqueness" },
+  { key: "strategic_quality_score", label: "Strategic quality" },
+];
+
 export default function PromptRunAnalytics({
   layerLatencies,
   tokenUsage,
   imageCount = 0,
+  evaluation,
+  totalCostUsd,
   className,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -129,7 +150,7 @@ export default function PromptRunAnalytics({
     [tokenUsage],
   );
 
-  if (!rows.length && !totalMs && !totalTokens) {
+  if (!rows.length && !totalMs && !totalTokens && !evaluation) {
     return null;
   }
 
@@ -149,6 +170,22 @@ export default function PromptRunAnalytics({
             <Coins className="h-3 w-3" />
             {totalTokens.toLocaleString()} tokens
           </span>
+          {typeof totalCostUsd === "number" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
+              {formatUsd(totalCostUsd)}
+            </span>
+          ) : null}
+          {evaluation ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5",
+                evaluation.overall_pass ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800",
+              )}
+            >
+              {evaluation.overall_pass ? "Eval pass" : "Eval repair"} ·{" "}
+              {Math.round((evaluation.brand_alignment_score || 0) * 100)}% align
+            </span>
+          ) : null}
           {imageCount > 0 ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
               <Cpu className="h-3 w-3" />
@@ -178,6 +215,36 @@ export default function PromptRunAnalytics({
               <p>{formatMs(totalMs)}</p>
             </div>
           </div>
+          {evaluation ? (
+            <div className="mb-3 grid grid-cols-2 gap-1.5">
+              {SCORE_LABELS.map((item) => {
+                const raw = evaluation[item.key];
+                const value = typeof raw === "number" ? raw : 0;
+                const pct = Math.round(value * 100);
+                const pass = value >= 0.75;
+                return (
+                  <div key={item.key} className="rounded bg-slate-50 px-2 py-1.5">
+                    <p className="flex justify-between text-[10px] text-[#6A6E8B]">
+                      <span>{item.label}</span>
+                      <span className={pass ? "text-emerald-700" : "text-amber-700"}>{pct}%</span>
+                    </p>
+                    <div className="mt-1 h-1 overflow-hidden rounded bg-slate-200">
+                      <div
+                        className={cn("h-full", pass ? "bg-emerald-600" : "bg-amber-500")}
+                        style={{ width: `${Math.max(4, Math.min(100, pct))}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="col-span-2 text-[10px] text-[#6A6E8B]">
+                Contamination {evaluation.contamination_risk}
+                {evaluation.evaluator_reasoning
+                  ? ` · ${evaluation.evaluator_reasoning.slice(0, 140)}`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
           <div className="max-h-52 overflow-y-auto">
             <table className="w-full text-left text-[10px]">
               <thead>

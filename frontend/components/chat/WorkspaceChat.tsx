@@ -91,8 +91,8 @@ type FileType = "doc" | "pdf" | "jpg" | "png";
 const IDLE_PIPELINE_STATE: ChatPipelineState = { status: "idle" };
 
 function mergePipelineAnalytics(
-    phase1?: Pick<PipelineRunResponse, "layer_latencies" | "token_usage"> | null,
-    phase2?: Pick<PipelineRunResponse, "layer_latencies" | "token_usage"> | null,
+    phase1?: Pick<PipelineRunResponse, "layer_latencies" | "token_usage" | "evaluation" | "total_cost_usd"> | null,
+    phase2?: Pick<PipelineRunResponse, "layer_latencies" | "token_usage" | "evaluation" | "total_cost_usd"> | null,
 ) {
     return {
         layerLatencies: {
@@ -103,6 +103,8 @@ function mergePipelineAnalytics(
             ...(phase1?.token_usage || {}),
             ...(phase2?.token_usage || {}),
         },
+        evaluation: phase2?.evaluation || phase1?.evaluation || null,
+        totalCostUsd: phase2?.total_cost_usd ?? phase1?.total_cost_usd ?? null,
     };
 }
 
@@ -2888,6 +2890,8 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                         error: null,
                         layerLatencies: phase1Analytics.layerLatencies,
                         tokenUsage: phase1Analytics.tokenUsage,
+                        evaluation: phase1Analytics.evaluation,
+                        totalCostUsd: phase1Analytics.totalCostUsd,
                     });
                     return;
                 }
@@ -2918,6 +2922,8 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                     error: urls.length ? null : "No image returned from pipeline.",
                     layerLatencies: phase1Analytics.layerLatencies,
                     tokenUsage: phase1Analytics.tokenUsage,
+                    evaluation: phase1Analytics.evaluation,
+                    totalCostUsd: phase1Analytics.totalCostUsd,
                 });
                 return;
             }
@@ -2992,7 +2998,12 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
             }
             setPipelineUi((current) => {
                 const merged = mergePipelineAnalytics(
-                    { layer_latencies: current.layerLatencies, token_usage: current.tokenUsage },
+                    {
+                        layer_latencies: current.layerLatencies,
+                        token_usage: current.tokenUsage,
+                        evaluation: current.evaluation,
+                        total_cost_usd: current.totalCostUsd,
+                    },
                     phase2,
                 );
                 return {
@@ -3003,6 +3014,8 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                     error: null,
                     layerLatencies: merged.layerLatencies,
                     tokenUsage: merged.tokenUsage,
+                    evaluation: merged.evaluation,
+                    totalCostUsd: merged.totalCostUsd,
                 };
             });
         } catch (error) {

@@ -28,6 +28,9 @@ import {
   createPersistedBrandUploadItem,
   emptyBrandFormState,
   normalizeBrandLogoItems,
+  FIXED_PALETTE_ROLES,
+  isFixedPaletteRole,
+  type AdditionalColorField,
   type BrandFormState,
 } from "@/types/brand-space.types";
 import type { UploadedBrandAssets } from "@/lib/brand-space-persistence";
@@ -69,6 +72,29 @@ function toRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+// Merges saved "additional" palette rows with the fixed roles (Supporting Dark / Primary Tint /
+// Secondary Tint / Neutral) so the Visual Identity table always shows all four, pre-filled with any
+// saved values, followed by any genuinely custom rows the user added.
+function mergeAdditionalColorsWithFixedRoles(additional: unknown): AdditionalColorField[] {
+  const savedRows = Array.isArray(additional)
+    ? additional.map((item) => {
+        const record = toRecord(item);
+        return {
+          name: String(record.name || ""),
+          hex: String(record.hex || ""),
+          role: String(record.role || ""),
+        };
+      })
+    : [];
+
+  const fixedRows = FIXED_PALETTE_ROLES.map(
+    (role) => savedRows.find((row) => row.role === role) || { role, name: "", hex: "" },
+  );
+  const customRows = savedRows.filter((row) => !isFixedPaletteRole(row.role));
+
+  return [...fixedRows, ...customRows];
 }
 
 function resolveAssetUrl(value: unknown) {
@@ -373,14 +399,10 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     referenceCreatives: createKnowledgeItems(visualIdentity.reference_creatives, "reference_creative"),
     moodBoards: createKnowledgeItems(visualIdentity.mood_boards, "mood_board", ["Mood Board"]),
     primaryColor: String(colorPalette.primary || ""),
+    primaryColorName: String(colorPalette.primary_name || ""),
     secondaryColor: String(colorPalette.secondary || ""),
-    additionalColors:
-      Array.isArray(colorPalette.additional) && colorPalette.additional.length
-        ? colorPalette.additional.map((item) => ({
-            name: String(toRecord(item).name || ""),
-            hex: String(toRecord(item).hex || ""),
-          }))
-        : [{ name: "", hex: "" }],
+    secondaryColorName: String(colorPalette.secondary_name || ""),
+    additionalColors: mergeAdditionalColorsWithFixedRoles(colorPalette.additional),
     colorPaletteUploads,
     activeColorPaletteUploadId,
     typography: String(typography.primary_style || ""),
@@ -803,10 +825,16 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
         },
         brand_color_palette: {
           primary: form.visualIdentity.primaryColor || "",
+          primary_name: form.visualIdentity.primaryColorName || "",
           secondary: form.visualIdentity.secondaryColor || "",
+          secondary_name: form.visualIdentity.secondaryColorName || "",
           additional: form.visualIdentity.additionalColors
             .filter((color) => color.name || color.hex)
-            .map((color) => ({ name: color.name, hex: color.hex })),
+            .map((color) => ({
+              name: color.name,
+              hex: color.hex,
+              ...(color.role ? { role: color.role } : {}),
+            })),
         },
         typography: {
           primary_style: form.visualIdentity.typography || "",

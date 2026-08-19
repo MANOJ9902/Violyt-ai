@@ -175,6 +175,9 @@ export const API = {
     RUN: { method: "POST", url: "/api/v1/pipeline/run" } as ApiEndpoint<import("./contracts").PipelineRunRequest, import("./contracts").PipelineRunResponse>,
     APPROVE: { method: "POST", url: "/api/v1/pipeline/approve" } as ApiEndpoint<import("./contracts").PipelineApproveRequest, import("./contracts").PipelineRunResponse>,
     REJECT: { method: "POST", url: "/api/v1/pipeline/reject" } as ApiEndpoint<import("./contracts").PipelineRejectRequest, import("./contracts").PipelineRunResponse>,
+    STATUS: { method: "GET", url: (runId: string) => `/api/v1/pipeline/${runId}/status` } as ApiEndpoint<void, import("./contracts").PipelineRunResponse>,
+    SCORES: { method: "GET", url: (runId: string) => `/api/v1/pipeline/${runId}/scores` } as ApiEndpoint<void, import("./contracts").PipelineScoresResponse>,
+    RETRIEVAL_LOG: { method: "GET", url: (runId: string) => `/api/v1/pipeline/${runId}/retrieval-log` } as ApiEndpoint<void, { run_id: string; retrieval_log: import("./contracts").RetrievalLogResponse }>,
     EDIT_IMAGE_TEXT: { method: "POST", url: "/api/v1/pipeline/edit-image-text" } as ApiEndpoint<import("./contracts").PipelineEditImageTextRequest, import("./contracts").PipelineEditImageTextResponse>,
   },
 } as const;

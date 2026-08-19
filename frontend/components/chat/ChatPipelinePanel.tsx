@@ -41,6 +41,8 @@ export type ChatPipelineState = {
   error?: string | null;
   layerLatencies?: Record<string, number>;
   tokenUsage?: Record<string, LayerTokenUsage>;
+  evaluation?: import("@/lib/api/contracts").EvaluationOutputResponse | null;
+  totalCostUsd?: number | null;
 };
 
 type EditableFields = {
@@ -438,6 +440,8 @@ export default function ChatPipelinePanel({
           <PromptRunAnalytics
             layerLatencies={state.layerLatencies}
             tokenUsage={state.tokenUsage}
+            evaluation={state.evaluation}
+            totalCostUsd={state.totalCostUsd}
             className="mb-2"
           />
           <BlueprintApprovalCard
@@ -478,6 +482,8 @@ export default function ChatPipelinePanel({
             layerLatencies={state.layerLatencies}
             tokenUsage={state.tokenUsage}
             imageCount={completeUrls.length}
+            evaluation={state.evaluation}
+            totalCostUsd={state.totalCostUsd}
           />
           <ImageCarousel
             urls={completeUrls}

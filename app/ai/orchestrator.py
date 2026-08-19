@@ -199,7 +199,6 @@ class AIOrchestratorService:
         "image",
         "infographic",
         "inter",
-        "jiraaf",
         "label",
         "layout",
         "linkedin",
@@ -14278,8 +14277,7 @@ class AIOrchestratorService:
             "analytical",
             "intelligent",
             "brand",
-            "jiraaf",
-            "platform",
+                "platform",
             "finance",
             "investment",
             "investments",
@@ -26688,7 +26686,7 @@ class AIOrchestratorService:
     def _disclaimer_overlay_guidance(request: AIOrchestrationRequest) -> str:
         # Builds disclaimer overlay guidance from request state for AIOrchestratorService.
         # It calls _normalize_metadata_text while assembling the payload or prompt text.
-        # CAROUSEL ALWAYS reserves disclaimer zone (SEBI Pillow-composited for Jiraaf).
+        # CAROUSEL ALWAYS reserves disclaimer zone (Brand Space legal footer via Pillow).
         studio_panel = getattr(request, "studio_panel", {}) if request is not None else {}
         studio_panel = studio_panel if isinstance(studio_panel, dict) else {}
         format_name = AIOrchestratorService._normalize_metadata_text(

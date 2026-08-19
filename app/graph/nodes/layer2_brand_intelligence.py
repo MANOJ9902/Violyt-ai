@@ -72,8 +72,18 @@ async def layer2_brand_intelligence(state: ViolytState) -> dict:
     cached = await _brand_cache.get(brand_id, data_version=data_version)
     if cached:
         logger.info("brand_intelligence.cache_hit", brand_id=brand_id, data_version=data_version)
-        # Correct entries cached before the name was pinned to the Brand Space.
-        return {"brand_intelligence": _apply_brand_space_name(cached, brand_space_name)}
+        output = _apply_brand_space_name(cached, brand_space_name)
+        pack_raw = state.get("visual_pack") or {}
+        if isinstance(pack_raw, dict) and pack_raw.get("primary"):
+            from app.services.brand_visual_pack import BrandVisualPack
+
+            pack = BrandVisualPack.from_dict(pack_raw)
+            output.visual_behavior.color_behavior = pack.palette_lock()
+            if pack.font_primary:
+                output.visual_behavior.typography_behavior = (
+                    f"Use {pack.font_primary} for headlines; clean sans for body."
+                )
+        return {"brand_intelligence": output}
 
     if not brand_context:
         logger.error("brand_intelligence.no_context", brand_id=brand_id)
@@ -86,6 +96,7 @@ async def layer2_brand_intelligence(state: ViolytState) -> dict:
         medium_context=brand_context.medium_relevance_context,
         weak_signals=brand_context.missing_context,
         brand_name=brand_space_name,
+        visual_pack=state.get("visual_pack") or {},
     )
 
     output, metadata = await _claude_service.complete_structured(
@@ -97,6 +108,16 @@ async def layer2_brand_intelligence(state: ViolytState) -> dict:
     )
 
     output = _apply_brand_space_name(output, brand_space_name)
+    pack_raw = state.get("visual_pack") or {}
+    if isinstance(pack_raw, dict) and pack_raw.get("primary"):
+        from app.services.brand_visual_pack import BrandVisualPack
+
+        pack = BrandVisualPack.from_dict(pack_raw)
+        output.visual_behavior.color_behavior = pack.palette_lock()
+        if pack.font_primary:
+            output.visual_behavior.typography_behavior = (
+                f"Use {pack.font_primary} for headlines; clean sans for body."
+            )
     await _brand_cache.set(brand_id, output, data_version=data_version)
 
     return {

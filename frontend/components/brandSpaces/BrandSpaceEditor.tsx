@@ -72,6 +72,7 @@ import { useGetTenantData } from "@/hooks/tenantAdmins/useGetTenants";
 import { useUpdateBrandUsageTargets } from "@/hooks/tenantAdmins/useUpdateTenant";
 import { toast } from "@/components/ui/use-toast";
 import {
+    createDefaultAdditionalColors,
     emptyBrandFormState,
     findBrandUploadItem,
     normalizeBrandLogoItems,
@@ -248,7 +249,7 @@ function applyColorPaletteEntries(
                     name: colorNameFromPaletteEntry(entry),
                     hex: extractedHex(entry),
                 }))
-                : [{ name: "", hex: "" }],
+                : createDefaultAdditionalColors(),
         },
     };
 }

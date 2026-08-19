@@ -1,116 +1,83 @@
 from __future__ import annotations
 
-"""Locked carousel DNA from Jiraaf sample PDFs:
-- (Jiraaf) Sweep-In FD.pdf
-- capital control (2).pdf
-- (Jiraaf) Unrealized Gains.pdf
-
-Use for L7 / L7c / L8 carousel story generation.
-"""
+"""Carousel story structure (hook → teach → choice → CTA). Colors come from Brand Space."""
 
 from app.prompts.brand_copy_tone import (
-    CONTENT_DEPTH_LOCK,
     CAROUSEL_AUDIENCE_TONE_LOCK,
     CAROUSEL_CONTENT_DEPTH_LOCK,
     HEADLINE_COLOR_LOCK,
-    JIRAAF_CAROUSEL_BG,
-    JIRAAF_CAROUSEL_CARD,
-    JIRAAF_CAROUSEL_NAVY,
-    JIRAAF_CAROUSEL_ORANGE,
 )
 
 CAROUSEL_SAMPLE_DNA = f"""
 ════════════════════════════════════════════════════════
-JIRAAF CAROUSEL SAMPLE DNA (NON-NEGOTIABLE — MATCH THESE PDFs)
-Samples: Sweep-In FD | Capital Controls | Unrealized Gains
+CAROUSEL STORY DNA
 ════════════════════════════════════════════════════════
 
 {CAROUSEL_AUDIENCE_TONE_LOCK}
 
-VISUAL SYSTEM (every slide — India Building Airports PDF look):
+VISUAL SYSTEM (every slide — Brand Space palette):
 - Canvas 1080x1350 portrait (4:5)
-- Background: solid very pale blue {JIRAAF_CAROUSEL_BG} full-bleed
-- Headlines / subheads: dark navy {JIRAAF_CAROUSEL_NAVY} ONLY — never orange
-- Orange {JIRAAF_CAROUSEL_ORANGE}: accents, key numbers, CTA fill ONLY
-- INFO CARDS: wide rounded soft-blue {JIRAAF_CAROUSEL_CARD} cards — miniature 3D
-  isometric icon LEFT (~25% width), thin divider, concise text RIGHT with bold navy keywords.
+- Background: Brand Space background full-bleed
+- Headlines / subheads: Brand Space primary ONLY — never the accent colour
+- Brand Space accent: key numbers, CTA fill ONLY
+- INFO CARDS: wide rounded Brand Space card fill — miniature 3D
+  isometric icon LEFT (~25% width), thin divider, concise text RIGHT with bold keywords.
   NOT blurry toy blobs. NOT empty slides. NOT giant full-width heroes.
-- Bottom ~14% reserved EMPTY for SEBI legal footer (composited later)
-- EVERY slide MUST have a full navy headline at top-left — NEVER omit, NEVER truncate mid-word
+- Bottom ~14% reserved EMPTY only if Brand Space has a legal footer
+- EVERY slide MUST have a full headline at top-left — NEVER omit, NEVER truncate mid-word
 - Everything fully inside frame — never clip chips/text/icons
 
-STORY ARC (5–6 slides) — SAME SHAPE AS THE SAMPLES (this is the "story"):
+STORY ARC (5–6 slides):
 1 HOOK — surprising concrete tension with a real fact/number
-   Sweep-In: "What if your savings could quietly earn FD-like returns?"
-   Capital: "Most people saw a tax change. Economists saw a bigger story."
-   Gains: "Your bonds could be sitting on unrealised gains."
-2 SCENARIO / DEFINE — plain mechanism + concrete ₹ example in 3 short text blocks
-   Sweep-In: "Let's say you keep ₹2 lakh…" / "only need ₹50,000…" / "₹1.5 lakh earns low interest"
-   Capital: What limits are in plain English — who it affects / how much / where money can go
-   Gains: Bought bond ₹1,00,000 @ 9% for 5 years; rates fall to 7% → price rises
+2 SCENARIO / DEFINE — plain mechanism + concrete example in 3 short text blocks
 3 HOW IT WORKS — simple comparison OR numbered steps OR clear mechanism
-   Sweep-In: Regular savings vs Sweep-in FD (₹6,000 vs ₹10,500 illustrative)
-   Capital: Why countries use limits — weaker currency / unstable markets / higher borrowing costs
-   Gains: Hold till maturity — coupon ₹9,000/year + principal back
-4 IMPLICATION / CHOICE — what YOU might do + one honest condition
-   Sweep-In: "But what happens when you need the money?" + sweep-back + penalty note
-   Capital: Real India examples in plain words (how much you can send abroad, overseas investing limits)
-   Gains: Exit earlier — price rise; hold coupons OR book gain
+4 IMPLICATION / CHOICE — what the reader might do + one honest condition
 5 NUANCE / PROS-CONS — honest trade-offs WITH full reason sentences (never empty Pros/Cons)
-   Sweep-In: Pros vs Cons cards + "it may make sense if…" conditions
-   Capital: "Not all capital controls are restrictions" + easing examples
-   Gains: When selling earlier may make sense
 6 CTA — short question inviting comment
-   "Would you opt for Sweep-in FD?" / "What would you do? Comment below!"
 
-PER-SLIDE VISUAL RECIPE (match sample pages — NOT sparse 2-line cards):
-HOOK: big question headline (full words) + 1 support line + 1–2 insight cards + premium icon avatar
-SCENARIO: short headline + THREE stacked story blocks with ₹ amounts (like Sweep-In page 2)
+PER-SLIDE VISUAL RECIPE:
+HOOK: big question headline (full words) + 1 support line + 1–2 insight cards + premium icon
+SCENARIO: short headline + THREE stacked story blocks with real amounts
 HOW IT WORKS: headline + mechanism line + comparison/table OR 2–3 fact cards with numbers
 CHOICE: question headline + 2–3 explained cards + caveat note
 PROS/CONS: headline + TWO columns/cards each with FULL reason sentences (not empty labels)
-CTA: big question + "Let us know in the comments" + premium icon
-   Optional orange CTA button: COMPACT only (≤28% width, ≤4.5% height) — never a wide bar
+CTA: big question + invite to comment + premium icon
+   Optional accent CTA button: COMPACT only (≤28% width, ≤4.5% height) — never a wide bar
 
-DEPTH RULES (client "deep content" — plain language only):
+DEPTH RULES:
 {CAROUSEL_CONTENT_DEPTH_LOCK}
-- Put REAL ₹ / % numbers from research on 2+ slides — explain them simply.
-- Prefer a mini scenario over a slogan (who has how much / what rate / what happens).
+- Put REAL numbers from research on 2+ slides — explain them simply.
+- Prefer a mini scenario over a slogan.
 - Prefer a comparison or choice (A vs B, hold vs exit, pros vs cons WITH short reasons).
-- Include ONE honest caveat/note somewhere (penalty, illustrative, risk, condition).
-- supporting_line on every slide must add a plain fact — not restate the headline in jargon.
+- Include ONE honest caveat/note somewhere.
+- supporting_line on every slide must add a plain fact — not restate the headline.
 
-FORBIDDEN (instant fail — these match the bad outputs the client rejected):
-- Truncated headlines ("Interest earned o.." / mid-word cuts / "…")
+FORBIDDEN (instant fail):
+- Truncated headlines (mid-word cuts / "…")
 - Missing headline on any slide
 - Sparse slides with only 1–2 short lines and huge empty space
 - Empty Pros/Cons/Examples chips with no explanation
-- Topic title alone as headline ("Sweep-in FD", "Capital Controls")
+- Topic title alone as headline
 - Cloning the same body across slides
 - Cheap blurry calculator / toy icons
-- Technical jargon without a plain-English translation (Vostro, hedge, sector exposure, macro implications)
+- Technical jargon without a plain-English translation
 
 PER-SLIDE COPY SHAPE:
-- headline: max 8–10 words, COMPLETE (no truncation), navy, unique, concrete — plain English
-- supporting_line: 1 short plain sentence with ₹/% or "what it means" (REQUIRED)
+- headline: max 8–10 words, COMPLETE (no truncation), unique, concrete
+- supporting_line: 1 short plain sentence with a fact or "what it means" (REQUIRED)
 - body: 18–32 words — full scenario / comparison / caveat in simple words
-- proof_points: 2–3 SHORT explanation lines with ₹/%/rules (6–12 words each)
+- proof_points: 2–3 SHORT explanation lines (6–12 words each)
 - chip_labels: exactly 3 ONE-WORD content labels matching THIS slide's beat
-  Sweep-In: Idle | Threshold | Sweep  OR  Liquidity | Penalty | Access
-  Capital: Who | Amount | Where  OR  Currency | Markets | Costs
-  Gains: Price | Coupon | Tenure  OR  Hold | Exit | Redeploy
 
 COLOUR LOCK:
 {HEADLINE_COLOR_LOCK}
 """
 
-# Compact version kept for L7/L7c reference — NEVER paste into image API prompts
-# (use CAROUSEL_IMAGE_STYLE_STUB from brand_copy_tone instead — 6000 char budget).
-CAROUSEL_SAMPLE_DNA_COMPACT = f"""
-CAROUSEL ONLY — MATCH SAMPLE PDFs (Sweep-In / Capital / Gains):
-TONE: same plain retail voice as static/infographic — short sentences, ₹/% facts, NO jargon.
-STORY: hook → ₹ scenario (3 blocks) → how it works → choice → pros/cons WITH short reasons → CTA.
-EVERY slide: FULL navy headline top-left (never omit, never truncate mid-word).
-CONTENT DENSE: 3–4 soft-blue info cards (3D icon left, divider, text right) with ₹/% lines.
-Bottom ~14% EMPTY for SEBI. COLOUR: navy {JIRAAF_CAROUSEL_NAVY}; orange {JIRAAF_CAROUSEL_ORANGE}; BG {JIRAAF_CAROUSEL_BG}.
+CAROUSEL_SAMPLE_DNA_COMPACT = """
+CAROUSEL ONLY:
+TONE: plain retail voice — short sentences, real facts, NO jargon.
+STORY: hook → scenario (3 blocks) → how it works → choice → pros/cons WITH short reasons → CTA.
+EVERY slide: FULL headline top-left (never omit, never truncate mid-word).
+CONTENT DENSE: 3–4 info cards (3D icon left, divider, text right).
+Legal footer band only if Brand Space supplied one. COLOUR: Brand Space palette only.
 """

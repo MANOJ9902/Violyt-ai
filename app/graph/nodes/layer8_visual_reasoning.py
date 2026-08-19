@@ -15,31 +15,11 @@ from app.services.image_generation.sdxl_service import SdxlService
 from app.services.llm.llm_router import LLMRouter
 from app.prompts.brand_copy_tone import (
     SOURCE_FOOTER_RULE,
-    NO_SEBI_STATIC_RULE,
     ICON_STYLE_LOCK,
-    UNIVERSAL_FIT_LOCK,
-    CAROUSEL_IMAGE_STYLE_STUB,
-    CAROUSEL_IMAGE_EXTRA_LOCKS,
-    CAROUSEL_AUDIENCE_TONE_LOCK,
-    CAROUSEL_TONE_IMAGE_STUB,
-    STATIC_IMAGE_EXTRA_LOCKS,
     INFOGRAPHIC_AUDIENCE_TONE_LOCK,
-    INFOGRAPHIC_TRADE_BOARD_LOCK,
-    INFOGRAPHIC_EXPLAIN_LAYOUT_LOCK,
-    INFOGRAPHIC_EXPLAIN_ORANGE_STUB,
-    INFOGRAPHIC_EXPLAIN_QUALITY_LOCK,
-    STATIC_EXPLAIN_LAYOUT_LOCK,
-    STATIC_EXPLAIN_QUALITY_LOCK,
-    STATIC_ORANGE_STUB,
-    ORANGE_COVERAGE_LOCK,
-    STATIC_RANKING_INSIGHT_LOCK,
-    STATIC_HORIZONTAL_BAR_DNA_LOCK,
-    STATIC_HORIZONTAL_BAR_IMAGE_STUB,
-    EDUCATION_POSTER_LAYOUT_LOCK,
-    RANKING_IMAGE_STUB,
 )
-from app.prompts.jiraaf_layout import classify_layout
-from app.prompts.jiraaf_sample_templates import resolve_creative_template
+from app.prompts.layout_router import classify_layout
+from app.prompts.creative_templates import resolve_creative_template
 from app.prompts.creative_sizes import canvas_label, size_string
 from app.services.blueprint_quality import repair_explain_infographic_copy, repair_generic_headline
 
@@ -94,127 +74,11 @@ def _q(value: object, max_chars: int = 280) -> str:
 
 
 def _chip_label(value: object, max_words: int = 1, max_chars: int = 14) -> str:
-    """One complete chip word — never multi-word phrases that SEBI truncates mid-label."""
     words = " ".join(str(value or "").split()).strip().split()
     label = (words[0] if words else "").strip(".,;:!")
     if len(label) > max_chars:
         label = label[:max_chars]
     return _q(label, max_chars)
-
-
-# Capital-controls / FDI sample labels — NEVER inject these unless the user asked that topic
-_FORBIDDEN_SAMPLE_CHIPS = {
-    "inflows",
-    "outflows",
-    "limits",
-    "fdi impact",
-    "fx impact",
-    "growth signal",
-    "rbi role",
-    "policy tools",
-    "risk control",
-    "banks",
-    "markets",
-    "investors",
-}
-
-# Empty teaser/nav chips — these make slides look cheap (user complaint)
-_FORBIDDEN_NAV_CHIPS = {
-    "pros",
-    "cons",
-    "examples",
-    "example",
-    "advantages",
-    "disadvantages",
-    "comparison",
-    "compare",
-    "benefits",
-    "drawbacks",
-    "overview",
-    "summary",
-    "details",
-    "learn",
-    "explore",
-    "start",
-    "more",
-    "next",
-    "swipe",
-}
-
-
-def _is_nav_chip(word: str) -> bool:
-    return (word or "").strip().lower() in _FORBIDDEN_NAV_CHIPS
-
-
-def _headline_is_repeat(current: str, prior: list[str]) -> bool:
-    """True if headline is nearly the same as a previous slide (e.g. 'Capital Controls' x5)."""
-    cur = " ".join((current or "").lower().split())
-    if not cur:
-        return True
-    # Strip common prefixes / punctuation
-    for prefix in ("what are ", "what is ", "why ", "how ", "understanding ", "about "):
-        if cur.startswith(prefix):
-            cur_core = cur[len(prefix) :]
-            break
-    else:
-        cur_core = cur
-    cur_core = cur_core.strip(" ?!.:-")
-    for p in prior:
-        prev = " ".join((p or "").lower().split())
-        for prefix in ("what are ", "what is ", "why ", "how ", "understanding ", "about "):
-            if prev.startswith(prefix):
-                prev_core = prev[len(prefix) :]
-                break
-        else:
-            prev_core = prev
-        prev_core = prev_core.strip(" ?!.:-")
-        if not prev_core:
-            continue
-        if cur == prev or cur_core == prev_core:
-            return True
-        # High overlap on short titles
-        if len(cur_core) <= 28 and (cur_core in prev_core or prev_core in cur_core):
-            return True
-        # Token overlap for near-duplicates ("trade deficit" vs "trade deficit and imports-exports")
-        cur_toks = set(cur_core.replace("-", " ").split())
-        prev_toks = set(prev_core.replace("-", " ").split())
-        if cur_toks and prev_toks:
-            overlap = len(cur_toks & prev_toks) / max(len(cur_toks | prev_toks), 1)
-            if overlap >= 0.7 and len(cur_toks & prev_toks) >= 2:
-                return True
-    return False
-
-
-def _is_bare_topic_headline(headline: str, user_prompt: str) -> bool:
-    """True for lazy titles that are just the topic name (Trade Deficit / Capital Controls)."""
-    h = " ".join((headline or "").lower().split()).strip(" ?!.:-")
-    for prefix in ("what are ", "what is ", "understanding ", "about "):
-        if h.startswith(prefix):
-            h = h[len(prefix) :].strip()
-    if not h or len(h.split()) > 5:
-        return False
-    topic = " ".join((user_prompt or "").lower().split())
-    # Known bare topic titles
-    bare = {
-        "trade deficit",
-        "capital controls",
-        "capital control",
-        "unrealized gains",
-        "unrealised gains",
-        "sweep-in fd",
-        "sweep in fd",
-        "fixed deposits",
-        "imports exports",
-        "imports-exports",
-    }
-    if h in bare:
-        return True
-    # Headline is basically a subset of the user topic words only
-    h_toks = set(h.replace("-", " ").split()) - {"and", "the", "a", "an", "of", "vs", "versus"}
-    if not h_toks:
-        return False
-    topic_toks = set(topic.replace("-", " ").split())
-    return h_toks.issubset(topic_toks) and len(h_toks) <= 4
 
 
 def _content_fact_lines(
@@ -262,12 +126,6 @@ def _content_fact_lines(
         t = strip_carousel_source_citations(" ".join(str(s).split()).strip())
         if not t:
             return None
-        if _is_nav_chip(t) or (
-            len(t.split()) == 1
-            and t.lower() in {"selling", "hedging", "leverage", "hold", "sell"}
-        ):
-            return None
-        # Reject scraped web garbage, arXiv IDs, leaked prompt instructions
         if _GARBAGE_RE.search(t):
             return None
         # Reject lines with no real words (all numbers / punctuation)
@@ -357,78 +215,6 @@ def _content_fact_lines(
 
     return _prefer_numeric(lines)[:4]
 
-_ROLE_HEROES = {
-    "hook": "HD premium clay-3D avatar: soft wallet + rupee coin stack + question spark (curiosity)",
-    "define": "HD premium clay-3D avatar: savings document + coin pile + labeled threshold marker",
-    "impact": "HD premium clay-3D avatar: comparison chart bars + FD certificate + wallet",
-    "implication": "HD premium clay-3D avatar: sweep arrows + savings phone + soft padlock",
-    "proof": "HD premium clay-3D avatar: checklist board + shield + coin stack",
-    "myth": "HD premium clay-3D avatar: balance scale + lightbulb + checklist",
-    "cta": "HD premium clay-3D avatar: comment bubble + phone tile + soft CTA arrow",
-    "insight": "HD premium clay-3D avatar: document + shield + chart",
-}
-
-_BOND_HEROES_BY_N = {
-    1: "HD premium clay-3D avatar: bond certificate + gold rupee coin + soft spark",
-    2: "HD premium clay-3D avatar: bond paper + coupon calendar + wallet",
-    3: "HD premium clay-3D avatar: coupon stream + wallet + rising income bars",
-    4: "HD premium clay-3D avatar: shield + padlock + clock",
-    5: "HD premium clay-3D avatar: balance scale + checklist + lightbulb",
-    6: "HD premium clay-3D avatar: myth stamp + lightbulb + checklist",
-    7: "HD premium clay-3D avatar: CTA arrow + phone tile + rupee coin",
-}
-
-_CAPITAL_CONTROL_HEROES_BY_N = {
-    1: "HD premium clay-3D avatar: border gate + currency arrows + soft spark",
-    2: "HD premium clay-3D avatar: rule document + gold lock + currency token",
-    3: "HD premium clay-3D avatar: currency chart + shield + lock",
-    4: "HD premium clay-3D avatar: LRS document + sector icons + RBI stamp",
-    5: "HD premium clay-3D avatar: open gate + inflow arrows + bond certificate",
-    6: "HD premium clay-3D avatar: balance scale + arrows + checklist",
-    7: "HD premium clay-3D avatar: CTA arrow + document + chart",
-}
-
-_CAPITAL_CONTROL_CHIPS_BY_N = {
-    1: ("Duty", "Gold", "Story"),
-    2: ("Who", "Amount", "Where"),
-    3: ("Currency", "Markets", "Costs"),
-    4: ("LRS", "FDI", "RBI"),
-    5: ("Ease", "Attract", "Inflow"),
-    6: ("Myth", "Reality", "Takeaway"),
-    7: ("Comment", "Share", "Ask"),
-}
-
-_BOND_CHIPS_BY_N = {
-    1: ("Price", "Coupon", "Rates"),
-    2: ("Bond", "Premium", "Yield"),
-    3: ("Hold", "Coupon", "Maturity"),
-    4: ("Exit", "Gain", "Redeploy"),
-    5: ("Cycle", "Opportunity", "Timing"),
-    6: ("Hold", "Sell", "Goals"),
-    7: ("Comment", "Share", "Ask"),
-}
-
-_ROLE_CHIPS = {
-    "hook": ("Fact", "Tension", "Why"),
-    "define": ("Meaning", "Rule", "Flow"),
-    "impact": ("Mechanism", "Number", "Effect"),
-    "implication": ("Choice", "Condition", "Impact"),
-    "proof": ("Caveat", "Tradeoff", "Watch"),
-    "myth": ("Myth", "Reality", "Takeaway"),
-    "cta": ("Comment", "Share", "Ask"),
-    "insight": ("Fact", "Number", "Impact"),
-}
-
-
-def _is_bond_topic(text: str) -> bool:
-    t = (text or "").lower()
-    return any(k in t for k in ("bond", "bonds", "debenture", "debentures", "fixed income", "coupon", "yield", "maturity"))
-
-
-def _is_capital_controls_topic(text: str) -> bool:
-    t = (text or "").lower()
-    return any(k in t for k in ("capital control", "capital controls", "capital flow", "inflow", "outflow", "currency control", "cross-border"))
-
 
 def _normalize_role(role: object) -> str:
     r = str(role or "insight").strip().lower()
@@ -460,22 +246,14 @@ def _normalize_role(role: object) -> str:
     return "insight"
 
 
-def _chips_look_like_wrong_sample(chips: tuple[str, str, str]) -> bool:
-    return any(
-        c.strip().lower() in _FORBIDDEN_SAMPLE_CHIPS or _is_nav_chip(c)
-        for c in chips
-    )
-
-
 def _one_word_chips(values: list[str] | tuple[str, ...]) -> tuple[str, str, str] | None:
     words: list[str] = []
     for v in values:
         w = " ".join(str(v or "").split()).strip()
         if not w:
             continue
-        # Prefer first token; keep short compounds like Cashflow
         token = w.split()[0].strip(".,;:!")
-        if token and token.lower() not in _FORBIDDEN_SAMPLE_CHIPS and not _is_nav_chip(token):
+        if token:
             words.append(token[:14])
         if len(words) == 3:
             return (words[0], words[1], words[2])
@@ -484,54 +262,31 @@ def _one_word_chips(values: list[str] | tuple[str, ...]) -> tuple[str, str, str]
 
 def _derive_carousel_chips(
     *,
-    role: str,
-    n: int,
     bp_slide: object | None,
     slide_headline: str,
     slide_body: str,
-    user_prompt: str,
 ) -> tuple[str, str, str]:
-    """Bottom chips: 3 complete ONE-WORD labels for THIS slide — never truncated phrases."""
-    # 1) Blueprint chip_labels (preferred — content-authored)
     if bp_slide and getattr(bp_slide, "chip_labels", None):
         got = _one_word_chips(list(bp_slide.chip_labels or []))
-        if got and not _chips_look_like_wrong_sample(got):
+        if got:
             return got
-
-    # 2) proof_points if already chip-sized
     if bp_slide and getattr(bp_slide, "proof_points", None):
         got = _one_word_chips([str(p) for p in (bp_slide.proof_points or [])])
-        if got and not _chips_look_like_wrong_sample(got):
+        if got:
             return got
-
-    blob = f"{user_prompt} {slide_headline} {slide_body}".lower()
-    if _is_capital_controls_topic(blob):
-        return _CAPITAL_CONTROL_CHIPS_BY_N.get(n) or _CAPITAL_CONTROL_CHIPS_BY_N[((n - 1) % 7) + 1]
-    if _is_bond_topic(user_prompt):
-        return _BOND_CHIPS_BY_N.get(n) or _BOND_CHIPS_BY_N[((n - 1) % 7) + 1]
-
-    return _ROLE_CHIPS.get(role, _ROLE_CHIPS["insight"])
+    got = _one_word_chips([slide_headline, slide_body])
+    return got or ("", "", "")
 
 
 def _derive_carousel_hero(
     *,
-    role: str,
     n: int,
     slide_headline: str,
-    user_prompt: str,
     used_heroes: set[str],
 ) -> str:
-    """Hero cluster unique per slide index — slides 3 and 4 must not share the same set."""
-    blob = f"{user_prompt} {slide_headline}".lower()
-    if _is_capital_controls_topic(blob):
-        hero = _CAPITAL_CONTROL_HEROES_BY_N.get(n) or _CAPITAL_CONTROL_HEROES_BY_N[((n - 1) % 7) + 1]
-    elif _is_bond_topic(user_prompt):
-        hero = _BOND_HEROES_BY_N.get(n) or _BOND_HEROES_BY_N[((n - 1) % 7) + 1]
-    else:
-        hero = _ROLE_HEROES.get(role) or _ROLE_HEROES["insight"]
-    # If somehow duplicated, append slide index cue for the image model
+    hero = f"premium 3D object matching this slide: {slide_headline or f'slide {n}'}"
     if hero in used_heroes:
-        hero = f"{hero} — SLIDE {n} VARIANT (different objects, different pose)"
+        hero = f"{hero} (slide {n})"
     used_heroes.add(hero)
     return hero
 
@@ -540,12 +295,12 @@ def _error_free_text_block(lines: list[tuple[str, str]], *, is_carousel: bool = 
     """Build quoted-text bake instructions (font + contrast + exact strings). Keep SHORT for image budget."""
     parts = [
         "\nEXACT BAKED TEXT (letter-perfect — never truncate mid-word):\n",
-        "Font: clean navy sans-serif on ice-blue/white. India: ₹/% only — never £.\n",
+        "Font: clean sans-serif. Use Brand Space colours. Never invent currency symbols.\n",
     ]
     if is_carousel:
-        parts.append("Leave bottom ~14% empty for SEBI composite. No AI logo.\n")
+        parts.append("Leave bottom empty only if Brand Space has a legal footer. No AI logo.\n")
     else:
-        parts.append("No SEBI footer. No AI logo.\n")
+        parts.append("No legal footer strip. No AI logo.\n")
     for label, quoted in lines:
         if quoted and quoted != '""':
             parts.append(f"{label}: {quoted}\n")
@@ -572,79 +327,37 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         )
 
     # Prefer approved Creative Blueprint text for art direction cues
-    from app.prompts.brand_visual_palette import is_jiraaf_brand as _is_jiraaf_brand
+    from app.services.brand_visual_pack import BrandVisualPack, load_brand_visual_pack, visual_pack_from_state
 
-    brand_name = (brand_intelligence.brand_core.brand_name or "").strip()
-    is_jiraaf_brand = _is_jiraaf_brand(brand_name)
-    brand_primary_color = ""
-    brand_secondary_color = ""
-    brand_additional_colors: list[dict] = []
-    brand_typography_font = ""
-    try:
-        brand_uuid_early = UUID(str(brand_id)) if not isinstance(brand_id, UUID) else brand_id
-        async with AsyncSessionLocal() as session:
-            brand_row = await session.get(BrandSpace, brand_uuid_early)
-            # brand_core.brand_name is LLM-derived and can drift from the Brand
-            # Space; the stored name is authoritative for brand detection.
-            if brand_row and not is_jiraaf_brand and _is_jiraaf_brand(getattr(brand_row, "name", "")):
-                is_jiraaf_brand = True
-                brand_name = (getattr(brand_row, "name", "") or brand_name).strip()
-                logger.info("visual_reasoning.jiraaf_detected_from_brand_space", brand_name=brand_name)
-            if brand_row and isinstance(brand_row.overview_snapshot, dict):
-                visual_identity = brand_row.overview_snapshot.get("visual_identity") or {}
-                if isinstance(visual_identity, dict):
-                    palette = visual_identity.get("brand_color_palette") or {}
-                    if isinstance(palette, dict):
-                        brand_primary_color = str(palette.get("primary") or "").strip()
-                        brand_secondary_color = str(palette.get("secondary") or "").strip()
-                        brand_additional_colors = list(palette.get("additional") or [])
-                    typo = visual_identity.get("typography") or {}
-                    if isinstance(typo, dict):
-                        brand_typography_font = str(typo.get("primary_style") or "").strip()
-    except Exception as exc:
-        logger.warning("visual_reasoning.brand_palette_load_failed", error=str(exc)[:120])
-
-    jiraaf_palette: dict[str, str] = {}
-    if is_jiraaf_brand:
-        from app.prompts.brand_visual_palette import resolve_jiraaf_palette
-
-        jiraaf_palette = resolve_jiraaf_palette(
-            primary=brand_primary_color,
-            secondary=brand_secondary_color,
-        )
-        logger.info(
-            "visual_reasoning.jiraaf_palette_resolved",
-            headline=jiraaf_palette["headline"],
-            accent=jiraaf_palette["accent"],
-            background=jiraaf_palette["background"],
-            headline_source=jiraaf_palette["headline_source"],
-            accent_source=jiraaf_palette["accent_source"],
-        )
-
-    if not is_jiraaf_brand:
-        from app.prompts.brand_visual_palette import resolve_brand_palette_lock
-        from app.prompts.cognixia_brand_dna import cognixia_default_palette, is_cognixia_brand
-
-        if is_cognixia_brand(brand_name) and not brand_primary_color:
-            defaults = cognixia_default_palette()
-            brand_primary_color = defaults["primary"]
-            brand_secondary_color = defaults["secondary"]
-
-        locked_palette = resolve_brand_palette_lock(
-            brand_name=brand_name,
-            color_behavior=brand_intelligence.visual_behavior.color_behavior,
-            visual_mood=brand_intelligence.visual_behavior.visual_mood,
-            primary_color=brand_primary_color,
-            secondary_color=brand_secondary_color,
-            additional_colors=brand_additional_colors or None,
-        )
-        brand_intelligence = brand_intelligence.model_copy(
-            update={
-                "visual_behavior": brand_intelligence.visual_behavior.model_copy(
-                    update={"color_behavior": locked_palette}
-                )
-            }
-        )
+    pack = visual_pack_from_state(state)
+    if not pack.primary or pack.source == "neutral_fallback":
+        try:
+            pack = await load_brand_visual_pack(str(brand_id), fmt=fmt)
+        except Exception as exc:
+            logger.warning("visual_reasoning.visual_pack_reload_failed", error=str(exc)[:120])
+    brand_name = pack.brand_name or (brand_intelligence.brand_core.brand_name or "").strip()
+    brand_primary_color = pack.primary
+    brand_secondary_color = pack.secondary
+    brand_additional_colors = list(pack.additional or [])
+    brand_typography_font = pack.font_primary
+    brand_palette = pack.palette_map()
+    locked_palette = pack.palette_lock()
+    brand_intelligence = brand_intelligence.model_copy(
+        update={
+            "visual_behavior": brand_intelligence.visual_behavior.model_copy(
+                update={"color_behavior": locked_palette}
+            )
+        }
+    )
+    logger.info(
+        "visual_reasoning.visual_pack",
+        brand_name=brand_name,
+        source=pack.source,
+        primary=pack.primary,
+        background=pack.background,
+        has_legal=pack.has_legal,
+        has_mascot=pack.has_mascot,
+    )
     headline = (blueprint.headline if blueprint and blueprint.headline else copy.headline)
     body = (blueprint.body if blueprint and blueprint.body else copy.body)
     supporting = (
@@ -693,14 +406,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
     creative_template = resolve_creative_template(user_prompt, fmt, brand_name=brand_name)
     if creative_template.layout_type != layout_type:
         layout_type = creative_template.layout_type
-    is_infographic_explain = (
-        fmt == "infographic"
-        and (
-            layout_type == "carousel_story"
-            or creative_template.template_id == "infographic_explain_editorial"
-            or creative_template.visual_style == "infographic_explain"
-        )
-    )
+    is_infographic_explain = fmt == "infographic" and layout_type == "carousel_story"
     if blueprint and is_infographic_explain:
         blueprint = repair_explain_infographic_copy(
             blueprint,
@@ -715,7 +421,6 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
     logger.info(
         "visual_reasoning.template_locked",
         template_id=creative_template.template_id,
-        sample=creative_template.sample_file,
         layout=layout_type,
         format=fmt,
         style=creative_template.visual_style,
@@ -748,6 +453,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         brand_primary_color=brand_primary_color,
         brand_secondary_color=brand_secondary_color,
         brand_typography_font=brand_typography_font,
+        visual_pack=pack.to_dict(),
     )
     user = _prompt_builder.build_user(
         brand_intelligence=brand_intelligence,
@@ -822,21 +528,11 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             + "CRITICAL: Generate a FINISHED creative. Render the approved strings as sharp typography in the image. "
             "Do not leave empty shells. Do not invent alternate copy. The approved headline/body/sections are FINAL — do not rewrite them. "
             + (
-                (
-                    f"REQUIRED: navy {jiraaf_palette.get('headline', '#003975')} + orange "
-                    f"{jiraaf_palette.get('accent', '#FFA400')} accents "
-                    "(orange text+accents >=~2% of image); "
-                )
-                if is_jiraaf_brand
-                else (
-                    f"REQUIRED: use {brand_name}'s EXACT Brand Space palette — "
-                    + (f"PRIMARY {brand_primary_color}" if brand_primary_color else "brand primary colour")
-                    + (f", SECONDARY {brand_secondary_color}" if brand_secondary_color else "")
-                    + (f", ACCENT {brand_additional_colors[2]['hex'] if len(brand_additional_colors) > 2 else ''}" if brand_additional_colors and len(brand_additional_colors) > 2 else "")
-                    + " — NOT Jiraaf navy #003975/orange #FFA400/ice-blue #E8F0F8; "
-                    + (f"FONT: {brand_typography_font} — use this font for all headlines; " if brand_typography_font else "")
-                    + "AUDIENCE: depict the EXACT target audience (correct age group/demographics) — do NOT show wrong age group; "
-                )
+                f"REQUIRED: use {brand_name}'s EXACT Brand Space palette — "
+                + f"PRIMARY {pack.primary}, SECONDARY {pack.secondary}, ACCENT {pack.accent}, "
+                + f"BACKGROUND {pack.background}. "
+                + (f"FONT: {pack.font_primary} — use this font for all headlines; " if pack.font_primary else "")
+                + "AUDIENCE: depict the EXACT target audience from Brand Space persona. "
             )
             + "ULTRA-PREMIUM clay-3D icons; content must fit fully. "
             + (
@@ -968,24 +664,16 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         else:
                             incs_txt = str(incs)
                         exact_lock += f'{i}. "{lab}" | "{st}" | "{incs_txt}"\n'
-            palette_lock = ""
-            if is_jiraaf_brand and jiraaf_palette:
-                from app.prompts.brand_visual_palette import jiraaf_palette_override_block
-
-                palette_lock = jiraaf_palette_override_block(jiraaf_palette)
-            # Trim the body, never the palette — truncation must not drop brand colours.
+            palette_lock = pack.palette_lock()
             image_gen_prompt = (expanded_prompt + exact_lock + f"\n{ICON_STYLE_LOCK}\n")[
                 : 6000 - len(palette_lock)
             ] + palette_lock
-            if not is_jiraaf_brand:
-                # Keep premium icon quality, but drop Jiraaf-only finance object examples / palette defaults.
-                brand_icon_lock = (
-                    "\nBRAND ICON LOCK: Match THIS brand's visual mood and topic objects only. "
-                    f"Brand: {brand_name or 'active Brand Space'}. "
-                    "Do NOT invent finance/wallet/rupee/SEBI/bond icons unless the topic requires them. "
-                    "Prefer icons that match the brand category and the user's prompt.\n"
-                )
-                image_gen_prompt = (expanded_prompt + exact_lock + brand_icon_lock)[:6000]
+            brand_icon_lock = (
+                "\nBRAND ICON LOCK: Match THIS brand's visual mood and topic objects only. "
+                f"Brand: {brand_name or 'active Brand Space'}. "
+                "Do NOT invent another brand's icon set.\n"
+            )
+            image_gen_prompt = (image_gen_prompt + brand_icon_lock)[:6000]
             output.image_prompt_direction = image_gen_prompt
         except Exception as e:
             logger.warning(
@@ -1035,47 +723,23 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         image_size: str,
         fallback_suffix: str = "",
         *,
-        composite_sebi_footer: bool = False,
+        composite_legal_footer: bool = False,
         image_quality: str | None = None,
         skip_extra_locks: bool = False,
         letterbox_to_aspect: bool = False,
-        composite_jiraaf_close_mascot: bool = False,
+        composite_close_mascot: bool = False,
     ) -> str:
-        # Always wipe the reserved logo pocket before compositing — used by both
-        # DALL·E success path and the SDXL fallback (NameError if left undefined).
         wipe_reserved_corner = True
         extra = ""
         if not skip_extra_locks:
-            if composite_sebi_footer:
-                extra = CAROUSEL_IMAGE_EXTRA_LOCKS
-            elif is_jiraaf_brand:
-                extra = STATIC_IMAGE_EXTRA_LOCKS
-            else:
-                color_hint = ""
-                if brand_intelligence and brand_intelligence.visual_behavior:
-                    color_hint = str(brand_intelligence.visual_behavior.color_behavior or "").strip()
-                _primary_lock = brand_primary_color or ""
-                _secondary_lock = brand_secondary_color or ""
-                _font_lock = brand_typography_font or ""
-                _accent_lock = (brand_additional_colors[2]["hex"] if len(brand_additional_colors) > 2 else "") if brand_additional_colors else ""
-                extra = (
-                    f"\nBRAND VISUAL LOCK for {brand_name or 'this brand'}: "
-                    + (f"PRIMARY colour {_primary_lock} — headlines, key elements. " if _primary_lock else "")
-                    + (f"SECONDARY colour {_secondary_lock} — accents, icons. " if _secondary_lock else "")
-                    + (f"ACCENT colour {_accent_lock}. " if _accent_lock else "")
-                    + (f"FONT: {_font_lock} — use for all text. " if _font_lock else "")
-                    + f"Use ONLY this brand's palette. "
-                    "NEVER Jiraaf navy #003975, orange #FFA400, or ice-blue #E8F0F8. "
-                    "NO SEBI footer. NO finance/wallet/rupee/bond icons unless the topic requires them. "
-                    "AUDIENCE: depict the correct demographic — right age group matching brand persona.\n"
-                )
+            extra = pack.image_extra_locks(fmt=fmt)
         safe_prompt = _budget_prompt(prompt, extra, _IMAGE_PROMPT_BUDGET)
         logger.info(
             "visual_reasoning.image_prompt_budget",
             suffix=fallback_suffix,
             prompt_len=len(safe_prompt),
             has_headline=("HEADLINE" in safe_prompt) or ("Headline:" in safe_prompt),
-            carousel=composite_sebi_footer,
+            carousel=composite_legal_footer,
         )
         try:
             dalle = DalleService()
@@ -1087,13 +751,14 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 logo_storage_path=logo_storage_path,
                 logo_zone_instruction=logo_zone_instruction
                 or "plain empty top-right corner — no text, no box, no logo drawn",
-                composite_sebi_footer=composite_sebi_footer,
-                # Always wipe the top-right corner before pasting the logo
-                # so AI-drawn decorative icons (leaf, compass, etc.) are removed.
+                composite_legal_footer=composite_legal_footer,
+                legal_footer_text=pack.legal_footer if composite_legal_footer else "",
                 wipe_reserved_corner=True,
                 quality=image_quality,
                 letterbox_to_aspect=letterbox_to_aspect,
-                composite_jiraaf_close_mascot=composite_jiraaf_close_mascot,
+                composite_close_mascot=composite_close_mascot,
+                close_mascot_storage_path=pack.mascot_storage_path if composite_close_mascot else "",
+                canvas_bg_hex=pack.background,
             )
             logger.info(
                 "visual_reasoning.dalle_success",
@@ -1119,9 +784,9 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 )
                 if (
                     logo_storage_path
-                    or composite_sebi_footer
+                    or composite_legal_footer
                     or wipe_reserved_corner
-                    or composite_jiraaf_close_mascot
+                    or composite_close_mascot
                 ):
                     storage = get_object_storage()
                     rel_path = sdxl_url.removeprefix("/storage/").lstrip("/")
@@ -1131,9 +796,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         storage=storage,
                         logo_storage_path=logo_storage_path,
                         logo_zone_instruction=logo_zone_instruction,
-                        composite_sebi_footer=composite_sebi_footer,
+                        composite_legal_footer=composite_legal_footer,
+                        legal_footer_text=pack.legal_footer if composite_legal_footer else "",
                         wipe_reserved_corner=wipe_reserved_corner,
-                        composite_jiraaf_close_mascot=composite_jiraaf_close_mascot,
+                        composite_close_mascot=composite_close_mascot,
+                        close_mascot_storage_path=pack.mascot_storage_path if composite_close_mascot else "",
+                        canvas_bg_hex=pack.background,
                     )
                     filename = f"sdxl-branded-{uuid4().hex[:8]}.png"
                     stored = storage.save_bytes(
@@ -1198,29 +866,13 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             s.slide_number: s for s in ((blueprint.slides if blueprint else None) or [])
         }
         # SHORT style stub ONLY — mega-locks were ~16k chars and wiped slide content at [:6500]
-        if is_jiraaf_brand:
-            style_stub = (
-                f"Finished {platform} carousel, canvas {canvas_desc}. "
-                f"{CAROUSEL_IMAGE_STYLE_STUB}"
-            )
-        else:
-            color_hint = ""
-            if brand_intelligence and brand_intelligence.visual_behavior:
-                color_hint = str(brand_intelligence.visual_behavior.color_behavior or "").strip()
-            _pc = brand_primary_color or ""
-            _sc = brand_secondary_color or ""
-            _fc = brand_typography_font or ""
-            _ac = (brand_additional_colors[2]["hex"] if len(brand_additional_colors) > 2 else "") if brand_additional_colors else ""
-            style_stub = (
-                f"Finished {platform} carousel for {brand_name}, canvas {canvas_desc}. "
-                + (f"PRIMARY brand colour: {_pc}. " if _pc else "")
-                + (f"SECONDARY brand colour: {_sc}. " if _sc else "")
-                + (f"ACCENT colour: {_ac}. " if _ac else "")
-                + (f"FONT: {_fc}. " if _fc else "")
-                + "Use ONLY this brand's palette — NOT Jiraaf navy/orange/ice-blue. "
-                "Depict EXACT brand audience demographics (correct age group). "
-                "No fintech/SEBI/bond visuals unless brand is in finance."
-            )
+        from app.services.image_generation.carousel_image_prompt import build_carousel_style_stub
+
+        style_stub = (
+            f"Finished {platform} carousel for {brand_name}, canvas {canvas_desc}. "
+            f"{build_carousel_style_stub(brand_palette)} "
+            f"{pack.palette_lock()}"
+        )
         total = len(carousel_slides)
         # Build ordered storyline from blueprint for swipe continuity
         ordered_bp = sorted(
@@ -1281,69 +933,22 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                             next_hl = ordered_bp[j + 1].headline or ""
                         break
             hero = _derive_carousel_hero(
-                role=role,
                 n=n,
                 slide_headline=str(slide_headline or ""),
-                user_prompt=user_prompt or "",
                 used_heroes=used_heroes,
             )
             bottoms = _derive_carousel_chips(
-                role=role,
-                n=n,
                 bp_slide=bp_slide,
                 slide_headline=str(slide_headline or ""),
                 slide_body=str(slide_body or ""),
-                user_prompt=user_prompt or "",
             )
 
             is_last = n == total or role == "cta"
-            # Ensure supporting line is never empty (samples always have it)
             if not (slide_supporting or "").strip():
                 slide_supporting = (slide_body or "").split(".")[0].strip()[:90]
-            # Anti-repeat + ban bare topic titles ("TRADE DEFICIT", "CAPITAL CONTROLS")
-            raw_hl = str(slide_headline or "").strip()
-            needs_unique = _headline_is_repeat(raw_hl, used_headlines) or _is_bare_topic_headline(
-                raw_hl, user_prompt or ""
-            )
-            if needs_unique:
-                role_titles = {
-                    "hook": "Most people miss this",
-                    "define": "What this means in practice",
-                    "impact": "How the numbers work",
-                    "implication": "What this means for your money",
-                    "proof": "Trade-offs to watch",
-                    "myth": "The bit most people skip",
-                    "cta": "What would you do?",
-                    "insight": "The simple takeaway",
-                }
-                body_first = (slide_body or "").split(".")[0].strip()
-                if (
-                    body_first
-                    and 4 <= len(body_first.split()) <= 10
-                    and not _headline_is_repeat(body_first, used_headlines)
-                    and not _is_bare_topic_headline(body_first, user_prompt or "")
-                ):
-                    raw_hl = body_first
-                elif slide_supporting and not _is_bare_topic_headline(str(slide_supporting), user_prompt or ""):
-                    # Use supporting as title if it's a real insight sentence (shorten)
-                    words = str(slide_supporting).split()
-                    raw_hl = " ".join(words[:8]).rstrip(".,;:")
-                    if _headline_is_repeat(raw_hl, used_headlines) or _is_bare_topic_headline(raw_hl, user_prompt or ""):
-                        raw_hl = role_titles.get(role, f"Key insight {n}")
-                else:
-                    raw_hl = role_titles.get(role, f"Key insight {n}")
-                # If role title also repeats, append slide number
-                if _headline_is_repeat(raw_hl, used_headlines):
-                    raw_hl = f"{role_titles.get(role, 'Insight')} — slide {n}"
-                slide_headline = raw_hl
+            if not str(slide_headline or "").strip():
+                slide_headline = (slide_body or "").split(".")[0].strip() or f"Slide {n}"
 
-            # Never ship an empty or bare-topic headline to the image model
-            if not str(slide_headline or "").strip() or _is_bare_topic_headline(
-                str(slide_headline), user_prompt or ""
-            ):
-                slide_headline = f"What investors should know next"
-
-            # Keep headlines short enough to fit fully — Airport PDF uses 4–7 words max.
             hl_words = str(slide_headline).split()
             if len(hl_words) > 6:
                 slide_headline = " ".join(hl_words[:6]).rstrip(".,;:")
@@ -1354,14 +959,6 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 str(slide_supporting or ""),
                 parent_blueprint=blueprint,
             )
-            # Filter nav chips out of bottoms
-            bottoms = tuple(
-                ("Fact" if _is_nav_chip(x) else x) for x in bottoms
-            )
-            if all(_is_nav_chip(x) or x == "Fact" for x in bottoms):
-                # Replace empty nav set with content-derived words
-                derived = _one_word_chips(fact_lines) or _ROLE_CHIPS.get(role, _ROLE_CHIPS["insight"])
-                bottoms = derived
 
             hl = _q(slide_headline, 80)
             sup = _q(slide_supporting, 140)
@@ -1371,7 +968,6 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             used_headlines.append(str(slide_headline or "")[:60])
 
             from app.services.image_generation.carousel_image_prompt import (
-                build_brand_carousel_slide_image_prompt,
                 build_carousel_slide_image_prompt,
                 strip_carousel_heading_numbers,
                 strip_carousel_source_citations,
@@ -1397,48 +993,25 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             if brand_intelligence and brand_intelligence.visual_behavior:
                 color_behavior = str(brand_intelligence.visual_behavior.color_behavior or "")
 
-            if is_jiraaf_brand:
-                slide_prompt = build_carousel_slide_image_prompt(
-                    slide_number=n,
-                    total_slides=total,
-                    role=role,
-                    headline=str(slide_headline or ""),
-                    supporting=str(slide_supporting or ""),
-                    body=str(slide_body or ""),
-                    story_blocks=story_blocks,
-                    cta=str(slide_cta or "") if is_last else "",
-                    canvas_desc=canvas_desc,
-                    topic=str(topic_lock or ""),
-                    is_last=is_last,
-                    prior_headlines=list(used_headlines[:-1]) if used_headlines else [],
-                    # Brand Space-resolved Jiraaf palette only — never another brand's colours.
-                    palette=jiraaf_palette or None,
-                )
-                carousel_style_extra = style_stub + "\n" + CAROUSEL_TONE_IMAGE_STUB
-            else:
-                slide_prompt = build_brand_carousel_slide_image_prompt(
-                    slide_number=n,
-                    total_slides=total,
-                    role=role,
-                    headline=str(slide_headline or ""),
-                    supporting=str(slide_supporting or ""),
-                    body=str(slide_body or ""),
-                    story_blocks=story_blocks,
-                    cta=str(slide_cta or "") if is_last else "",
-                    canvas_desc=canvas_desc,
-                    topic=str(topic_lock or ""),
-                    is_last=is_last,
-                    prior_headlines=list(used_headlines[:-1]) if used_headlines else [],
-                    brand_name=brand_name,
-                    color_behavior=color_behavior,
-                    primary_color=brand_primary_color,
-                    secondary_color=brand_secondary_color,
-                    accent_color=brand_secondary_color,
-                )
-                carousel_style_extra = (
-                    f"Brand carousel — use {brand_name} colours only. NOT Jiraaf template.\n"
-                    + CAROUSEL_TONE_IMAGE_STUB
-                )
+            slide_prompt = build_carousel_slide_image_prompt(
+                slide_number=n,
+                total_slides=total,
+                role=role,
+                headline=str(slide_headline or ""),
+                supporting=str(slide_supporting or ""),
+                body=str(slide_body or ""),
+                story_blocks=story_blocks,
+                cta=str(slide_cta or "") if is_last else "",
+                canvas_desc=canvas_desc,
+                topic=str(topic_lock or ""),
+                is_last=is_last,
+                prior_headlines=list(used_headlines[:-1]) if used_headlines else [],
+                palette=brand_palette,
+                has_legal=pack.has_legal,
+                has_mascot=pack.has_mascot,
+                brand_name=brand_name,
+            )
+            carousel_style_extra = style_stub
             # Keep continuity + prior-headline guard under budget without wiping locked DNA
             continuity = (
                 f"\nSTORYLINE:\n{storyline_block}\n"
@@ -1462,10 +1035,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 slide_prompt,
                 size,
                 f"-slide-{n}",
-                # Jiraaf-only legal footer — never bake onto other brands.
-                composite_sebi_footer=is_jiraaf_brand,
-                # Jiraaf carousel LAST slide only — giraffe mascot from creative samples.
-                composite_jiraaf_close_mascot=bool(is_jiraaf_brand and is_last),
+                composite_legal_footer=pack.has_legal,
+                composite_close_mascot=bool(pack.has_mascot and is_last),
             )
             generated_urls.append(slide_url)
     else:
@@ -1477,77 +1048,21 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             if brand_intelligence and brand_intelligence.visual_behavior:
                 color_behavior = str(brand_intelligence.visual_behavior.color_behavior or "")
 
-            if is_jiraaf_brand:
-                from app.services.image_generation.data_story_image_prompt import (
-                    build_data_story_prompt,
-                )
+            from app.services.image_generation.data_story_image_prompt import (
+                build_data_story_prompt,
+            )
 
-                explain_prompt = build_data_story_prompt(
-                    blueprint,
-                    canvas_desc=canvas_desc,
-                    supporting=supporting or "",
-                    palette=jiraaf_palette,
-                )
-                logger.info(
-                    "visual_reasoning.data_story_prompt_built",
-                    stats=len(blueprint.stat_highlights or []),
-                    sections=len(blueprint.sections or []),
-                )
-            else:
-                from app.services.image_generation.dense_content_bake import (
-                    DENSE_LAYOUT_LOCK,
-                    extract_dense_cards,
-                    format_dense_cards_block,
-                    format_dense_stats_block,
-                )
-
-                explain_prompt = _prompt_builder.build_expander_user(
-                    brand_name=brand_name,
-                    visual_mood=brand_intelligence.visual_behavior.visual_mood,
-                    color_behavior=color_behavior,
-                    image_behavior=brand_intelligence.visual_behavior.image_behavior,
-                    design_sophistication=brand_intelligence.visual_behavior.design_sophistication,
-                    concept_name=concept_dict.get("concept_name", ""),
-                    core_idea=concept_dict.get("core_idea", ""),
-                    visual_angle=concept_dict.get("visual_angle", ""),
-                    copy_headline=headline,
-                    copy_body=body,
-                    supporting_line=supporting,
-                    cta=cta,
-                    infographic_sections=sections,
-                    proof_points=proof_points,
-                    stat_highlights=stat_highlights,
-                    problem_statement=problem_statement,
-                    solution_statement=solution_statement,
-                    customer_quote=customer_quote,
-                    customer_name=customer_name,
-                    process_steps=process_steps,
-                    format_strategy=format_plan.format_strategy,
-                    layout_archetype=(
-                        blueprint.layout_archetype if blueprint and blueprint.layout_archetype else format_plan.layout_archetype
-                    ),
-                    platform=platform,
-                    initial_prompt=output.image_prompt_direction,
-                    user_prompt=user_prompt,
-                    dominant_visual_system=output.dominant_visual_system,
-                    fmt="infographic",
-                    layout_type=layout_type,
-                    hook=(blueprint.hook if blueprint else "") or getattr(copy, "hook", None) or "",
-                    story_flow=list(blueprint.story_flow) if blueprint and blueprint.story_flow else [],
-                    slides=[],
-                    canvas=canvas_desc,
-                )
-                dense_cards = extract_dense_cards(blueprint, max_cards=8)
-                dense_extra = (
-                    f"\n\n{DENSE_LAYOUT_LOCK}\n"
-                    + format_dense_stats_block(blueprint)
-                    + format_dense_cards_block(dense_cards)
-                    + f"\nBRAND DNA LOCK: Use ONLY {brand_name} Brand Space colors "
-                    f"({color_behavior or 'from visual identity'}). "
-                    "NEVER Jiraaf navy #003975, orange #FFA400, or ice-blue #E8F0F8. NO SEBI footer.\n"
-                    "Bake EVERY insight card TITLE + BODY paragraph. Small icons. Latest facts first.\n"
-                )
-                explain_prompt = explain_prompt + dense_extra
+            explain_prompt = build_data_story_prompt(
+                blueprint,
+                canvas_desc=canvas_desc,
+                supporting=supporting or "",
+                palette=brand_palette,
+            )
+            logger.info(
+                "visual_reasoning.data_story_prompt_built",
+                stats=len(blueprint.stat_highlights or []),
+                sections=len(blueprint.sections or []),
+            )
             logger.info(
                 "visual_reasoning.explain_ai_prompt",
                 prompt_len=len(explain_prompt),
@@ -1571,12 +1086,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         prompt_try[:9000],
                         size,
                         suffix,
-                        composite_sebi_footer=False,
+                        composite_legal_footer=False,
                         image_quality="high",
                         skip_extra_locks=True,
                         # Fit 2:3 API canvas into 4:5 without chopping headline
                         # or takeaway — centre-crop was amputating edge text.
-                        letterbox_to_aspect=is_jiraaf_brand,
+                        letterbox_to_aspect=True,
                     )
                     generated_urls.append(single_url)
                     break
@@ -1692,7 +1207,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             single_url = await _generate_one_image(
                 (card_bake + text_bake_suffix + layout_hint + image_gen_prompt)[:6000],
                 size,
-                composite_sebi_footer=False,
+                composite_legal_footer=False,
             )
             generated_urls.append(single_url)
 

@@ -77,9 +77,20 @@ export default function Sidebar() {
     const searchParams = useSearchParams();
     const activeChatId = searchParams.get("chat") || "";
 
-    const isWorkspacePath = path.startsWith("/brand_space/") && !path.startsWith("/brand_space/new");
-    // const isProfilePath = path === "/profile";
-    const currentBrandKey = isWorkspacePath ? path.split("/")[2] : undefined;
+    const pathParts = path.split("/").filter(Boolean);
+    const brandSpaceSection = pathParts[0] === "brand_space" ? pathParts[1] : undefined;
+    const isUtilityBrandPath = brandSpaceSection === "edit" || brandSpaceSection === "view" || brandSpaceSection === "sharing";
+    const isWorkspacePath =
+        path.startsWith("/brand_space/") &&
+        Boolean(brandSpaceSection) &&
+        brandSpaceSection !== "new" &&
+        brandSpaceSection !== "usage" &&
+        !isUtilityBrandPath;
+    const currentBrandKey = isUtilityBrandPath
+        ? pathParts[2]
+        : isWorkspacePath
+            ? brandSpaceSection
+            : undefined;
     const liveBrands = brands || [];
     const currentBrand = resolveBrandByRouteKey(liveBrands, currentBrandKey);
     const workspaceBrands = liveBrands.filter((brand) => brand.lifecycle_state !== "deleted" && brand.lifecycle_state !== "archived");
@@ -150,7 +161,7 @@ export default function Sidebar() {
         >
             <div className={cn("flex items-center justify-between pl-3 pr-1 py-5", !isSidebarOpen && "justify-center px-3")}>
                 <button className={cn("font-dmSans text-[32px] font-bold tracking-[-0.01em] text-primary", !isSidebarOpen && "hidden")}>
-                    <Image src="/VIOLYT-LOGO-PurpleTM.svg" alt="Violyt" width={34} height={28} className="h-7 w-24 border-none p-0 cursor-pointer" onClick={() => router.push("/brand_space")} />
+                    <Image src="/VIOLYT-LOGO-PurpleTM.svg" alt="Violyt" width={34} height={28} className="h-7 w-24 border-none p-0 cursor-pointer" onClick={() => { window.location.href = "/brand_space"; }} />
                 </button>
                 <abbr title={!isSidebarOpen && "Toggle Sidebar" || ""}>
                     <Button
@@ -180,7 +191,8 @@ export default function Sidebar() {
                         return (
                             <div key={item.id} className={`w-full ${isSidebarOpen && "pl-1.5 pr-3 py-1.5"}`}>
                                 {item.href ? (
-                                    <Link
+                                    isBrandSpacesItem ? (
+                                    <a
                                         href={item.href}
                                         className={cn(
                                             "flex items-center gap-3 py-3 px-2 text-base transition",
@@ -193,7 +205,20 @@ export default function Sidebar() {
                                         {isBrandSpacesItem && isSidebarOpen && isWorkspacePath ? (
                                             <ChevronDown className="h-4 w-4 shrink-0 text-current" />
                                         ) : null}
+                                    </a>
+                                    ) : (
+                                    <Link
+                                        href={item.href}
+                                        className={cn(
+                                            "flex items-center gap-3 py-3 px-2 text-base transition",
+                                            activeItem ? "bg-primary text-white" : "text-[#5F6372] hover:bg-[#EFF1F8]",
+                                            !isSidebarOpen && "justify-center px-3",
+                                        )}
+                                    >
+                                        <Image src={icon} width={20} height={20} alt={itemLabel} className="h-5 w-5" />
+                                        <span className={cn("text-[16px]", isBrandSpacesItem && "min-w-0 flex-1", !isSidebarOpen && "hidden")}>{itemLabel}</span>
                                     </Link>
+                                    )
                                 ) : (
                                     <NotificationDrawer>
                                         <button

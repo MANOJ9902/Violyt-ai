@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     google_application_credentials: str | None = None
     redis_url: str = "redis://localhost:6379/0"
     celery_broker_url: str = "redis://localhost:6379/0"
+    pipeline_use_celery: bool = False
+    langsmith_api_key: str | None = None
+    langchain_tracing_v2: bool = False
     ingestion_embedding_model: str = "text-embedding-3-large"
     ingestion_embedding_dimensions: int = 3072
     ingestion_chunk_size: int = 800

@@ -9,7 +9,7 @@ Only leave missing_critical for issues that cannot be safely invented (e.g. no r
 import re
 from typing import TYPE_CHECKING, Any
 
-from app.prompts.jiraaf_layout import LayoutType, source_domains_for_footer
+from app.prompts.layout_router import LayoutType, source_domains_for_footer
 
 if TYPE_CHECKING:
     from app.graph.models.layer7c_models import CreativeBlueprint
@@ -927,7 +927,7 @@ def _collect_remaining_gaps(
             missing.append("some_fact_cards_still_empty")
 
     elif layout_type == "static_ranking":
-        from app.prompts.jiraaf_layout import requested_rank_count
+        from app.prompts.layout_router import requested_rank_count
 
         needed = requested_rank_count(user_prompt)
         row_count = len(sections)
@@ -2231,9 +2231,9 @@ def finalize_blueprint_for_card(
         "text_hygiene_applied",
     ]
     if layout_type == "carousel_story":
-        checklist.append("sebi_footer_carousel_only")
+        checklist.append("legal_footer_carousel_only")
     else:
-        checklist.append("no_sebi_on_static_infographic")
+        checklist.append("no_legal_footer_on_static_infographic")
     if _is_bank_penalty_hub(user_prompt, blueprint.headline or ""):
         checklist.append("bank_names_locked")
     if blueprint.source_footer:

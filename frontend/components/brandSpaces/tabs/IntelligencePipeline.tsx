@@ -157,8 +157,8 @@ export default function IntelligencePipeline({ brandId }: BrandTabProps) {
         <h2 className="text-xl font-semibold text-slate-900">Violyt Intelligence Pipeline (Milestone 6)</h2>
         <p className="text-sm text-slate-500">
           Run the LangGraph intelligence pipeline. Layers 1–7 produce brand-aligned copy, then Layer 7c builds a
-          Creative Blueprint for your approval. After you approve, Layers 8–9 generate a finished AI image
-          with your approved headings, storyline, and CTA baked into the artwork.
+          Creative Blueprint for your approval. After you approve, Layers 8–10 generate the image, bind a scene
+          graph, score the finished creative, then deliver.
         </p>
       </div>
 
@@ -253,6 +253,19 @@ export default function IntelligencePipeline({ brandId }: BrandTabProps) {
                 <Coins className="h-3.5 w-3.5" />
                 {Object.values(data.token_usage || {}).reduce((a, b) => a + b.input_tokens + b.output_tokens, 0)} tokens
               </span>
+              {typeof data.total_cost_usd === "number" ? (
+                <span className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded">
+                  ${data.total_cost_usd.toFixed(4)}
+                </span>
+              ) : null}
+              {data.evaluation ? (
+                <span className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded",
+                  data.evaluation.overall_pass ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800",
+                )}>
+                  Align {Math.round((data.evaluation.brand_alignment_score || 0) * 100)}%
+                </span>
+              ) : null}
             </div>
           </div>
 

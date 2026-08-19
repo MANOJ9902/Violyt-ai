@@ -22,7 +22,7 @@ from app.graph.state import ViolytState
 
 logger = get_logger(__name__)
 
-# ── Limits for image-safe text (Jiraaf sample style: numbers > paragraphs) ──
+# ── Limits for image-safe text (numbers > paragraphs) ──
 MAX_HEADLINE_CHARS = 64
 MAX_SUPPORTING_LINE_CHARS = 90
 MAX_BODY_CHARS = 100

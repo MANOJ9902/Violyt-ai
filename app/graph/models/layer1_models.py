@@ -7,6 +7,7 @@ class RetrievedChunk(BaseModel):
     source: str
     section: str
     content_summary: str
+    content: str = ""
     relevance_score: float = Field(ge=0.0, le=1.0)
     used_in_output: bool
     influence_area: Literal["strategy", "copy", "visual", "compliance", "audience"]

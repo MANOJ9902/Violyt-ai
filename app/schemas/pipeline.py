@@ -39,11 +39,19 @@ class PipelineEditImageTextResponse(BaseModel):
     cta: str = ""
 
 
+class PipelineProgressEvent(BaseModel):
+    event: str
+    layer: str | None = None
+    latency_ms: int | None = None
+    message: str | None = None
+    ts: float | None = None
+
+
 class PipelineRunResponse(BaseModel):
     run_id: str | None = Field(default=None)
     status: str = Field(
         default="complete",
-        description="awaiting_blueprint_approval | complete | failed | cancelled",
+        description="pending | running | awaiting_blueprint_approval | generating | complete | failed | cancelled",
     )
     brand_id: str
     user_prompt: str
@@ -61,7 +69,12 @@ class PipelineRunResponse(BaseModel):
     creative_blueprint: dict | None = Field(default=None)
     visual_reasoning: dict | None = Field(default=None)
     scene_graph: dict | None = Field(default=None)
+    evaluation: dict | None = Field(default=None)
     final_output: dict | None = Field(default=None)
     layer_latencies: dict | None = Field(default=None)
     token_usage: dict | None = Field(default=None)
+    total_cost_usd: float | None = Field(default=None)
+    cost: dict | None = Field(default=None)
+    progress: PipelineProgressEvent | None = Field(default=None)
+    progress_events: list[dict[str, Any]] | None = Field(default=None)
     error: str | None = Field(default=None)

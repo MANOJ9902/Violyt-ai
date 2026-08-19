@@ -18,7 +18,12 @@ from app.graph.nodes import (
     repair_layer,
     renderer_node,
 )
-from app.graph.routing import route_evaluation, route_repair
+from app.graph.routing import (
+    route_after_l1,
+    route_evaluation,
+    route_repair,
+    route_repair_phase2,
+)
 
 
 def _add_shared_upstream(g: StateGraph) -> None:
@@ -35,10 +40,13 @@ def _add_shared_upstream(g: StateGraph) -> None:
     g.add_node("l7c_content_prep", layer7c_content_prep)
 
     g.set_entry_point("l1_brand_retrieval")
-    g.add_edge("l1_brand_retrieval", "l2_brand_intelligence")
+    g.add_conditional_edges(
+        "l1_brand_retrieval",
+        route_after_l1,
+        {"continue": "l2_brand_intelligence", "abort": END},
+    )
     g.add_edge("l2_brand_intelligence", "l3_brief_interpreter")
     g.add_edge("l3_brief_interpreter", "l4_strategic_reasoning")
-    # Intelligence before concept/format so Conceptualize is insight-led
     g.add_edge("l4_strategic_reasoning", "l6b_content_intelligence")
     g.add_edge("l6b_content_intelligence", "l5_concept_engine")
     g.add_edge("l6b_content_intelligence", "l6_format_engine")
@@ -49,7 +57,7 @@ def _add_shared_upstream(g: StateGraph) -> None:
 
 
 def build_phase1_graph() -> StateGraph:
-    """Phase 1: L1 → L7c → Evaluate → (pass | targeted repair ≤2) → blueprint approval."""
+    """Phase 1: L1 → L7c → Evaluate blueprint → (pass | targeted repair ≤2)."""
     g = StateGraph(ViolytState)
     _add_shared_upstream(g)
     g.add_node("l10_evaluation", layer10_evaluation)
@@ -76,14 +84,32 @@ def build_phase1_graph() -> StateGraph:
 
 
 def build_phase2_graph() -> StateGraph:
-    """Phase 2: L8 image gen → pass-through renderer (skip L9/L10 for chat latency)."""
+    """Phase 2: L8 → L9 → L10 → renderer (repair L8/L9 ≤2, then deliver)."""
     g = StateGraph(ViolytState)
 
     g.add_node("l8_visual_reasoning", layer8_visual_reasoning)
+    g.add_node("l9_scene_graph", layer9_scene_graph)
+    g.add_node("l10_evaluation", layer10_evaluation)
+    g.add_node("repair", repair_layer)
     g.add_node("renderer", renderer_node)
 
     g.set_entry_point("l8_visual_reasoning")
-    g.add_edge("l8_visual_reasoning", "renderer")
+    g.add_edge("l8_visual_reasoning", "l9_scene_graph")
+    g.add_edge("l9_scene_graph", "l10_evaluation")
+    g.add_conditional_edges(
+        "l10_evaluation",
+        route_evaluation,
+        {"pass": "renderer", "repair": "repair"},
+    )
+    g.add_conditional_edges(
+        "repair",
+        route_repair_phase2,
+        {
+            "retry_l8": "l8_visual_reasoning",
+            "retry_l9": "l9_scene_graph",
+            "deliver": "renderer",
+        },
+    )
     g.add_edge("renderer", END)
     return g
 
@@ -115,6 +141,8 @@ def build_violyt_graph() -> StateGraph:
             "retry_l5": "l5_concept_engine",
             "retry_l7": "l7_copy_engine",
             "retry_l7c": "l7c_content_prep",
+            "retry_l8": "l8_visual_reasoning",
+            "retry_l9": "l9_scene_graph",
             "fail": END,
         },
     )

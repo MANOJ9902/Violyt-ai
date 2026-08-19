@@ -6,7 +6,6 @@ from app.graph.models.layer2_models import BrandIntelligenceOutput
 from app.graph.models.layer6_models import FormatPlanOutput
 from app.prompts.base import BasePromptBuilder
 from app.prompts.brand_copy_tone import (
-    BANK_PENALTY_SAMPLE_RULES,
     SIMPLIFIED_CREATIVE_TONE_RULES,
     SOURCE_FOOTER_RULE,
     CONTENT_DEPTH_LOCK,
@@ -25,8 +24,7 @@ from app.prompts.brand_copy_tone import (
     RETAIL_TONE_LOCK,
     INFOGRAPHIC_RANKING_FORMAT_LOCK,
     INFOGRAPHIC_TRADE_BOARD_LOCK,
-    RANKING_IMAGE_STUB,
-    JIRAAF_ORANGE,
+        RANKING_IMAGE_STUB,
     CAROUSEL_AUDIENCE_TONE_LOCK,
 )
 from app.prompts.carousel_sample_dna import CAROUSEL_SAMPLE_DNA
@@ -100,7 +98,7 @@ Spelling perfect.
 
     _RANKING_SUFFIX = f"""
 STATIC + INFOGRAPHIC RANKING / DATA BOARD (layout_type=static_ranking):
-Same DNA for format=static AND format=infographic when ranking — tone + currency + orange + flags.
+Same DNA for format=static AND format=infographic when ranking — tone + currency + Brand Space accent + flags.
 {INFOGRAPHIC_AUDIENCE_TONE_LOCK}
 Pick the board type from the user topic:
 
@@ -138,7 +136,7 @@ paragraph-length CTAs.
     _INFOGRAPHIC_SYSTEM_SUFFIX = f"""
 INFOGRAPHIC FORMAT — CRITICAL ADDITIONAL RULES:
 {RETAIL_TONE_LOCK}
-Match Jiraaf sample tone — scannable, short labels — NOT textbook essays / teaser ads.
+Match Brand Space voice — scannable, short labels — NOT textbook essays / teaser ads.
 
 The LOCKED layout_type above already decides the structure. Detailed rules for the
 chosen structure are appended below. Do NOT borrow another structure's rules, and do
@@ -202,7 +200,7 @@ fact, and never invent a figure. An honest short poster beats a padded one.
 - source_footer = "Source: <named institutions>" whenever evidence has sources
 NEVER invent a figure. If evidence supports fewer than 4 hero figures, use the
 real ones you have and leave the rest out rather than fabricating.
-FORBIDDEN: long paragraphs, full-width orange headers, duplicate headings, typos,
+FORBIDDEN: long paragraphs, full-width accent headers, duplicate headings, typos,
 bond CTAs off-topic, placeholder text, numbered stubs like "Rationale 1",
 teaser filler ("everything you need to know", "India needs a lot more")
 """
@@ -232,7 +230,7 @@ FORBIDDEN: teaser creatives that only ask "What Are Your FD Penalty Rates?" with
 """
 
     _STATIC_RANKING_SUFFIX = f"""
-STATIC RANKING — pick style from topic (both require orange {JIRAAF_ORANGE}):
+STATIC RANKING — pick style from topic (both require Brand Space accent):
 A) Country/FDI top-N → Top Countries vertical rows (UNCHANGED — {RANKING_IMAGE_STUB})
 B) Oil/consumption/data bars → horizontal bar chart ({STATIC_HORIZONTAL_BAR_DNA_LOCK})
 {STATIC_ORANGE_STUB}
@@ -246,7 +244,7 @@ STATIC HORIZONTAL BAR RANKING (oil/consumption/data only):
 {STATIC_ORANGE_STUB}
 - sections[] = 7 ranked countries: section_label=NAME, stat=mb/d or value, includes=[% share, short phrase]
 - If user asks why/describe focal country: put 1–2 line insight in customer_quote or last section includes
-- Highlight India/focal row in orange; bake ALL 7 rows — no missing countries
+- Highlight India/focal row in Brand Space accent; bake ALL 7 rows — no missing countries
 """
 
     _STATIC_VERTICAL_RANKING_SUFFIX = f"""
@@ -265,12 +263,7 @@ Return a single JSON object matching CopyOutput.
 LAYOUT_TYPE (LOCKED): {layout_type or "infer from topic"}
 
 {SIMPLIFIED_CREATIVE_TONE_RULES}
-{CONTENT_DEPTH_LOCK}
-{HEADLINE_COLOR_LOCK}
-{BANK_PENALTY_SAMPLE_RULES if data_hub else ""}
 {SOURCE_FOOTER_RULE}
-
-CRITICAL RULES:
 - Brand voice: follow tone spectrum, emotional territory, simplicity, and preferred vocabulary from the brand model.
 - Prefer short scannable lines over long explanation blocks.
 - Uniqueness: avoid generic AI filler (unlock, elevate, revolutionize, transform, in todays digital landscape).
@@ -288,7 +281,7 @@ JSON OUTPUT STRUCTURE:
   "claim_safety_notes": ["Note about verify claims"],
   "infographic_sections": [
     {{
-      "section_label": "Axis Bank",
+      "section_label": "Named entity from the user prompt",
       "stat": "",
       "includes": ["Short ₹/% rule line 1", "Short rule line 2"],
       "body": "",
@@ -312,7 +305,7 @@ No preamble. No explanations. Return ONLY raw JSON."""
             base += self._STATIC_DATA_HUB_SUFFIX
         # Ranking suffix ONLY for real rankings — never for every infographic
         if layout_type == "static_ranking":
-            from app.prompts.jiraaf_layout import static_ranking_style
+            from app.prompts.layout_router import static_ranking_style
 
             if format_name == "static":
                 style = static_ranking_style(user_prompt)
@@ -351,7 +344,7 @@ No preamble. No explanations. Return ONLY raw JSON."""
         guardrails = "; ".join(brand_intelligence.guardrails)
         data_hub = _is_data_hub_topic(user_prompt) or layout_type == "static_hub_facts"
 
-        from app.prompts.jiraaf_layout import requested_rank_count
+        from app.prompts.layout_router import requested_rank_count
 
         rank_n = requested_rank_count(user_prompt)
         rank_note = ""

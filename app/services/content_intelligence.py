@@ -23,8 +23,8 @@ from app.graph.models.content_intelligence_models import (
     NarrativeBeat,
     SubQuestion,
 )
-from app.prompts.brand_visual_palette import is_jiraaf_brand as _is_jiraaf_brand
-from app.prompts.jiraaf_layout import needs_live_research
+from app.core.logging import get_logger
+from app.prompts.layout_router import needs_live_research
 from app.services.live_research import LiveResearchService
 from app.services.llm.llm_router import LLMRouter
 
@@ -210,13 +210,11 @@ def build_research_queries(intent: IntentDecomposition, brand_name: str = "") ->
     geo = intent.geography or ""
     for sq in intent.sub_questions[:5]:
         q = f"{intent.topic}: {sq.question} {sq.evidence_needed} {geo}".strip()
-        if _is_jiraaf_brand(brand_name):
-            q += " India official statistics"
         queries.append(q.strip())
     if intent.informational_need == "data_points":
         queries.insert(
             0,
-            f"{intent.topic} {geo} official statistics investment airports UDAN routes greenfield crore 2024 2025 2026",
+            f"{intent.topic} {geo} official statistics 2024 2025 2026",
         )
     seen: set[str] = set()
     out: list[str] = []
@@ -851,12 +849,6 @@ def brand_thinking_constraints(brand_intelligence: Any, brand_name: str) -> str:
         f"Prohibited: {behavior.prohibited_phrases}",
         f"Guardrails: {brand_intelligence.guardrails}",
     ]
-    if _is_jiraaf_brand(brand_name or core.brand_name):
-        parts.append(
-            "JIRAAF FINANCIAL EDUCATION LOCK: explain economic phenomena accessibly; "
-            "use evidence; help reader understand investment/economic implication; "
-            "maintain credibility; avoid unsupported causality; CTA should invite learning not hype."
-        )
     return "\n".join(str(p) for p in parts if p)
 
 

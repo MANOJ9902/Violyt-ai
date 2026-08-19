@@ -8,12 +8,10 @@ from app.graph.models.layer6_models import FormatPlanOutput
 from app.graph.models.layer7_models import CopyOutput
 from app.prompts.base import BasePromptBuilder
 from app.prompts.brand_copy_tone import (
-    BANK_PENALTY_SAMPLE_RULES,
     SIMPLIFIED_CREATIVE_TONE_RULES,
     SOURCE_FOOTER_RULE,
-    CAROUSEL_AUDIENCE_TONE_LOCK,
 )
-from app.prompts.jiraaf_sample_templates import resolve_creative_template
+from app.prompts.creative_templates import resolve_creative_template
 
 
 
@@ -26,30 +24,12 @@ class ContentPrepPromptBuilder(BasePromptBuilder):
         layout_type = str(kwargs.get("layout_type") or "carousel_story")
         user_p = str(kwargs.get("user_prompt") or "")
         brand_name = str(kwargs.get("brand_name") or "")
-        from app.prompts.brand_visual_palette import is_jiraaf_brand
-
-        is_jiraaf = is_jiraaf_brand(brand_name)
         template = resolve_creative_template(user_p, format_name, brand_name=brand_name or None)
-        hub = layout_type == "static_hub_facts"
 
-        from app.prompts.jiraaf_layout import requested_rank_count
+        from app.prompts.layout_router import requested_rank_count
 
         rank_n = requested_rank_count(user_p) if layout_type == "static_ranking" else None
         layout_block = template.l7c_layout_block(rank_n=rank_n)
-        if template.template_id == "carousel_story" and is_jiraaf:
-            layout_block += f"""
-{CAROUSEL_AUDIENCE_TONE_LOCK}
-- 5–6 slides STORY: hook → ₹ scenario (3 blocks) → how it works → choice → pros/cons WITH short reasons → CTA
-- TONE: plain retail language — same voice as static/infographic (NOT policy analyst / NOT jargon)
-- UNIQUE COMPLETE headline every slide (max 8–10 words) — NEVER truncate, NEVER bare topic titles
-- body: 18–32 words in short sentences + proof_points[2–3] plain lines with ₹/%
-- proof_points must be simple explanations (6–12 words) — not one-word chips or technical dumps
-- chip_labels NEVER Pros/Cons/Examples/Advantages — empty nav chips make slides look cheap
-- Icons/avatars are premium clay-3D accents — COPY carries the teaching story in plain English
-- If pros/cons beat: put real short reasons in body/proof_points
-- Prefer ₹ scenarios, simple comparisons, hold-vs-exit choices — depth WITHOUT jargon
-- Perfect spelling. Never sparse 1–2 line slides. Never Vostro/hedge/sector-exposure language.
-"""
 
         return f"""You are Violyt's Content Prep Intelligence (Prompt Intelligence orchestrator).
 
@@ -58,7 +38,6 @@ Never expect perfect prompts. Infer intent, audience, structure, tone, CTA, and 
 Ask nothing that Brand Space or prior layers already provide.
 
 {SIMPLIFIED_CREATIVE_TONE_RULES}
-{BANK_PENALTY_SAMPLE_RULES if hub else ""}
 {SOURCE_FOOTER_RULE}
 
 PRIMARY JOB
@@ -132,10 +111,13 @@ If L7 returned a teaser, REWRITE it into the sample hub/data/story structure bef
         layout_type = str(kwargs.get("layout_type") or "carousel_story")
         live_research = kwargs.get("live_research") or {}
         brand = brand_intelligence.brand_core
-        from app.prompts.brand_visual_palette import is_jiraaf_brand
-
-        is_jiraaf = is_jiraaf_brand(brand.brand_name)
-        is_cognixia = "cognixia" in (brand.brand_name or "").casefold() or "cognia" in (brand.brand_name or "").casefold()
+        pack = kwargs.get("visual_pack") if isinstance(kwargs.get("visual_pack"), dict) else {}
+        accent_line = (
+            f"PRIMARY {pack.get('primary')}, SECONDARY {pack.get('secondary')}, "
+            f"ACCENT {pack.get('accent')}, BACKGROUND {pack.get('background')}"
+            if pack.get("primary")
+            else f"use {brand.brand_name} Brand Space palette only"
+        )
         behavior = brand_intelligence.communication_behavior
         audience = brand_intelligence.audience_model
         brief_block = ""
@@ -244,9 +226,9 @@ VALIDATED COPY (L7/L7b) — SIMPLIFY IF HEAVY:
 Produce the Creative Blueprint JSON for {format_name} with layout_type={layout_type}.
 Prefer L7 facts/numbers and REWRITE to sample quality:
 short headlines, ranked/hub numbers OR carousel story beats — almost no paragraphs.
-{"Currency: India retail → ₹; rates → %; Japan commits → ¥; DPIIT FDI → USD labeled clearly. Countries/flags/banks must be real and matched. Totals must add up." if is_jiraaf else f"Use {brand.brand_name}'s brand voice and real facts — no Jiraaf finance jargon, no ₹/SEBI/bond references unless the brand is in finance."}
-Brand accents: {"orange #FFA400 with navy #003975 for Jiraaf only" if is_jiraaf else ("Cognixia official: primary #0952A9, deep navy #00387A, card #F3F9FF, accent teal #74ADBA, body #707070, font Outfit — NEVER Jiraaf orange/ice-blue" if is_cognixia else f"use {brand.brand_name} Brand Space palette — NEVER Jiraaf orange/ice-blue/navy")}.
-{"If L7 looks like 'What Are Your FD Penalty Rates?' teaser, replace with 'Bank Penalty Rates and Key Rules' + 5 bank sections." if is_jiraaf else f"Use {brand.brand_name} Brand Space voice."}
+{"Currency: use the Brand Space market conventions. Totals must add up."}
+Brand accents: {accent_line}.
+{"Use Brand Space voice."}
 COMPLETE SENTENCES ONLY: every section_label and body must be a finished thought — never end mid-word or on dangling words (with/and/the/hit/about). Example BAD: "demand will hit 450". Example GOOD: "By 2030, demand will hit 450 million passengers." Put real numbers in STAT when available; put supporting facts in includes[].
 INSIGHT PASS: each section body must explain WHY the fact matters (so-what), not repeat the label. Spell India schemes correctly — UDAN not ADAN.
 For rankings: if the user asked for top-N, keep EXACTLY that many section rows (top 10 → 10, not 5).
