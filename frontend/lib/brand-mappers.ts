@@ -28,9 +28,6 @@ import {
   createPersistedBrandUploadItem,
   emptyBrandFormState,
   normalizeBrandLogoItems,
-  FIXED_PALETTE_ROLES,
-  isFixedPaletteRole,
-  type AdditionalColorField,
   type BrandFormState,
 } from "@/types/brand-space.types";
 import type { UploadedBrandAssets } from "@/lib/brand-space-persistence";
@@ -72,29 +69,6 @@ function toRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-// Merges saved "additional" palette rows with the fixed roles (Supporting Dark / Primary Tint /
-// Secondary Tint / Neutral) so the Visual Identity table always shows all four, pre-filled with any
-// saved values, followed by any genuinely custom rows the user added.
-function mergeAdditionalColorsWithFixedRoles(additional: unknown): AdditionalColorField[] {
-  const savedRows = Array.isArray(additional)
-    ? additional.map((item) => {
-        const record = toRecord(item);
-        return {
-          name: String(record.name || ""),
-          hex: String(record.hex || ""),
-          role: String(record.role || ""),
-        };
-      })
-    : [];
-
-  const fixedRows = FIXED_PALETTE_ROLES.map(
-    (role) => savedRows.find((row) => row.role === role) || { role, name: "", hex: "" },
-  );
-  const customRows = savedRows.filter((row) => !isFixedPaletteRole(row.role));
-
-  return [...fixedRows, ...customRows];
 }
 
 function resolveAssetUrl(value: unknown) {
@@ -399,10 +373,14 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     referenceCreatives: createKnowledgeItems(visualIdentity.reference_creatives, "reference_creative"),
     moodBoards: createKnowledgeItems(visualIdentity.mood_boards, "mood_board", ["Mood Board"]),
     primaryColor: String(colorPalette.primary || ""),
-    primaryColorName: String(colorPalette.primary_name || ""),
     secondaryColor: String(colorPalette.secondary || ""),
-    secondaryColorName: String(colorPalette.secondary_name || ""),
-    additionalColors: mergeAdditionalColorsWithFixedRoles(colorPalette.additional),
+    additionalColors:
+      Array.isArray(colorPalette.additional) && colorPalette.additional.length
+        ? colorPalette.additional.map((item) => ({
+            name: String(toRecord(item).name || ""),
+            hex: String(toRecord(item).hex || ""),
+          }))
+        : [{ name: "", hex: "" }],
     colorPaletteUploads,
     activeColorPaletteUploadId,
     typography: String(typography.primary_style || ""),
@@ -767,25 +745,8 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
       payload: {
         objectives: [
           {
-            name: (() => {
-              const primary = String(form.objectives.primaryObjective || "").trim();
-              if (primary) {
-                return primary
-                  .replace(/_/g, " ")
-                  .replace(/\b\w/g, (char) => char.toUpperCase())
-                  .slice(0, 120);
-              }
-              const fallback = String(
-                form.additional.brandAdvantage || form.additional.brandMission || "Brand Growth",
-              ).trim();
-              return fallback.slice(0, 120) || "Brand Growth";
-            })(),
-            description:
-              form.objectives.businessOutcome ||
-              form.objectives.campaignTheme ||
-              form.additional.strategy ||
-              form.additional.marketPositioning ||
-              "",
+            name: form.objectives.campaignTheme || form.additional.brandAdvantage || form.additional.brandMission || "Brand Growth",
+            description: form.objectives.businessOutcome || form.additional.strategy || form.additional.marketPositioning || "",
             content_type: form.objectives.primaryObjective || "social_post",
             platform_scope: "multiplatform",
             is_default: true,
@@ -825,16 +786,10 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
         },
         brand_color_palette: {
           primary: form.visualIdentity.primaryColor || "",
-          primary_name: form.visualIdentity.primaryColorName || "",
           secondary: form.visualIdentity.secondaryColor || "",
-          secondary_name: form.visualIdentity.secondaryColorName || "",
           additional: form.visualIdentity.additionalColors
             .filter((color) => color.name || color.hex)
-            .map((color) => ({
-              name: color.name,
-              hex: color.hex,
-              ...(color.role ? { role: color.role } : {}),
-            })),
+            .map((color) => ({ name: color.name, hex: color.hex })),
         },
         typography: {
           primary_style: form.visualIdentity.typography || "",

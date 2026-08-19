@@ -80,21 +80,6 @@ export interface TargetAudienceFields {
 export interface AdditionalColorField {
   name: string;
   hex: string;
-  // Fixed palette role this row represents (e.g. "Supporting Dark", "Primary Tint").
-  // Left empty for user-added custom rows.
-  role?: string;
-}
-
-// Fixed extra roles shown in the Visual Identity "Brand Color Palette" table, in display order.
-export const FIXED_PALETTE_ROLES = ["Supporting Dark", "Primary Tint", "Secondary Tint", "Neutral"] as const;
-export type FixedPaletteRole = (typeof FIXED_PALETTE_ROLES)[number];
-
-export function isFixedPaletteRole(role: string | undefined): role is FixedPaletteRole {
-  return !!role && (FIXED_PALETTE_ROLES as readonly string[]).includes(role);
-}
-
-export function createDefaultAdditionalColors(): AdditionalColorField[] {
-  return FIXED_PALETTE_ROLES.map((role) => ({ role, name: "", hex: "" }));
 }
 
 export interface VisualIdentityFields {
@@ -104,9 +89,7 @@ export interface VisualIdentityFields {
   referenceCreatives: BrandUploadItem[];
   moodBoards: BrandUploadItem[];
   primaryColor: string;
-  primaryColorName: string;
   secondaryColor: string;
-  secondaryColorName: string;
   additionalColors: AdditionalColorField[];
   colorPaletteUploads: BrandUploadItem[];
   activeColorPaletteUploadId: string;
@@ -249,10 +232,8 @@ export const emptyBrandFormState: BrandFormState = {
     referenceCreatives: [],
     moodBoards: [],
     primaryColor: "",
-    primaryColorName: "",
     secondaryColor: "",
-    secondaryColorName: "",
-    additionalColors: createDefaultAdditionalColors(),
+    additionalColors: [{ name: "", hex: "" }],
     colorPaletteUploads: [],
     activeColorPaletteUploadId: "",
     typography: "",
@@ -491,10 +472,8 @@ export function removeBrandUploadItem(form: BrandFormState, itemId: string): Bra
       referenceCreatives: removeFromList(form.visualIdentity.referenceCreatives),
       moodBoards: removeFromList(form.visualIdentity.moodBoards),
       primaryColor: shouldClearPalette ? "" : form.visualIdentity.primaryColor,
-      primaryColorName: shouldClearPalette ? "" : form.visualIdentity.primaryColorName,
       secondaryColor: shouldClearPalette ? "" : form.visualIdentity.secondaryColor,
-      secondaryColorName: shouldClearPalette ? "" : form.visualIdentity.secondaryColorName,
-      additionalColors: shouldClearPalette ? createDefaultAdditionalColors() : form.visualIdentity.additionalColors,
+      additionalColors: shouldClearPalette ? [{ name: "", hex: "" }] : form.visualIdentity.additionalColors,
       colorPaletteUploads: nextColorPaletteUploads,
       activeColorPaletteUploadId: shouldClearPalette
         ? ""

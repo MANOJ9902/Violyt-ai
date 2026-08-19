@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import {
     AddMoreButton,
     AdditionalColorRow,
-    ColorPaletteTable,
-    ColorPaletteTableRow,
+    ColorHexInput,
     FontPickerField,
     FileUploadField,
     FileUploadCollection,
     FormField,
+    FormSection,
     FormSubsection,
+    StyledInput,
     StyledTextarea,
 } from "./FormFields";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -24,10 +25,7 @@ import { stripFileExtension } from "@/lib/file-utils";
 import { LOGO_PLACEMENT_OPTIONS } from "@/lib/brand-space-options";
 import {
     createBrandUploadItem,
-    isFixedPaletteRole,
     updateBrandFormSection,
-    FIXED_PALETTE_ROLES,
-    type AdditionalColorField,
     type BrandTabProps,
     type BrandUploadItem,
 } from "@/types/brand-space.types";
@@ -50,31 +48,6 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
         key: TKey,
         value: (typeof form.visualIdentity)[TKey],
     ) => updateBrandFormSection(setForm, "visualIdentity", key, value);
-
-    // Fixed roles (Supporting Dark / Primary Tint / Secondary Tint / Neutral) always render as a row
-    // in the table, in a stable order, even if the user hasn't filled them in yet.
-    const fixedColorRows = FIXED_PALETTE_ROLES.map(
-        (role) =>
-            form.visualIdentity.additionalColors.find((color) => color.role === role) || {
-                role,
-                name: "",
-                hex: "",
-            },
-    );
-    const customColorRows = form.visualIdentity.additionalColors.filter(
-        (color) => !isFixedPaletteRole(color.role),
-    );
-
-    const updateFixedColorRow = (role: string, patch: Partial<AdditionalColorField>) => {
-        const nextFixedRows = fixedColorRows.map((row) =>
-            row.role === role ? { ...row, ...patch, role } : row,
-        );
-        updateField("additionalColors", [...nextFixedRows, ...customColorRows]);
-    };
-
-    const updateCustomColorRows = (nextCustomRows: AdditionalColorField[]) => {
-        updateField("additionalColors", [...fixedColorRows, ...nextCustomRows]);
-    };
 
     const addUploads = (key: "colorPaletteUploads", files: FileList | null) => {
         if (!files?.length) {
@@ -159,62 +132,56 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                         <h1 className="text-base font-medium text-[#121212]">
                             Brand Color Palette (HEX)<span className="ml-1 text-red-500">*</span>
                         </h1>
-                        <ColorPaletteTable>
-                            <ColorPaletteTableRow
-                                role="Primary Colour"
-                                required
-                                name={form.visualIdentity.primaryColorName}
-                                hex={form.visualIdentity.primaryColor}
-                                onNameChange={(value) => updateField("primaryColorName", value)}
-                                onHexChange={(value) => updateField("primaryColor", value)}
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <div className="flex h-12 items-center rounded-xl bg-section-input-field px-4 py-3 text-sm text-[#2C2C2C]">
+                                Primary color
+                            </div>
+                            <ColorHexInput
+                                value={form.visualIdentity.primaryColor}
+                                onValueChange={(value) => updateField("primaryColor", value)}
+                                className="rounded-xl bg-section-input-field"
                             />
-                            <ColorPaletteTableRow
-                                role="Secondary Colour"
-                                required
-                                name={form.visualIdentity.secondaryColorName}
-                                hex={form.visualIdentity.secondaryColor}
-                                onNameChange={(value) => updateField("secondaryColorName", value)}
-                                onHexChange={(value) => updateField("secondaryColor", value)}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <div className="flex h-12 items-center rounded-xl bg-section-input-field px-4 py-3 text-sm text-[#2C2C2C]">
+                                Secondary color
+                            </div>
+                            <ColorHexInput
+                                value={form.visualIdentity.secondaryColor}
+                                onValueChange={(value) => updateField("secondaryColor", value)}
+                                className="rounded-xl bg-section-input-field"
                             />
-                            {fixedColorRows.map((row) => (
-                                <ColorPaletteTableRow
-                                    key={row.role}
-                                    role={row.role || ""}
-                                    name={row.name}
-                                    hex={row.hex}
-                                    onNameChange={(value) => updateFixedColorRow(row.role || "", { name: value })}
-                                    onHexChange={(value) => updateFixedColorRow(row.role || "", { hex: value })}
-                                />
-                            ))}
-                        </ColorPaletteTable>
-
-                        {customColorRows.map((color, index) => (
+                        </div>
+                        {form.visualIdentity.additionalColors.map((color, index) => (
                             <AdditionalColorRow
                                 key={`additional-color-${index}`}
                                 name={color.name}
                                 hex={color.hex}
                                 onNameChange={(value) => {
-                                    const nextColors = [...customColorRows];
+                                    const nextColors = [...form.visualIdentity.additionalColors];
                                     nextColors[index] = { ...nextColors[index], name: value };
-                                    updateCustomColorRows(nextColors);
+                                    updateField("additionalColors", nextColors);
                                 }}
                                 onHexChange={(value) => {
-                                    const nextColors = [...customColorRows];
+                                    const nextColors = [...form.visualIdentity.additionalColors];
                                     nextColors[index] = { ...nextColors[index], hex: value };
-                                    updateCustomColorRows(nextColors);
+                                    updateField("additionalColors", nextColors);
                                 }}
-                                canRemove
+                                canRemove={form.visualIdentity.additionalColors.length > 1}
                                 onRemove={() =>
-                                    updateCustomColorRows(customColorRows.filter((_, itemIndex) => itemIndex !== index))
+                                    updateField(
+                                        "additionalColors",
+                                        form.visualIdentity.additionalColors.filter((_, itemIndex) => itemIndex !== index),
+                                    )
                                 }
                             />
                         ))}
                         <div className="flex justify-end">
                             <AddMoreButton
-                                onClick={() => updateCustomColorRows([...customColorRows, { name: "", hex: "" }])}
-                            >
-                                Add more colors
-                            </AddMoreButton>
+                                onClick={() =>
+                                    updateField("additionalColors", [...form.visualIdentity.additionalColors, { name: "", hex: "" }])
+                                }
+                            />
                         </div>
                     </div>
 

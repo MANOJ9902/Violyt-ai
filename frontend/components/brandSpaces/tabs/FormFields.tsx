@@ -659,68 +659,6 @@ export function AdditionalColorRow({
     );
 }
 
-export function ColorPaletteTableRow({
-    role,
-    name,
-    hex,
-    required,
-    onNameChange,
-    onHexChange,
-    onRemove,
-}: {
-    role: string;
-    name: string;
-    hex: string;
-    required?: boolean;
-    onNameChange: (value: string) => void;
-    onHexChange: (value: string) => void;
-    onRemove?: () => void;
-}) {
-    return (
-        <div className="grid grid-cols-[1.1fr_1.4fr_1.1fr_auto] items-center gap-3 border-t border-[#E5E4E4] px-4 py-2.5 first:border-t-0">
-            <span className="text-sm text-[#2C2C2C]">
-                {role}
-                {required ? <span className="ml-1 text-red-500">*</span> : null}
-            </span>
-            <StyledInput
-                placeholder="Colour name"
-                value={name}
-                onChange={(e) => onNameChange(e.target.value)}
-                className="h-10 bg-section-input-field"
-            />
-            <ColorHexInput value={hex} onValueChange={onHexChange} className="h-10" />
-            {onRemove ? (
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={onRemove}
-                    className="active:translate-y-0"
-                    aria-label={`Remove ${role} row`}
-                >
-                    <X className="h-4 w-4" />
-                </Button>
-            ) : (
-                <span className="size-7 shrink-0" />
-            )}
-        </div>
-    );
-}
-
-export function ColorPaletteTable({ children }: { children: ReactNode }) {
-    return (
-        <div className="overflow-hidden rounded-xl border border-[#E5E4E4] bg-white">
-            <div className="grid grid-cols-[1.1fr_1.4fr_1.1fr_auto] bg-[#F6F6F6] px-4 py-2.5 text-sm font-semibold text-[#121212]">
-                <span>Role</span>
-                <span>Colour Name</span>
-                <span>HEX</span>
-                <span className="size-7 shrink-0" aria-hidden />
-            </div>
-            {children}
-        </div>
-    );
-}
-
 export function AddMoreButton({
     onClick,
     children = "Add more",
