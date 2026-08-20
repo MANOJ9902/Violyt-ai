@@ -1,8 +1,9 @@
 import { apiOrigin } from "@/lib/env";
 import type { BrandAttachmentResponse, BrandOverviewResponse } from "@/lib/api/contracts";
 import {
-  AUDIENCE_OPTIONS,
+  AUDIENCE_TYPE_OPTIONS,
   BRAND_ARCHETYPE_OPTIONS,
+  BUSINESS_MODEL_OPTIONS,
   BRAND_RULE_OPTIONS,
   BUYING_STAGE_OPTIONS,
   COMPLIANCE_LEVEL_OPTIONS,
@@ -20,10 +21,12 @@ import {
   MARKET_MATURITY_OPTIONS,
   PERSPECTIVE_OPTIONS,
   PROFESSIONAL_BACKGROUND_OPTIONS,
+  ROUTE_TO_MARKET_OPTIONS,
   SENTENCE_LENGTH_OPTIONS,
   sanitizeOption,
   sanitizeOptionArray,
 } from "@/lib/brand-space-options";
+import { GLOBAL_COUNTRIES, INDIAN_STATES_AND_UNION_TERRITORIES } from "@/lib/geography-options";
 import {
   createPersistedBrandUploadItem,
   emptyBrandFormState,
@@ -325,14 +328,22 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     perspective: String(voiceTone.perspective || ""),
   };
 
+  const targetGeography = toRecord(identity.target_geography);
+  const storedLocationMode = String(personaDemographics.region || "");
+  const locationMode = LOCATION_OPTIONS.includes(storedLocationMode)
+    ? storedLocationMode
+    : storedLocationMode
+      ? "Global"
+      : "";
+  const locationDetail = String(
+    personaDemographics.location_detail
+      || (locationMode === "Global" ? targetGeography.country || "" : targetGeography.state || ""),
+  );
+
   form.targetAudience = {
     selectedAudiences: Array.isArray(personaContentBehavior.selected_audiences)
       ? personaContentBehavior.selected_audiences.map((item) => String(item))
-      : Array.isArray(identity.audience_type)
-        ? identity.audience_type.map((item) => String(item))
-        : identity.audience_type
-          ? [String(identity.audience_type)]
-          : [],
+      : [],
     goals: toTextarea(primaryPersona.audience_goals || personaPsychographics.goals),
     motivations: toTextarea(primaryPersona.motivations || personaPsychographics.motivations),
     fearsAndPainPoints: toTextarea(primaryPersona.fears_and_pain_points || personaPsychographics.fears_and_pain_points),
@@ -341,10 +352,14 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
       personaPsychographics.content_consumption_behavior || personaContentBehavior.preferred_channels,
     ),
     audienceInsights: createKnowledgeItems(personaContentBehavior.audience_insights, "audience_insights"),
-    audienceType: String(primaryPersona.audience_type || identity.audience_type || ""),
+    audienceType: sanitizeOption(
+      AUDIENCE_TYPE_OPTIONS,
+      String(primaryPersona.audience_type || identity.audience_type || ""),
+    ),
     ageRange: String(personaDemographics.age_range || ""),
     gender: String(personaDemographics.gender || ""),
-    location: String(personaDemographics.region || toRecord(identity.target_geography).country || ""),
+    location: locationMode,
+    locationDetail,
     educationLevel: String(personaDemographics.education_level || ""),
     employmentStatus: String(personaDemographics.employment_status || ""),
     professionalBackground: String(personaDemographics.professional_background || ""),
@@ -400,6 +415,7 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     whatNotToDo: toTextarea(guardrails.donts),
     restrictedTopics: toTextarea(guardrails.restricted_topics),
     restrictedClaims: toTextarea(guardrails.restricted_claims),
+    permittedClaims: toTextarea(guardrails.permitted_claims),
     blockedWordsPhrases: toTextarea(guardrails.blocked_words),
   };
 
@@ -434,8 +450,34 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
         )
       : toRecord(overview.objectives.find((item) => Boolean(item.is_default)) || overview.objectives[0]);
   const objectiveConfig = toRecord(defaultObjective.configuration);
-
+  const businessModelDetails = Object.fromEntries(
+    Object.entries(toRecord(foundations.business_model_details))
+      .filter(([model, value]) => BUSINESS_MODEL_OPTIONS.includes(model) && typeof value === "string")
+      .map(([model, value]) => [model, value]),
+  ) as Record<string, string>;
+  const legacyBusinessModelOther = String(foundations.business_model_other || "");
+  if (!businessModelDetails.Other && legacyBusinessModelOther) {
+    businessModelDetails.Other = legacyBusinessModelOther;
+  }
+  const routeToMarketDetails = Object.fromEntries(
+    Object.entries(toRecord(foundations.routes_to_market_details))
+      .filter(([route, value]) => ROUTE_TO_MARKET_OPTIONS.includes(route) && typeof value === "string")
+      .map(([route, value]) => [route, value]),
+  ) as Record<string, string>;
+  const legacyRouteToMarketOther = String(foundations.route_to_market_other || "");
+  if (!routeToMarketDetails.Other && legacyRouteToMarketOther) {
+    routeToMarketDetails.Other = legacyRouteToMarketOther;
+  }
   form.additional = {
+    businessModels: Array.isArray(foundations.business_models)
+      ? foundations.business_models.map((item) => String(item))
+      : [],
+    businessModelDetails,
+    businessModelOther: businessModelDetails.Other || legacyBusinessModelOther,
+    routesToMarket: Array.isArray(foundations.routes_to_market)
+      ? foundations.routes_to_market.map((item) => String(item))
+      : [],
+    routeToMarketDetails,
     brandMission: String(foundations.brand_mission || ""),
     brandVision: String(foundations.brand_vision || ""),
     brandPromise: String(foundations.brand_promise || ""),
@@ -519,18 +561,49 @@ function toneIntensity(attributes: string[], weights: Record<string, number> = {
 }
 
 function normalizeBrandSelections(form: BrandFormState) {
+  const businessModels = sanitizeOptionArray(BUSINESS_MODEL_OPTIONS, form.additional.businessModels);
+  const businessModelDetails = Object.fromEntries(
+    Object.entries(form.additional.businessModelDetails)
+      .filter(([model, value]) => businessModels.includes(model) && String(value).trim())
+      .map(([model, value]) => [model, String(value).trim()]),
+  );
+  const legacyBusinessModelOther = form.additional.businessModelOther.trim();
+  if (businessModels.includes("Other") && !businessModelDetails.Other && legacyBusinessModelOther) {
+    businessModelDetails.Other = legacyBusinessModelOther;
+  }
+  const businessModelOther = businessModels.includes("Other") ? businessModelDetails.Other || "" : "";
+  const routesToMarket = sanitizeOptionArray(ROUTE_TO_MARKET_OPTIONS, form.additional.routesToMarket);
+  const routeToMarketDetails = Object.fromEntries(
+    Object.entries(form.additional.routeToMarketDetails)
+      .filter(([route, value]) => routesToMarket.includes(route) && String(value).trim())
+      .map(([route, value]) => [route, String(value).trim()]),
+  );
+
   return {
     industryCategory: sanitizeOption(INDUSTRY_OPTIONS, form.core.industryCategory),
     coreToneAttributes: sanitizeOptionArray(CORE_TONE_OPTIONS, form.voiceTone.coreToneAttributes),
     contentComplexity: sanitizeOption(CONTENT_COMPLEXITY_OPTIONS, form.voiceTone.contentComplexity),
     sentenceLength: sanitizeOption(SENTENCE_LENGTH_OPTIONS, form.voiceTone.sentenceLength),
     perspective: sanitizeOption(PERSPECTIVE_OPTIONS, form.voiceTone.perspective),
-    selectedAudiences: sanitizeOptionArray(AUDIENCE_OPTIONS, form.targetAudience.selectedAudiences),
+    selectedAudiences: form.targetAudience.selectedAudiences.map((value) => value.trim()).filter(Boolean),
+    businessModels,
+    businessModelDetails,
+    businessModelOther,
+    routesToMarket,
+    routeToMarketDetails,
     logoPlacements: sanitizeOptionArray(
       LOGO_PLACEMENT_OPTIONS,
       form.visualIdentity.logoPlacements,
     ).slice(0, 1),
     location: sanitizeOption(LOCATION_OPTIONS, form.targetAudience.location),
+    locationDetail: sanitizeOption(
+      form.targetAudience.location === "Global"
+        ? GLOBAL_COUNTRIES
+        : form.targetAudience.location === "Local"
+          ? INDIAN_STATES_AND_UNION_TERRITORIES
+          : [],
+      form.targetAudience.locationDetail,
+    ),
     educationLevel: sanitizeOption(EDUCATION_LEVEL_OPTIONS, form.targetAudience.educationLevel),
     employmentStatus: sanitizeOption(EMPLOYMENT_STATUS_OPTIONS, form.targetAudience.employmentStatus),
     professionalBackground: sanitizeOption(
@@ -552,6 +625,16 @@ function normalizeBrandSelections(form: BrandFormState) {
   };
 }
 
+function buildTargetGeography(location: string, locationDetail: string) {
+  if (location === "Global") {
+    return { country: locationDetail, state: "" };
+  }
+  if (location === "Local") {
+    return { country: "India", state: locationDetail };
+  }
+  return { country: "", state: "" };
+}
+
 export function mapBrandFormToCreateRequest(form: BrandFormState, uploads?: UploadedBrandAssets) {
   const normalized = normalizeBrandSelections(form);
   const logoAssets = uploads?.logos?.length ? uploads.logos : uploads?.logo ? [uploads.logo] : [];
@@ -564,10 +647,8 @@ export function mapBrandFormToCreateRequest(form: BrandFormState, uploads?: Uplo
       brand_tagline: form.core.tagline || "",
       brand_description: form.core.description || "",
       industry_category: normalized.industryCategory || undefined,
-      target_geography: {
-        country: normalized.location || "",
-      },
-      audience_type: normalized.selectedAudiences[0] || undefined,
+      target_geography: buildTargetGeography(normalized.location, normalized.locationDetail),
+      audience_type: form.targetAudience.audienceType || undefined,
       key_differentiators: splitList(form.core.differentiators),
       logo_asset_id: logoAssets[0]?.id,
       logo_asset_ids: assetIds(logoAssets),
@@ -579,6 +660,11 @@ export function mapBrandFormToCreateRequest(form: BrandFormState, uploads?: Uplo
       },
     },
     foundations: {
+      business_models: normalized.businessModels,
+      business_model_details: normalized.businessModelDetails,
+      business_model_other: normalized.businessModelOther || undefined,
+      routes_to_market: normalized.routesToMarket,
+      routes_to_market_details: normalized.routeToMarketDetails,
       brand_mission: form.additional.brandMission || undefined,
       brand_vision: form.additional.brandVision || undefined,
       brand_promise: form.additional.brandPromise || undefined,
@@ -626,16 +712,19 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
           instagram: primaryCompetitor?.instagram || form.additional.instagram || "",
           x: primaryCompetitor?.x || form.additional.x || "",
         },
-        audience_type: normalized.selectedAudiences[0] || "",
-        target_geography: {
-          country: normalized.location || "",
-        },
+        audience_type: form.targetAudience.audienceType || "",
+        target_geography: buildTargetGeography(normalized.location, normalized.locationDetail),
       },
       completion_percent: 100,
     },
     {
       section_code: "foundations",
       payload: {
+        business_models: normalized.businessModels,
+        business_model_details: normalized.businessModelDetails,
+        business_model_other: normalized.businessModelOther,
+        routes_to_market: normalized.routesToMarket,
+        routes_to_market_details: normalized.routeToMarketDetails,
         brand_mission: form.additional.brandMission || "",
         brand_vision: form.additional.brandVision || "",
         brand_promise: form.additional.brandPromise || "",
@@ -690,6 +779,7 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
               age_range: form.targetAudience.ageRange || "",
               gender: form.targetAudience.gender || "",
               region: normalized.location || "",
+              location_detail: normalized.locationDetail || "",
               education_level: normalized.educationLevel || "",
               employment_status: normalized.employmentStatus || "",
               professional_background: normalized.professionalBackground || "",
@@ -723,6 +813,7 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
         dos: splitList(form.brandRules.whatToDo),
         donts: splitList(form.brandRules.whatNotToDo),
         restricted_claims: splitList(form.brandRules.restrictedClaims),
+        permitted_claims: splitList(form.brandRules.permittedClaims),
         restricted_topics: splitList(form.brandRules.restrictedTopics),
         blocked_words: splitList(form.brandRules.blockedWordsPhrases),
         positive_word_bank: splitList(form.brandRules.positiveWordBank),
@@ -814,6 +905,23 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
       payload: {
         prompt_starters: [
           { label: "Audience", value: normalized.selectedAudiences.join(", ") },
+          { label: "Audience Type", value: form.targetAudience.audienceType || "" },
+          {
+            label: "Business Model",
+            value: normalized.businessModels
+              .map((model) => normalized.businessModelDetails[model]
+                ? `${model}: ${normalized.businessModelDetails[model]}`
+                : model)
+              .join(", "),
+          },
+          {
+            label: "Route to Market",
+            value: normalized.routesToMarket
+              .map((route) => normalized.routeToMarketDetails[route]
+                ? `${route}: ${normalized.routeToMarketDetails[route]}`
+                : route)
+              .join(", "),
+          },
           { label: "Strategy", value: form.additional.strategy || "" },
           { label: "Brand mood", value: form.visualIdentity.brandMood || "" },
           { label: "Brand voice", value: normalized.coreToneAttributes.join(", ") },

@@ -10,7 +10,6 @@ import {
     AdditionalColorRow,
     ColorHexInput,
     FontPickerField,
-    FileUploadField,
     FileUploadCollection,
     FormField,
     FormSection,
@@ -23,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { useGoogleFonts } from "@/hooks/useGoogleFonts";
 import { stripFileExtension } from "@/lib/file-utils";
 import { LOGO_PLACEMENT_OPTIONS } from "@/lib/brand-space-options";
+import { GoogleDriveUploadButton } from "@/components/brandSpaces/GoogleDriveUploadButton";
 import {
     createBrandUploadItem,
     updateBrandFormSection,
@@ -71,20 +71,14 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
         }
     };
 
-    const fontStyleGuideItem = form.visualIdentity.fontStyleGuide[0] || null;
-
-    const replaceFontStyleGuide = (files: FileList | null) => {
+    const addFontStyleGuides = (files: FileList | null) => {
         if (!files?.length) {
             return;
         }
-
-        const [file] = Array.from(files);
-        if (!file) {
-            return;
-
-        }
-
-        updateField("fontStyleGuide", [createBrandUploadItem(file, ["Font Guide"])]);
+        updateField(
+            "fontStyleGuide",
+            [...form.visualIdentity.fontStyleGuide, ...Array.from(files).map((file) => createBrandUploadItem(file, ["Font Guide"]))],
+        );
     };
 
     return (
@@ -229,21 +223,21 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                         }}
                     />
 
-                    <FileUploadField
+                    <FileUploadCollection
                         label="Upload Font Style Guide"
                         acceptedFormats={FONT_GUIDE_FORMATS}
-                        // required
-                        uploadLabel="Upload"
-                        item={fontStyleGuideItem}
-                        onChange={replaceFontStyleGuide}
-                        onRemove={() => {
+                        bgColor="bg-[#FFFFFF]"
+                        items={form.visualIdentity.fontStyleGuide}
+                        onAdd={addFontStyleGuides}
+                        onRemove={(itemId) => {
                             if (onRemoveUpload) {
-                                if (fontStyleGuideItem) {
-                                    void onRemoveUpload(fontStyleGuideItem.id);
-                                }
+                                void onRemoveUpload(itemId);
                                 return;
                             }
-                            updateField("fontStyleGuide", []);
+                            updateField(
+                                "fontStyleGuide",
+                                form.visualIdentity.fontStyleGuide.filter((item) => item.id !== itemId),
+                            );
                         }}
                     />
                 </div>
@@ -309,7 +303,7 @@ function VisualMetadataUploadField({
     const [pendingUploads, setPendingUploads] = useState<VisualMetadataUpload[]>([]);
     const inputRef = useRef<HTMLInputElement | null>(null);
 
-    const addPendingFiles = (files: FileList | null) => {
+    const addPendingFiles = (files: FileList | File[] | null) => {
         if (!files?.length) {
             return;
         }
@@ -428,6 +422,7 @@ function VisualMetadataUploadField({
                     <UploadCloud className="mb-2 h-4 w-4" />
                     Upload
                 </Button>
+                <GoogleDriveUploadButton acceptedFormats={METADATA_UPLOAD_FORMATS} onFiles={(files) => { addPendingFiles(files); setIsOpen(true); }} />
                 {items.map((item) => (
                     <VisualMetadataUploadedFileCard key={item.id} item={item} onRemove={() => onRemove(item.id)} />
                 ))}

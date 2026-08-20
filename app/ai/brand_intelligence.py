@@ -97,6 +97,7 @@ class BrandIntelligenceService:
             "forbidden_prompt_patterns": guardrail.forbidden_prompt_patterns,
             "restricted_topics": guardrail.restricted_topics,
             "restricted_claims": guardrail.restricted_claims,
+            "permitted_claims": guardrail.permitted_claims,
             "blocked_words": guardrail.blocked_words,
             "custom_rules": guardrail.custom_rules,
         }

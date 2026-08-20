@@ -1,7 +1,7 @@
 # API wiring for the backend surface; routers in this package expose service workflows over HTTP.
 from fastapi import APIRouter
 
-from app.api.routes import analytics, auth, brand, brand_assets, chat, content, folder, jobs, knowledge, notifications, pipeline, render, review, social, storage, template, tenant
+from app.api.routes import analytics, auth, brand, brand_assets, chat, content, folder, google_drive, jobs, knowledge, notifications, pipeline, render, review, social, storage, template, tenant
 
 
 api_router = APIRouter()
@@ -9,6 +9,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(tenant.router, prefix="/tenants", tags=["tenants"])
 api_router.include_router(brand.router, prefix="/brands", tags=["brands"])
 api_router.include_router(brand_assets.router, prefix="/brands", tags=["brand-assets"])
+api_router.include_router(google_drive.router, tags=["google-drive"] )
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(content.router, prefix="/content", tags=["content"])
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])

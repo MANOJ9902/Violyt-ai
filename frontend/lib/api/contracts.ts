@@ -264,6 +264,17 @@ export interface BrandResponse {
   updated_at: string;
 }
 
+export interface BrandTemplateFieldValue {
+  key: string;
+  value: string | string[] | Record<string, number> | Array<{ name: string; hex: string }>;
+  field_type: "text" | "textarea" | "dropdown" | "multi_select" | "tone_weights" | "color_pairs";
+}
+
+export interface BrandTemplateImportResponse {
+  fields: BrandTemplateFieldValue[];
+  imported_field_count: number;
+}
+
 export interface AssetProcessingStatusResponse {
   field_key: string;
   lifecycle_state: string;
@@ -404,6 +415,11 @@ export interface BrandAutofillResponse {
   sentence_length?: string;
   perspective?: string;
   selected_audiences?: string[];
+  business_models?: string[];
+  business_model_details?: Record<string, string>;
+  business_model_other?: string;
+  routes_to_market?: string[];
+  routes_to_market_details?: Record<string, string>;
   audience_goals?: string;
   audience_motivations?: string;
   audience_fears?: string;
@@ -418,6 +434,7 @@ export interface BrandAutofillResponse {
   positive_word_bank?: string;
   restricted_topics?: string;
   restricted_claims?: string;
+  permitted_claims?: string;
   blocked_words_phrases?: string;
   brand_mission?: string;
   brand_vision?: string;

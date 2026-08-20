@@ -78,7 +78,7 @@ import {
 } from "@/lib/generation-decision";
 import { FormField, StyledInput, StyledSelect } from "../brandSpaces/tabs/FormFields";
 import Image from "next/image";
-import { AUDIENCE_OPTIONS } from "@/lib/brand-space-options";
+import { STUDIO_AUDIENCE_OPTIONS } from "@/lib/brand-space-options";
 import { Label } from "../ui/label";
 import { Tooltips } from "../Tooltip";
 
@@ -854,8 +854,8 @@ function resolveBrandAudienceOptions(context: Record<string, unknown>) {
         ...readStringArray(identity.audience_type),
         ...(typeof identity.audience_type === "string" ? [identity.audience_type] : []),
     ];
-    const uniqueAudiences = Array.from(new Set(selectedAudiences.filter((item) => AUDIENCE_OPTIONS.includes(item))));
-    return uniqueAudiences.length ? uniqueAudiences : AUDIENCE_OPTIONS;
+    const uniqueAudiences = Array.from(new Set(selectedAudiences.filter((item) => STUDIO_AUDIENCE_OPTIONS.includes(item))));
+    return uniqueAudiences.length ? uniqueAudiences : STUDIO_AUDIENCE_OPTIONS;
 }
 
 function getTemplatePreviewUrl(recommendation: TemplateRecommendationResponse) {

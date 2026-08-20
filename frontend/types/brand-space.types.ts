@@ -66,6 +66,7 @@ export interface TargetAudienceFields {
   ageRange: string;
   gender: string;
   location: string;
+  locationDetail: string;
   educationLevel: string;
   employmentStatus: string;
   professionalBackground: string;
@@ -110,6 +111,7 @@ export interface BrandRuleFields {
   whatNotToDo: string;
   restrictedTopics: string;
   restrictedClaims: string;
+  permittedClaims: string;
   blockedWordsPhrases: string;
 }
 
@@ -148,6 +150,11 @@ export interface CompetitorBrandField {
 }
 
 export interface AdditionalDetailFields {
+  businessModels: string[];
+  businessModelDetails: Record<string, string>;
+  businessModelOther: string;
+  routesToMarket: string[];
+  routeToMarketDetails: Record<string, string>;
   brandMission: string;
   brandVision: string;
   brandPromise: string;
@@ -215,6 +222,7 @@ export const emptyBrandFormState: BrandFormState = {
     ageRange: "",
     gender: "",
     location: "",
+    locationDetail: "",
     educationLevel: "",
     employmentStatus: "",
     professionalBackground: "",
@@ -252,6 +260,7 @@ export const emptyBrandFormState: BrandFormState = {
     whatNotToDo: "",
     restrictedTopics: "",
     restrictedClaims: "",
+    permittedClaims: "",
     blockedWordsPhrases: "",
   },
   brandKnowledge: {
@@ -278,6 +287,11 @@ export const emptyBrandFormState: BrandFormState = {
     successMetric: "",
   },
   additional: {
+    businessModels: [],
+    businessModelDetails: {},
+    businessModelOther: "",
+    routesToMarket: [],
+    routeToMarketDetails: {},
     brandMission: "",
     brandVision: "",
     brandPromise: "",

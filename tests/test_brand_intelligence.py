@@ -24,6 +24,7 @@ def test_brand_intelligence_merges_guardrail_section_metadata() -> None:
         forbidden_prompt_patterns=[],
         restricted_topics=[],
         restricted_claims=[],
+        permitted_claims=["Verified product benefits"],
         blocked_words=[],
         custom_rules=["Avoid hype claims"],
     )
@@ -45,6 +46,7 @@ def test_brand_intelligence_merges_guardrail_section_metadata() -> None:
     )
 
     assert context["guardrails"]["positive_word_bank"] == ["clarity"]
+    assert context["guardrails"]["permitted_claims"] == ["Verified product benefits"]
     assert context["guardrails"]["custom_rules"] == ["Avoid hype claims"]
     assert context["guardrails"]["positive_word_bank_asset_ids"]
     assert context["guardrails"]["word_bank_assets"]["positive"][0]["name"] == "approved-words.pdf"

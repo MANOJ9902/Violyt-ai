@@ -82,7 +82,7 @@ Get-Content docs\sample_db_seed.sql | docker compose exec -T postgres psql -v ON
 Then use:
 
 - platform owner activation token: `sample-activation-token-owner`
-- platform owner email: `owner@violyt.ai`
+- platform owner email: `admin@violyt.ai`
 - platform owner password to set: `DemoPass123!`
 - activation token: `sample-activation-token-admin`
 - email: `admin@sampletenant.com`

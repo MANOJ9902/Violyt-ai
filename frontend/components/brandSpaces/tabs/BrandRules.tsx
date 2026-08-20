@@ -167,6 +167,14 @@ const BrandRules = ({ brandId, form, setForm, onRemoveUpload }: BrandTabProps) =
                                 onChange={(e) => updateField("restrictedClaims", e.target.value)}
                             />
                         </FormField>
+                        <FormField label="Permitted Claims" required>
+                            <StyledTextarea
+                                placeholder="Claims or statements the AI may make"
+                                className="bg-section-input-field"
+                                value={form.brandRules.permittedClaims}
+                                onChange={(e) => updateField("permittedClaims", e.target.value)}
+                            />
+                        </FormField>
                         <FormField label="Blocked Words / Phrases" required>
                             <StyledTextarea
                                 placeholder="Words or phrases the AI must not use"

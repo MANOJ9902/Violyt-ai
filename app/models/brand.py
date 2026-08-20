@@ -114,6 +114,7 @@ class Guardrail(UUIDPrimaryKeyMixin, TenantScopedMixin, BrandScopedMixin, Timest
     forbidden_prompt_patterns: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     restricted_topics: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     restricted_claims: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    permitted_claims: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     blocked_words: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     custom_rules: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
 

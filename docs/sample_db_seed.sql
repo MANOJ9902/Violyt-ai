@@ -20,7 +20,7 @@ INSERT INTO users (
 ) VALUES (
     '00000000-0000-0000-0000-000000000001',
     NULL,
-    'owner@violyt.ai',
+    'admin@violyt.ai',
     'Sample Platform Owner',
     '+91-9000000009',
     NULL,

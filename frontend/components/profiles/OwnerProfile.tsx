@@ -16,7 +16,7 @@ import { toast } from "@/components/ui/use-toast";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { Label } from "../ui/label";
 import Image from "next/image";
-import { NotificationPreferenceControls } from "@/components/profiles/NotificationPreferenceControls";
+import { NotificationPreferenceControls } from "@/components/profiles/NotificationPreferenceControls";
 
 export default function OwnerProfile() {
     const { user } = useRBAC();

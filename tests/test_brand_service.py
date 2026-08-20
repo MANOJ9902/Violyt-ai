@@ -134,6 +134,7 @@ async def test_upsert_guardrails_filters_section_only_metadata_for_orm_write() -
             "donts": ["Use slang"],
             "restricted_topics": ["Politics"],
             "restricted_claims": ["Guaranteed returns"],
+            "permitted_claims": ["Verified product benefits"],
             "blocked_words": ["best ever"],
             "custom_rules": ["Avoid hype claims"],
             "positive_word_bank_asset_ids": [str(uuid4())],
@@ -150,6 +151,7 @@ async def test_upsert_guardrails_filters_section_only_metadata_for_orm_write() -
     assert captured_section.payload["word_bank_assets"]["positive"][0]["name"] == "approved-words.pdf"
     assert captured_guardrail is not None
     assert captured_guardrail.positive_word_bank == ["clear", "confident"]
+    assert captured_guardrail.permitted_claims == ["Verified product benefits"]
     assert captured_guardrail.custom_rules == ["Avoid hype claims"]
     assert not hasattr(captured_guardrail, "positive_word_bank_asset_ids")
     assert not hasattr(captured_guardrail, "word_bank_assets")

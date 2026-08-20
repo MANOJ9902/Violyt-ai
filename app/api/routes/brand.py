@@ -1,8 +1,10 @@
 # FastAPI route handlers live here; they validate request inputs, call services, and return response schemas.
 from uuid import UUID
 from pathlib import Path
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +30,7 @@ from app.schemas.brand import (
     BrandSpaceHistoryResponse,
     BrandSectionUpsertRequest,
     BrandSectionsUpsertRequest,
+    BrandTemplateImportResponse,
     BrandUpdateRequest,
     BrandUsageResponse,
 )
@@ -40,6 +43,7 @@ from app.schemas.brand_assets import (
 from app.schemas.common import MessageResponse
 from app.services.asset_delivery import AssetDeliveryService
 from app.services.brand import BrandSpaceService
+from app.services.brand_space_template import BrandSpaceTemplateService
 from app.services.brand_autofill import BrandAutofillService
 from app.services.data_validation import DataValidatorService
 from app.services.vectorstore.ingestion_service import IngestionService
@@ -204,6 +208,54 @@ async def brand_history(
         raise HTTPException(status_code=403, detail="Forbidden")
     history_entries = await BrandSpaceService(session).list_history(principal.tenant_id, brand_id)
     return [BrandSpaceHistoryResponse.model_validate(item) for item in history_entries]
+
+
+@router.get("/{brand_id}/template/download")
+async def download_brand_space_template(
+    brand_id: UUID,
+    principal: CurrentPrincipal = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> StreamingResponse:
+    """Download the explicit Brand Space field template without exposing unrelated fields."""
+    forbid_super_admin_brand_access(principal)
+    assert_brand_access(principal, brand_id)
+    assert_brand_manage_access(principal)
+    if not principal.tenant_id or not await BrandSpaceService(session).brands.get_scoped(principal.tenant_id, brand_id):
+        raise HTTPException(status_code=404, detail="Brand Space not found")
+
+    template = BrandSpaceTemplateService()
+    return StreamingResponse(
+        BytesIO(template.build_document()),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{template.filename}"'},
+    )
+
+
+@router.post("/{brand_id}/template/upload", response_model=BrandTemplateImportResponse)
+async def upload_brand_space_template(
+    brand_id: UUID,
+    file: UploadFile,
+    principal: CurrentPrincipal = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_db_session),
+) -> BrandTemplateImportResponse:
+    """Read completed template fields; the editor merges them before its normal save flow persists changes."""
+    forbid_super_admin_brand_access(principal)
+    assert_brand_access(principal, brand_id)
+    assert_brand_manage_access(principal)
+    if not principal.tenant_id or not await BrandSpaceService(session).brands.get_scoped(principal.tenant_id, brand_id):
+        raise HTTPException(status_code=404, detail="Brand Space not found")
+    if Path(file.filename or "").suffix.lower() != ".docx":
+        raise HTTPException(status_code=400, detail="Upload a completed .docx Brand Space template.")
+
+    content = await file.read()
+    if len(content) > get_settings().upload_max_file_bytes:
+        raise HTTPException(status_code=400, detail="The template file exceeds the configured upload size limit.")
+
+    try:
+        fields = BrandSpaceTemplateService().parse_document(content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return BrandTemplateImportResponse(fields=fields, imported_field_count=len(fields))
 
 
 @router.put("/{brand_id}", response_model=BrandResponse)

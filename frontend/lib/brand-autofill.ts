@@ -9,6 +9,10 @@ function pickText(current: string, next?: string | null) {
   return current;
 }
 
+function pickRecord(current: Record<string, string>, next?: Record<string, string> | null) {
+  if (!next || !Object.keys(next).length) return current;
+  return { ...next, ...current };
+}
 function pickList(current: string[], next?: string[] | null) {
   if (!next?.length) return current;
   if (!current.length) return [...next];
@@ -49,10 +53,7 @@ export function applyBrandAutofillToForm(
     },
     targetAudience: {
       ...form.targetAudience,
-      selectedAudiences: pickList(
-        form.targetAudience.selectedAudiences,
-        suggestion.selected_audiences,
-      ),
+      selectedAudiences: pickList(form.targetAudience.selectedAudiences, suggestion.selected_audiences),
       goals: pickText(form.targetAudience.goals, suggestion.audience_goals),
       motivations: pickText(form.targetAudience.motivations, suggestion.audience_motivations),
       fearsAndPainPoints: pickText(form.targetAudience.fearsAndPainPoints, suggestion.audience_fears),
@@ -73,6 +74,7 @@ export function applyBrandAutofillToForm(
       positiveWordBank: pickText(form.brandRules.positiveWordBank, suggestion.positive_word_bank),
       restrictedTopics: pickText(form.brandRules.restrictedTopics, suggestion.restricted_topics),
       restrictedClaims: pickText(form.brandRules.restrictedClaims, suggestion.restricted_claims),
+      permittedClaims: pickText(form.brandRules.permittedClaims, suggestion.permitted_claims),
       blockedWordsPhrases: pickText(
         form.brandRules.blockedWordsPhrases,
         suggestion.blocked_words_phrases,
@@ -80,6 +82,11 @@ export function applyBrandAutofillToForm(
     },
     additional: {
       ...form.additional,
+      businessModels: pickList(form.additional.businessModels, suggestion.business_models),
+      businessModelDetails: pickRecord(form.additional.businessModelDetails, suggestion.business_model_details),
+      businessModelOther: pickText(form.additional.businessModelOther, suggestion.business_model_other),
+      routesToMarket: pickList(form.additional.routesToMarket, suggestion.routes_to_market),
+      routeToMarketDetails: pickRecord(form.additional.routeToMarketDetails, suggestion.routes_to_market_details),
       brandMission: pickText(form.additional.brandMission, suggestion.brand_mission),
       brandVision: pickText(form.additional.brandVision, suggestion.brand_vision),
       brandPromise: pickText(form.additional.brandPromise, suggestion.brand_promise),

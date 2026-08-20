@@ -97,14 +97,15 @@ export function LoginForm() {
                             disabled={isPending}
                             className="h-12 rounded-none border-none bg-[#F5F7FA] px-4 pr-11 text-sm text-[#121212] placeholder:text-[#8C8C8C] focus-visible:ring-2 focus-visible:ring-primary/20"
                         />
-                        {/* <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A7A7A] transition hover:text-[#4B5563]"
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button> */}
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((current) => !current)}
+                            disabled={isPending}
+                            className="absolute right-1 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center text-[#7A7A7A] transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:pointer-events-none disabled:opacity-50"
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                            {showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+                        </button>
                     </div>
                 </div>
 
