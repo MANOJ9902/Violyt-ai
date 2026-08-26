@@ -119,6 +119,7 @@ class BrandSpaceService:
                 "forbidden_prompt_patterns": list(safe.get("forbidden_prompt_patterns") or []),
                 "restricted_topics": list(safe.get("restricted_topics") or []),
                 "restricted_claims": list(safe.get("restricted_claims") or []),
+                "permitted_claims": list(safe.get("permitted_claims") or []),
                 "blocked_words": list(safe.get("blocked_words") or []),
                 "custom_rules": list(safe.get("custom_rules") or []),
             }

@@ -52,6 +52,8 @@ const ZERO_USAGE_SUMMARY: TenantUsageSummary = {
     },
 };
 
+const PROFILE_SUPPORT_EMAIL = "support@violyt.ai";
+
 export default function TenantAdminProfile() {
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -101,10 +103,7 @@ export default function TenantAdminProfile() {
         [profile?.email, profile?.extra, profile?.full_name, user?.email, user?.name, user?.phone],
     );
 
-    const supportEmail =
-        typeof profile?.extra?.support_email === "string" && profile.extra.support_email.trim()
-            ? profile.extra.support_email.trim()
-            : "Not configured";
+    const shouldShowSupportContact = user?.role === "TENANT_ADMIN" || user?.role === "TENANT_USER" || user?.role === "BRAND_USER";
     const openFieldDialog = (field: Exclude<EditableField, null>) => {
         setEditingField(field);
         setError(null);
@@ -295,21 +294,19 @@ export default function TenantAdminProfile() {
                         title="Disclaimer"
                         description="Read the terms outlining platform limitations, responsibilities, and usage conditions. View Disclaimer."
                     />
-                    <SettingsRow
-                        title="Contact Us"
-                        description={
-                            <>
-                                Email Address:{" "}
-                                {supportEmail !== "Not configured" ? (
-                                    <a href={`mailto:${supportEmail}`} className="text-black hover:text-primary hover:underline">
-                                        {supportEmail}
+                    {shouldShowSupportContact ? (
+                        <SettingsRow
+                            title="Contact Us"
+                            description={
+                                <>
+                                    Email Address:{" "}
+                                    <a href={`mailto:${PROFILE_SUPPORT_EMAIL}`} className="text-black hover:text-primary hover:underline">
+                                        {PROFILE_SUPPORT_EMAIL}
                                     </a>
-                                ) : (
-                                    supportEmail
-                                )}
-                            </>
-                        }
-                    />
+                                </>
+                            }
+                        />
+                    ) : null}
 
                     <SettingsRow
                         title="Change password"

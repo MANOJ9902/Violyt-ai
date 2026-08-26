@@ -1,10 +1,13 @@
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AdvancedSectionTitle, FormField, FormSection, FormSubsection, StyledInput, StyledSelect, StyledTextarea } from "./FormFields";
 import {
     BRAND_ARCHETYPE_OPTIONS,
+    BUSINESS_MODEL_OPTIONS,
     BUYING_STAGE_OPTIONS,
     COMPLIANCE_LEVEL_OPTIONS,
     MARKET_MATURITY_OPTIONS,
+    ROUTE_TO_MARKET_OPTIONS,
 } from "@/lib/brand-space-options";
 import { updateBrandFormSection, type BrandTabProps, type CompetitorBrandField } from "@/types/brand-space.types";
 import { PlusCircle, X } from "lucide-react";
@@ -40,11 +43,74 @@ function hasMissingAdvancedFields(form: BrandTabProps["form"], competitors: Comp
     );
     return fields.some((value) => !String(value || "").trim()) || hasMissingCompetitorField;
 }
+function toggleSelection(values: string[], value: string) {
+    return values.includes(value)
+        ? values.filter((item) => item !== value)
+        : [...values, value];
+}
+
+const BUSINESS_MODEL_LABELS: Record<string, string> = {
+    B2B: "B2B (Business-to-Business)",
+    B2C: "B2C (Business-to-Consumer)",
+    B2B2C: "B2B2C (Business-to-Business-to-Consumer)",
+    Other: "Other",
+};
+
+const ROUTE_TO_MARKET_LABELS: Record<string, string> = {
+    D2C: "D2C (Direct-to-Consumer)",
+    Retail: "Retail",
+    Marketplace: "Marketplace",
+    "Distributor/Dealer": "Distributor/Dealer",
+    "Partner-led": "Partner-led",
+    "Direct Sales": "Direct Sales",
+    Other: "Other",
+};
+
 const AdditionalDetails = ({ form, setForm }: BrandTabProps) => {
     const updateField = <TKey extends keyof typeof form.additional>(
         key: TKey,
         value: (typeof form.additional)[TKey],
     ) => updateBrandFormSection(setForm, "additional", key, value);
+
+    const toggleBusinessModel = (model: string) => {
+        const businessModels = toggleSelection(form.additional.businessModels, model);
+        const businessModelDetails = { ...form.additional.businessModelDetails };
+        if (!businessModels.includes(model)) {
+            delete businessModelDetails[model];
+        }
+        updateField("businessModels", businessModels);
+        updateField("businessModelDetails", businessModelDetails);
+        if (model === "Other" && !businessModels.includes("Other")) {
+            updateField("businessModelOther", "");
+        }
+    };
+
+    const updateBusinessModelDetail = (model: string, value: string) => {
+        updateField("businessModelDetails", {
+            ...form.additional.businessModelDetails,
+            [model]: value,
+        });
+        if (model === "Other") {
+            updateField("businessModelOther", value);
+        }
+    };
+
+    const toggleRouteToMarket = (route: string) => {
+        const routesToMarket = toggleSelection(form.additional.routesToMarket, route);
+        const routeToMarketDetails = { ...form.additional.routeToMarketDetails };
+        if (!routesToMarket.includes(route)) {
+            delete routeToMarketDetails[route];
+        }
+        updateField("routesToMarket", routesToMarket);
+        updateField("routeToMarketDetails", routeToMarketDetails);
+    };
+
+    const updateRouteToMarketDetail = (route: string, value: string) => {
+        updateField("routeToMarketDetails", {
+            ...form.additional.routeToMarketDetails,
+            [route]: value,
+        });
+    };
 
     const competitors = form.additional.competitorBrands?.length
         ? form.additional.competitorBrands
@@ -91,7 +157,60 @@ const AdditionalDetails = ({ form, setForm }: BrandTabProps) => {
     };
 
     return (
-        <FormSection title={<AdvancedSectionTitle showInfo={hasMissingAdvancedFields(form, competitors)} />} description="Optional fields to further refine your brand intelligence"
+        <div className="space-y-8">
+            <FormSection className="bg-[#E9E9E966] px-6 pb-6 pt-2">
+                <FormField label="Business Model" required>
+                    <div className="space-y-4">
+                        {BUSINESS_MODEL_OPTIONS.map((model) => {
+                            const selected = form.additional.businessModels.includes(model);
+                            return (
+                                <div key={model} className="space-y-3">
+                                    <label className="flex items-center gap-3 text-base text-slate-700">
+                                        <Checkbox checked={selected} onCheckedChange={() => toggleBusinessModel(model)} />
+                                        <span>{BUSINESS_MODEL_LABELS[model] || model}</span>
+                                    </label>
+                                    {selected ? (
+                                        <StyledInput
+                                            placeholder="Enter your input"
+                                            className="ml-7 max-w-sm bg-section-input-field"
+                                            value={form.additional.businessModelDetails[model] || ""}
+                                            onChange={(event) => updateBusinessModelDetail(model, event.target.value)}
+                                        />
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </FormField>
+            </FormSection>
+            <FormSection className="bg-[#E9E9E966] px-6 pb-6 pt-2">
+                <FormField label="Route to Market" required>
+                    <div className="space-y-4">
+                        {ROUTE_TO_MARKET_OPTIONS.map((route) => {
+                            const selected = form.additional.routesToMarket.includes(route);
+                            return (
+                                <div key={route} className="space-y-3">
+                                    <label className="flex items-center gap-3 text-base text-slate-700">
+                                        <Checkbox
+                                            checked={selected}
+                                            onCheckedChange={() => toggleRouteToMarket(route)}
+                                        />
+                                        <span>{ROUTE_TO_MARKET_LABELS[route] || route}</span>
+                                    </label>
+                                    {selected ? (
+                                        <StyledInput
+                                            placeholder="Enter your input"
+                                            className="ml-7 max-w-sm bg-section-input-field"
+                                            value={form.additional.routeToMarketDetails[route] || ""}
+                                            onChange={(event) => updateRouteToMarketDetail(route, event.target.value)}
+                                        />
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </FormField>
+            </FormSection>            <FormSection title={<AdvancedSectionTitle showInfo={hasMissingAdvancedFields(form, competitors)} />} description="Optional fields to further refine your brand intelligence"
             className="bg-[#E9E9E966] px-6 pb-6 pt-2"
         >
             <div className="grid gap-8 lg:grid-cols-2">
@@ -310,7 +429,8 @@ const AdditionalDetails = ({ form, setForm }: BrandTabProps) => {
                     </FormSubsection>
                 </div>
             </div>
-        </FormSection>
+            </FormSection>
+        </div>
     );
 };
 

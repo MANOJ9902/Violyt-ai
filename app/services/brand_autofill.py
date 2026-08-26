@@ -29,6 +29,11 @@ class BrandAutofillSuggestion(BaseModel):
     sentence_length: str = ""
     perspective: str = ""
     selected_audiences: list[str] = Field(default_factory=list)
+    business_models: list[str] = Field(default_factory=list)
+    business_model_details: dict[str, str] = Field(default_factory=dict)
+    business_model_other: str = ""
+    routes_to_market: list[str] = Field(default_factory=list)
+    routes_to_market_details: dict[str, str] = Field(default_factory=dict)
     audience_goals: str = ""
     audience_motivations: str = ""
     audience_fears: str = ""
@@ -43,6 +48,7 @@ class BrandAutofillSuggestion(BaseModel):
     positive_word_bank: str = ""
     restricted_topics: str = ""
     restricted_claims: str = ""
+    permitted_claims: str = ""
     blocked_words_phrases: str = ""
     brand_mission: str = ""
     brand_vision: str = ""
@@ -108,6 +114,8 @@ Rules:
 - core_tone_attributes: 3-6 short adjectives (e.g. Professional, Trustworthy, Approachable).
 - brand_tagline: the official or best-supported tagline if one appears in the documents; otherwise leave blank.
 - selected_audiences: 1-4 short audience labels (e.g. Retail Investors, HNIs, CXOs).
+- business_models: choose zero or more from B2B, B2C, B2B2C, Other; use business_model_details to add an optional short detail keyed by each selected model. Keep business_model_other in sync with business_model_details.Other when Other is selected.
+- routes_to_market: choose zero or more from D2C, Retail, Marketplace, Distributor/Dealer, Partner-led, Direct Sales, Other; use routes_to_market_details to add an optional short detail keyed by each selected route.
 - logo_placements: choose from Top-left, Top-right, Bottom-left, Bottom-right, Center (pick 1-2).
 - selected_rules: 2-5 short rule labels the brand should follow.
 - primary_color / secondary_color: hex codes if known, else brand-appropriate hexes (#RRGGBB).
@@ -153,6 +161,8 @@ Fill BrandAutofillSuggestion JSON now."""
             suggestion.restricted_topics = "competitor disparagement, speculative guarantees"
         if not suggestion.restricted_claims:
             suggestion.restricted_claims = "guaranteed returns, risk-free, #1 without proof"
+        if not suggestion.permitted_claims:
+            suggestion.permitted_claims = "evidence-backed product benefits, approved product capabilities"
         if not suggestion.blocked_words_phrases:
             suggestion.blocked_words_phrases = "guaranteed, risk-free, forever free"
 

@@ -100,6 +100,8 @@ const BrandReview = ({ brandId, form }: BrandTabProps) => {
                 { label: "Market Positioning", filled: Boolean(f.additional.marketPositioning) },
                 { label: "Business Problem / Opportunity", filled: Boolean(f.additional.businessProblemOrOpportunity) },
                 { label: "Brand Archetype", filled: Boolean(f.additional.brandArchetype) },
+                { label: "Business Model", filled: f.additional.businessModels.length > 0 },
+                { label: "Route to Market", filled: f.additional.routesToMarket.length > 0 },
             ],
         },
         {
@@ -120,7 +122,8 @@ const BrandReview = ({ brandId, form }: BrandTabProps) => {
             layer: "Persona Intelligence Layer",
             color: "blue",
             items: [
-                { label: "Audience Type", filled: f.targetAudience.selectedAudiences.length > 0 },
+                { label: "Audience Name", filled: f.targetAudience.selectedAudiences.some((audience) => Boolean(audience.trim())) },
+                { label: "Audience Type", filled: Boolean(f.targetAudience.audienceType) },
                 { label: "Goals", filled: Boolean(f.targetAudience.goals) },
                 { label: "Motivations", filled: Boolean(f.targetAudience.motivations) },
                 { label: "Fears & Pain Points", filled: Boolean(f.targetAudience.fearsAndPainPoints) },
@@ -224,7 +227,7 @@ const BrandReview = ({ brandId, form }: BrandTabProps) => {
 
             {overallPercent < 100 && (
                 <p className="text-center text-sm text-slate-500">
-                    Complete all sections to maximise AI generation quality for this brand.
+                    Complete all sections to maximize generation quality by Violyt, for this brand.
                 </p>
             )}
         </div>

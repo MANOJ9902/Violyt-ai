@@ -39,7 +39,18 @@ export const SENTENCE_LENGTH_OPTIONS = ["Short", "Medium", "Long", "Mixed"];
 
 export const PERSPECTIVE_OPTIONS = ["First-person", "Third-person", "Brand-as-human"];
 
-export const AUDIENCE_OPTIONS = [
+export const BUSINESS_MODEL_OPTIONS = ["B2B", "B2C", "B2B2C", "Other"];
+
+export const ROUTE_TO_MARKET_OPTIONS = [
+    "D2C",
+    "Retail",
+    "Marketplace",
+    "Distributor/Dealer",
+    "Partner-led",
+    "Direct Sales",
+    "Other",
+];
+export const STUDIO_AUDIENCE_OPTIONS = [
     "Marketing Leaders",
     "Founders",
     "Investors",
@@ -47,7 +58,6 @@ export const AUDIENCE_OPTIONS = [
     "Consumers",
     "CXOs",
 ];
-
 export const AUDIENCE_TYPE_OPTIONS = [
     "Consumer",
     "Professional"

@@ -322,6 +322,7 @@ class BrandProfileEmbedder:
             ("forbidden_prompt_patterns", "Forbidden Prompt Patterns"),
             ("restricted_topics", "Restricted Topics"),
             ("restricted_claims", "Restricted Claims"),
+            ("permitted_claims", "Permitted Claims"),
             ("blocked_words", "Blocked Words"),
             ("custom_rules", "Custom Rules"),
         ]:

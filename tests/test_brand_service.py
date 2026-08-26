@@ -134,6 +134,7 @@ async def test_upsert_guardrails_filters_section_only_metadata_for_orm_write() -
             "donts": ["Use slang"],
             "restricted_topics": ["Politics"],
             "restricted_claims": ["Guaranteed returns"],
+            "permitted_claims": ["Verified product benefits"],
             "blocked_words": ["best ever"],
             "custom_rules": ["Avoid hype claims"],
             "positive_word_bank_asset_ids": [str(uuid4())],
@@ -150,6 +151,7 @@ async def test_upsert_guardrails_filters_section_only_metadata_for_orm_write() -
     assert captured_section.payload["word_bank_assets"]["positive"][0]["name"] == "approved-words.pdf"
     assert captured_guardrail is not None
     assert captured_guardrail.positive_word_bank == ["clear", "confident"]
+    assert captured_guardrail.permitted_claims == ["Verified product benefits"]
     assert captured_guardrail.custom_rules == ["Avoid hype claims"]
     assert not hasattr(captured_guardrail, "positive_word_bank_asset_ids")
     assert not hasattr(captured_guardrail, "word_bank_assets")
@@ -200,12 +202,15 @@ def test_brand_space_updated_email_matches_required_copy() -> None:
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "member@violyt.ai"
-    assert subject == "Brand Space Updated"
+    assert subject == "Brand Space updated"
     assert "Hello Team Member," in text_body
     assert 'The Brand Space "Marketing Assets" has been updated.' in text_body
-    assert "latest changes will be applied to all future creative outputs" in text_body
-    assert "please sign in to Violyt" in text_body
+    assert "These changes will be reflected in all future creative outputs" in text_body
+    assert "To review the updated Brand Space details, please sign in to Violyt" in text_body
+    assert "maintain brand consistency across every output" in text_body
+    assert text_body.endswith("Regards,\nThe Violyt Team")
     assert 'The Brand Space "Marketing Assets" has been updated.' in html_body
+    assert "<p>Your updates will automatically be reflected" in html_body
 
 
 async def test_published_brand_space_update_email_recipients_include_all_super_users() -> None:

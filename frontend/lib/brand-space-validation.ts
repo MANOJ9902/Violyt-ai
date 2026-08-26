@@ -48,7 +48,18 @@ function getRequiredBrandFieldChecks(form: BrandFormState) {
 
   requireList("voice_tone", "Core Tone Attributes", form.voiceTone.coreToneAttributes);
 
-  requireList("target_audience", "Select Target Audience", form.targetAudience.selectedAudiences);
+  requireList("target_audience", "Audience Name", form.targetAudience.selectedAudiences.filter((audience) => hasText(audience)));
+
+  requireList("additional_details", "Business Model", form.additional.businessModels);
+  if (form.additional.businessModels.includes("Other")) {
+    requireText(
+      "additional_details",
+      "Other Business Model",
+      form.additional.businessModelDetails.Other || form.additional.businessModelOther,
+    );
+  }
+  requireList("additional_details", "Route to Market", form.additional.routesToMarket);
+
 
   requireList("visual_identity", "Logo Placement", form.visualIdentity.logoPlacements);
   checks.push({
@@ -62,6 +73,7 @@ function getRequiredBrandFieldChecks(form: BrandFormState) {
   requireText("brand_rules", "Positive Word Bank", form.brandRules.positiveWordBank);
   requireText("brand_rules", "Restricted Topics", form.brandRules.restrictedTopics);
   requireText("brand_rules", "Restricted Claims", form.brandRules.restrictedClaims);
+  requireText("brand_rules", "Permitted Claims", form.brandRules.permittedClaims);
   requireText("brand_rules", "Blocked Words / Phrases", form.brandRules.blockedWordsPhrases);
 
   return checks;

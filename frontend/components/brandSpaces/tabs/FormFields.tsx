@@ -35,6 +35,7 @@ import type { BrandUploadItem } from "@/types/brand-space.types";
 import { Label } from "@/components/ui/label";
 import { InformationTip } from "@/components/InformationTip";
 import Image from "next/image";
+import { GoogleDriveUploadButton } from "@/components/brandSpaces/GoogleDriveUploadButton";
 
 function AdvancedFieldsTipContent() {
     return (
@@ -89,6 +90,12 @@ type SingleUploadProps = {
     uploadLabel?: string;
     className?: string;
 };
+
+function filesToFileList(files: File[]) {
+    const transfer = new DataTransfer();
+    files.forEach((file) => transfer.items.add(file));
+    return transfer.files;
+}
 
 type FontPickerOption = {
     family: string;
@@ -327,6 +334,98 @@ export function StyledSelect({
     );
 }
 
+export function SearchableSelect({
+    value,
+    onValueChange,
+    placeholder,
+    searchPlaceholder,
+    emptyMessage,
+    options,
+    className,
+    clearable = true,
+}: {
+    value: string;
+    onValueChange: (value: string) => void;
+    placeholder: string;
+    searchPlaceholder: string;
+    emptyMessage: string;
+    options: readonly string[];
+    className?: string;
+    clearable?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const listId = useId();
+    const canClear = clearable && Boolean(value);
+
+    return (
+        <div className="relative w-full">
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        type="button"
+                        role="combobox"
+                        aria-expanded={open}
+                        aria-controls={listId}
+                        className={cn(
+                            "flex h-12 w-full cursor-pointer items-center justify-between rounded-xl border-none bg-input-field px-4 py-6 text-left text-sm shadow-none focus-visible:ring-2 focus-visible:ring-primary/20",
+                            canClear && "pr-16",
+                            className,
+                        )}
+                    >
+                        <span className={cn("truncate", value ? "text-[#2C2C2C]" : "text-[#A1A1AA]")}>{value || placeholder}</span>
+                        <ChevronDown className="h-4 w-4 text-slate-500" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                    align="start"
+                    className="w-[var(--radix-popover-trigger-width)] rounded-xl border border-[#E5E7EB] bg-white p-0 shadow-[0_18px_48px_-20px_rgba(15,23,42,0.35)]"
+                >
+                    <Command>
+                        <CommandInput placeholder={searchPlaceholder} />
+                        <CommandList id={listId} className="max-h-72">
+                            <CommandEmpty>{emptyMessage}</CommandEmpty>
+                            <CommandGroup>
+                                {options.map((option) => (
+                                    <CommandItem
+                                        key={option}
+                                        value={option}
+                                        onSelect={() => {
+                                            onValueChange(option);
+                                            setOpen(false);
+                                        }}
+                                    >
+                                        <Check className={cn("mr-2 h-4 w-4 text-primary", value === option ? "opacity-100" : "opacity-0")} />
+                                        {option}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
+            {canClear ? (
+                <button
+                    type="button"
+                    aria-label={`Clear ${placeholder}`}
+                    className="absolute right-9 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onValueChange("");
+                        setOpen(false);
+                    }}
+                >
+                    <X className="h-4 w-4" />
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
 export function CheckboxList({
     options,
     values,
@@ -395,6 +494,7 @@ export function FileUploadField({
                     <Upload className="mb-2 h-4 w-4" />
                     <span className="text-sm">{uploadLabel}</span>
                 </Button>
+                <GoogleDriveUploadButton acceptedFormats={acceptedFormats} multiple={false} onFiles={(files) => onChange(filesToFileList(files))} />
                 {item ? <UploadedFileCard item={item} onRemove={onRemove} /> : null}
             </div>
         </div>
@@ -459,6 +559,7 @@ export function FileUploadCollection({
                         </div>
                     ) : null}
                 </Button>
+                <GoogleDriveUploadButton acceptedFormats={acceptedFormats} multiple={multiple} onFiles={(files) => onAdd(filesToFileList(files))} />
                 {items.map((item) => (
                     <UploadedFileCard
                         key={item.id}

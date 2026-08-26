@@ -1,6 +1,10 @@
+import { ChevronDown, X } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+
 import {
+    AddMoreButton,
     AdvancedSectionTitle,
-    CheckboxList,
     FileUploadCollection,
     FormField,
     FormSection,
@@ -10,7 +14,6 @@ import {
     StyledTextarea,
 } from "./FormFields";
 import {
-    AUDIENCE_OPTIONS,
     AUDIENCE_TYPE_OPTIONS,
     DIGITAL_ACCESS_OPTIONS,
     EDUCATION_LEVEL_OPTIONS,
@@ -21,6 +24,7 @@ import {
     LOCATION_OPTIONS,
     PROFESSIONAL_BACKGROUND_OPTIONS,
 } from "@/lib/brand-space-options";
+import { GLOBAL_COUNTRIES, INDIAN_STATES_AND_UNION_TERRITORIES } from "@/lib/geography-options";
 import {
     createBrandUploadItem,
     updateBrandFormSection,
@@ -36,6 +40,7 @@ function hasMissingAdvancedFields(form: BrandTabProps["form"]) {
         form.targetAudience.contentConsumptionBehavior,
         form.targetAudience.audienceType,
         form.targetAudience.location,
+        ...(form.targetAudience.location ? [form.targetAudience.locationDetail] : []),
         form.targetAudience.educationLevel,
         form.targetAudience.employmentStatus,
         form.targetAudience.professionalBackground,
@@ -49,16 +54,44 @@ function hasMissingAdvancedFields(form: BrandTabProps["form"]) {
     return fields.some((value) => !String(value || "").trim()) || form.targetAudience.audienceInsights.length === 0;
 }
 const TargetAudience = ({ form, setForm, onRemoveUpload }: BrandTabProps) => {
+    const audienceNames = form.targetAudience.selectedAudiences.length
+        ? form.targetAudience.selectedAudiences
+        : [""];
+
+    const updateAudience = (index: number, value: string) => {
+        const selectedAudiences = [...audienceNames];
+        selectedAudiences[index] = value;
+        updateBrandFormSection(setForm, "targetAudience", "selectedAudiences", selectedAudiences);
+    };
+
+    const addAudience = () => {
+        updateBrandFormSection(setForm, "targetAudience", "selectedAudiences", [...audienceNames, ""]);
+    };
+
+    const removeAudience = (index: number) => {
+        updateBrandFormSection(
+            setForm,
+            "targetAudience",
+            "selectedAudiences",
+            audienceNames.filter((_, audienceIndex) => audienceIndex !== index),
+        );
+    };
     const updateField = <TKey extends keyof typeof form.targetAudience>(
         key: TKey,
         value: (typeof form.targetAudience)[TKey],
     ) => updateBrandFormSection(setForm, "targetAudience", key, value);
-
-    const toggleAudience = (value: string) => {
-        const nextValues = form.targetAudience.selectedAudiences.includes(value)
-            ? form.targetAudience.selectedAudiences.filter((item) => item !== value)
-            : [...form.targetAudience.selectedAudiences, value];
-        updateField("selectedAudiences", nextValues);
+    const [isLocationPanelOpen, setIsLocationPanelOpen] = useState(false);
+    const updateLocationMode = (value: string) => {
+        setForm((current) => ({
+            ...current,
+            targetAudience: {
+                ...current.targetAudience,
+                location: value,
+                locationDetail: current.targetAudience.location === value
+                    ? current.targetAudience.locationDetail
+                    : "",
+            },
+        }));
     };
 
     const addAudienceInsights = (files: FileList | null) => {
@@ -72,20 +105,42 @@ const TargetAudience = ({ form, setForm, onRemoveUpload }: BrandTabProps) => {
     };
 
     return (
-        <div className="space-y-8" >
-            <FormSubsection title="Select Target Audience" description="Capture the audience details that should condition generation and recommendations."
+        <div className="space-y-8">
+            <FormSubsection
+                title="Audience"
+                description="Who does your brand primarily communicate with?"
                 className="bg-[#E9E9E966] px-6 pb-6"
             >
-                <FormField label="Select Target Audience" required>
-                    <CheckboxList
-                        options={AUDIENCE_OPTIONS}
-                        values={form.targetAudience.selectedAudiences}
-                        onToggle={toggleAudience}
-                    />
-                </FormField>
+                <div className="space-y-3">
+                    {audienceNames.map((audienceName, index) => (
+                        <div key={`audience-${index}`} className="flex w-full items-center gap-2">
+                            <StyledInput
+                                placeholder="Audience Name"
+                                value={audienceName}
+                                onChange={(event) => updateAudience(index, event.target.value)}
+                                className="min-w-0 flex-1 bg-section-input-field"
+                            />
+                            {index > 0 ? (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    onClick={() => removeAudience(index)}
+                                    className="size-7 shrink-0 p-0 active:translate-y-0"
+                                    aria-label={`Remove audience ${index + 1}`}
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </Button>
+                            ) : (
+                                <span className="size-7 shrink-0" aria-hidden="true" />
+                            )}
+                        </div>
+                    ))}
+                    <div className="flex justify-end">
+                        <AddMoreButton onClick={addAudience} />
+                    </div>
+                </div>
             </FormSubsection>
-
-
             <FormSubsection title={<AdvancedSectionTitle showInfo={hasMissingAdvancedFields(form)} />} description="Optional fields to further refine your brand intelligence"
                 className="bg-[#E9E9E966] px-6 pb-6"
             >
@@ -171,15 +226,94 @@ const TargetAudience = ({ form, setForm, onRemoveUpload }: BrandTabProps) => {
               />
             </FormField> */}
                         <FormField label="Location/Region">
-                            <StyledSelect
-                                className="bg-section-input-field"
-                                value={form.targetAudience.location}
-                                onValueChange={(value) => updateField("location", value)}
-                                placeholder="Select location"
-                                options={LOCATION_OPTIONS}
-                            />
-                        </FormField>
-                        <FormField label="Education Level">
+                            <div className="overflow-hidden rounded-xl border border-[#E3E1F3] bg-white">
+                                <button
+                                    type="button"
+                                    className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#FAF9FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+                                    aria-expanded={isLocationPanelOpen}
+                                    aria-controls="location-region-panel"
+                                    onClick={() => setIsLocationPanelOpen((open) => !open)}
+                                >
+                                    <span className="min-w-0 truncate text-sm font-medium text-[#2C2C2C]">
+                                        {form.targetAudience.location
+                                            ? [form.targetAudience.location, form.targetAudience.locationDetail].filter(Boolean).join(" · ")
+                                            : "Choose location and region"}
+                                    </span>
+                                    <ChevronDown
+                                        className={isLocationPanelOpen
+                                            ? "h-4 w-4 shrink-0 rotate-180 text-primary transition-transform"
+                                            : "h-4 w-4 shrink-0 text-primary transition-transform"}
+                                        aria-hidden="true"
+                                    />
+                                </button>
+
+                                {isLocationPanelOpen ? (
+                                    <div id="location-region-panel" className="border-t border-[#EDEAFB]">
+                                        {LOCATION_OPTIONS.map((mode) => {
+                                            const isSelectedMode = form.targetAudience.location === mode;
+                                            const isGlobal = mode === "Global";
+                                            const options = isGlobal
+                                                ? GLOBAL_COUNTRIES
+                                                : INDIAN_STATES_AND_UNION_TERRITORIES;
+                                            const detailLabel = isGlobal ? "Countries" : "Indian States & Union Territories";
+
+                                            return (
+                                                <div key={mode} className={isGlobal ? "border-t border-[#EDEAFB]" : ""}>
+                                                    <label
+                                                        className={isSelectedMode
+                                                            ? "flex cursor-pointer items-center gap-2.5 bg-[#F8F6FF] px-4 py-3 text-sm font-medium text-primary transition"
+                                                            : "flex cursor-pointer items-center gap-2.5 px-4 py-3 text-sm text-[#4B4B4B] transition hover:bg-[#FBFAFF]"}
+                                                    >
+                                                        <input
+                                                            type="radio"
+                                                            name="location-mode"
+                                                            value={mode}
+                                                            checked={isSelectedMode}
+                                                            onChange={() => updateLocationMode(mode)}
+                                                            className="h-4 w-4 shrink-0 accent-primary"
+                                                        />
+                                                        {mode}
+                                                    </label>
+
+                                                    {isSelectedMode ? (
+                                                        <div className="border-t border-[#EEEAFB] bg-[#FCFBFF] px-3 py-2.5">
+                                                            <p className="px-1 pb-2 text-xs font-medium text-[#77708F]">{detailLabel}</p>
+                                                            <div
+                                                                role="radiogroup"
+                                                                aria-label={detailLabel}
+                                                                className="max-h-60 space-y-0.5 overflow-y-auto pr-1"
+                                                            >
+                                                                {options.map((option) => {
+                                                                    const isSelectedOption = form.targetAudience.locationDetail === option;
+                                                                    return (
+                                                                        <label
+                                                                            key={option}
+                                                                            className={isSelectedOption
+                                                                                ? "flex cursor-pointer items-center gap-2.5 rounded-lg bg-primary/10 px-2.5 py-2 text-sm font-medium text-primary transition"
+                                                                                : "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-[#4B4B4B] transition hover:bg-[#F4F1FF]"}
+                                                                        >
+                                                                            <input
+                                                                                type="radio"
+                                                                                name="location-detail"
+                                                                                value={option}
+                                                                                checked={isSelectedOption}
+                                                                                onChange={() => updateField("locationDetail", option)}
+                                                                                className="h-4 w-4 shrink-0 accent-primary"
+                                                                            />
+                                                                            <span className="min-w-0 break-words">{option}</span>
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : null}
+                            </div>
+                        </FormField>                        <FormField label="Education Level">
                             <StyledSelect
                                 className="bg-section-input-field"
                                 value={form.targetAudience.educationLevel}

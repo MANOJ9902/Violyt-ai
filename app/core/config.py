@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     pinecone_api_key: str | None = None
     pinecone_index_name: str = "brandlove"
     google_application_credentials: str | None = None
+    google_drive_client_id: str | None = None
+    google_drive_client_secret: str | None = None
+    google_drive_redirect_uri: str | None = None
     redis_url: str = "redis://localhost:6379/0"
     celery_broker_url: str = "redis://localhost:6379/0"
     pipeline_use_celery: bool = False
@@ -148,7 +151,7 @@ class Settings(BaseSettings):
     visual_grounding_require_quality_metadata: bool = False
 
     enable_demo_owner: bool = True
-    demo_owner_email: str = "owner@violyt.ai"
+    demo_owner_email: str = "admin@violyt.ai"
     demo_owner_password: str = "DemoPass123!"
     demo_owner_name: str = "Demo Platform Owner"
     platform_owner_two_factor_email_recipient: str | None = None

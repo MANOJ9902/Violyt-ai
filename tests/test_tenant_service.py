@@ -626,16 +626,18 @@ def test_password_changed_confirmation_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "member@violyt.ai"
-    assert subject == "Your Violyt Password Has Been Changed"
+    assert subject == "Your Violyt password has been changed"
     assert "Hello Team Member," in text_body
-    assert "This is a confirmation that the password for your Violyt account has been changed successfully." in text_body
+    assert "This is a confirmation that your Violyt account password has been changed successfully." in text_body
     assert "If you made this change, no further action is required." in text_body
     assert (
         "If you did not change your password, please contact your administrator immediately and "
-        "secure your account as soon as possible."
+        "take the necessary steps to secure your account."
     ) in text_body
-    assert "Regards,\nViolyt Team" in text_body
-    assert "This is a confirmation that the password for your Violyt account has been changed successfully." in html_body
+    assert "Your account security has been updated successfully, helping keep your Brand Spaces protected." in text_body
+    assert "Regards,\nThe Violyt Team" in text_body
+    assert "This is a confirmation that your Violyt account password has been changed successfully." in html_body
+    assert "<p>Your account security has been updated successfully" in html_body
 
 
 async def test_profile_change_password_sends_confirmation_email_to_requesting_scoped_user(monkeypatch):
@@ -689,7 +691,7 @@ async def test_profile_change_password_does_not_send_confirmation_email_to_platf
     monkeypatch.setattr(auth_service_module, "InAppNotificationService", DummyNotificationService)
     service = AuthService(DummySession())
     user = build_user(
-        email="owner@violyt.ai",
+        email="admin@violyt.ai",
         full_name="Platform Owner",
         hashed_password=hash_password("OldPass123!"),
     )
@@ -712,14 +714,14 @@ def test_two_factor_enabled_email_matches_security_copy():
         return_value=EmailDeliveryResult(
             attempted=True,
             delivered=True,
-            recipient_email="owner@violyt.ai",
+            recipient_email="admin@violyt.ai",
         )
     )
 
-    service.send_two_factor_security_email("owner@violyt.ai", "Platform Owner", enabled=True)
+    service.send_two_factor_security_email("admin@violyt.ai", "Platform Owner", enabled=True)
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
-    assert recipient_email == "owner@violyt.ai"
+    assert recipient_email == "admin@violyt.ai"
     assert subject == "Two-Factor Authentication Enabled"
     assert "Hello Platform Owner," in text_body
     assert "Two-factor authentication has been successfully enabled for your Violyt account." in text_body
@@ -739,14 +741,14 @@ def test_two_factor_disabled_email_matches_security_copy():
         return_value=EmailDeliveryResult(
             attempted=True,
             delivered=True,
-            recipient_email="owner@violyt.ai",
+            recipient_email="admin@violyt.ai",
         )
     )
 
-    service.send_two_factor_security_email("owner@violyt.ai", "Platform Owner", enabled=False)
+    service.send_two_factor_security_email("admin@violyt.ai", "Platform Owner", enabled=False)
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
-    assert recipient_email == "owner@violyt.ai"
+    assert recipient_email == "admin@violyt.ai"
     assert subject == "Two-Factor Authentication Disabled"
     assert "Hello Platform Owner," in text_body
     assert "Two-factor authentication has been disabled for your Violyt account." in text_body
@@ -764,7 +766,7 @@ def test_two_factor_security_email_is_platform_owner_only():
     service = AuthService(DummySession())
     service.email.settings = SimpleNamespace(platform_owner_two_factor_email_recipient=None)
     service.email.send_two_factor_security_email = Mock()
-    user = SimpleNamespace(email="owner@violyt.ai", full_name="Platform Owner")
+    user = SimpleNamespace(email="admin@violyt.ai", full_name="Platform Owner")
 
     service._send_platform_owner_two_factor_email(
         user,
@@ -779,7 +781,7 @@ def test_two_factor_security_email_is_platform_owner_only():
         actor_role_codes={RoleCode.SUPER_ADMIN.value},
     )
     service.email.send_two_factor_security_email.assert_called_once_with(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         enabled=True,
     )
@@ -791,7 +793,7 @@ def test_two_factor_security_email_uses_configured_platform_owner_recipient():
         platform_owner_two_factor_email_recipient="shruthimerine271@gmail.com"
     )
     service.email.send_two_factor_security_email = Mock()
-    user = SimpleNamespace(email="owner@violyt.ai", full_name="Platform Owner")
+    user = SimpleNamespace(email="admin@violyt.ai", full_name="Platform Owner")
 
     service._send_platform_owner_two_factor_email(
         user,
@@ -820,13 +822,14 @@ def test_account_deactivated_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "super-user@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Deactivated"
+    assert subject == "Your Violyt account has been deactivated"
     assert "Hello Super User," in text_body
-    assert "Your Violyt account has been deactivated by your Tenant Admin." in text_body
-    assert "You will no longer be able to access your account until it is reactivated." in text_body
-    assert "If you believe this was done in error, please contact your Tenant Administrator." in text_body
-    assert "Regards,\nViolyt Team" in text_body
-    assert "Your Violyt account has been deactivated by your Tenant Admin." in html_body
+    assert "Your Violyt account has been deactivated." in text_body
+    assert "You will no longer be able to sign in or access Violyt until your account is reactivated." in text_body
+    assert "If you believe this was done in error, please contact your administrator." in text_body
+    assert "Your Brand Spaces and brand knowledge remain secure while your account access is disabled." in text_body
+    assert "Regards,\nThe Violyt Team" in text_body
+    assert "<p>Your Brand Spaces and brand knowledge remain secure" in html_body
 
 
 def test_platform_owner_deactivated_tenant_admin_email_matches_required_copy():
@@ -847,11 +850,13 @@ def test_platform_owner_deactivated_tenant_admin_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "admin@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Deactivated"
+    assert subject == "Your Violyt account has been deactivated"
     assert "Hello Tenant Admin," in text_body
-    assert "Your Violyt account has been deactivated by the Platform Owner." in text_body
-    assert "If you believe this was done in error, please contact the Platform Owner." in text_body
-    assert "Your Violyt account has been deactivated by the Platform Owner." in html_body
+    assert "Your Violyt account has been deactivated." in text_body
+    assert "You will no longer be able to sign in or access Violyt until your account is reactivated." in text_body
+    assert "If you believe this was done in error, please contact your administrator." in text_body
+    assert "Your Brand Spaces and brand knowledge remain secure while your account access is disabled." in text_body
+    assert "<p>Your Brand Spaces and brand knowledge remain secure" in html_body
 
 
 def test_user_deactivated_confirmation_email_matches_required_copy():
@@ -885,12 +890,12 @@ def test_platform_owner_user_deactivated_email_matches_required_copy():
         return_value=EmailDeliveryResult(
             attempted=True,
             delivered=True,
-            recipient_email="owner@violyt.ai",
+            recipient_email="admin@violyt.ai",
         )
     )
 
     service.send_platform_owner_user_deactivated_email(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Shruthi",
         "Brand User",
@@ -899,7 +904,7 @@ def test_platform_owner_user_deactivated_email_matches_required_copy():
     )
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
-    assert recipient_email == "owner@violyt.ai"
+    assert recipient_email == "admin@violyt.ai"
     assert subject == "User Account Deactivated"
     assert "Hello Platform Owner," in text_body
     assert '"Shruthi" (Brand User) has been deactivated by Tenant Admin "Tenant Admin".' in text_body
@@ -913,19 +918,19 @@ def test_tenant_admin_deactivated_confirmation_email_matches_required_copy():
         return_value=EmailDeliveryResult(
             attempted=True,
             delivered=True,
-            recipient_email="owner@violyt.ai",
+            recipient_email="admin@violyt.ai",
         )
     )
 
     service.send_tenant_admin_deactivated_confirmation_email(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Tenant Admin",
         "Acme",
     )
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
-    assert recipient_email == "owner@violyt.ai"
+    assert recipient_email == "admin@violyt.ai"
     assert subject == "Tenant Admin Account Deactivated"
     assert "Hello Platform Owner," in text_body
     assert 'Tenant Admin "Tenant Admin" has been successfully deactivated.' in text_body
@@ -940,7 +945,7 @@ async def test_user_deactivation_emails_follow_tenant_admin_recipient_rules():
     service.email.send_platform_owner_user_deactivated_email = Mock()
     service.email.settings = SimpleNamespace(platform_owner_two_factor_email_recipient=None)
     actor = build_user(email="tenant-admin@violyt.ai", full_name="Tenant Admin")
-    owner = build_user(email="owner@violyt.ai", full_name="Platform Owner")
+    owner = build_user(email="admin@violyt.ai", full_name="Platform Owner")
     user = build_user(email="member@violyt.ai", full_name="Team Member", metadata_json={"email_notifications_enabled": False})
     tenant = build_tenant(name="Acme")
     service.users.get = AsyncMock(return_value=actor)
@@ -986,8 +991,8 @@ async def test_user_deactivation_emails_follow_tenant_admin_recipient_rules():
         call("tenant-admin@violyt.ai", "Tenant Admin", "Team Member", "Brand User"),
     ]
     assert service.email.send_platform_owner_user_deactivated_email.call_args_list == [
-        call("owner@violyt.ai", "Platform Owner", "Team Member", "Super User", "Tenant Admin", "Acme"),
-        call("owner@violyt.ai", "Platform Owner", "Team Member", "Brand User", "Tenant Admin", "Acme"),
+        call("admin@violyt.ai", "Platform Owner", "Team Member", "Super User", "Tenant Admin", "Acme"),
+        call("admin@violyt.ai", "Platform Owner", "Team Member", "Brand User", "Tenant Admin", "Acme"),
     ]
 
 
@@ -996,7 +1001,7 @@ async def test_user_deactivation_emails_follow_platform_owner_recipient_rules():
     service.email.send_account_deactivated_email = Mock()
     service.email.send_tenant_admin_deactivated_confirmation_email = Mock()
     service.email.settings = SimpleNamespace(platform_owner_two_factor_email_recipient=None)
-    actor = build_user(email="owner@violyt.ai", full_name="Platform Owner")
+    actor = build_user(email="admin@violyt.ai", full_name="Platform Owner")
     user = build_user(email="tenant-admin@violyt.ai", full_name="Tenant Admin")
     tenant = build_tenant(name="Acme")
     service.users.get = AsyncMock(return_value=actor)
@@ -1015,7 +1020,7 @@ async def test_user_deactivation_emails_follow_platform_owner_recipient_rules():
         deactivated_by_platform_owner=True,
     )
     service.email.send_tenant_admin_deactivated_confirmation_email.assert_called_once_with(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Tenant Admin",
         "Acme",
@@ -1037,7 +1042,7 @@ async def test_platform_owner_deactivation_confirmation_uses_actor_email_fallbac
         actor_role_codes={RoleCode.SUPER_ADMIN.value},
         target_role_code=RoleCode.TENANT_ADMIN.value,
         tenant=tenant,
-        actor_email="owner@violyt.ai",
+        actor_email="admin@violyt.ai",
     )
 
     service.email.send_account_deactivated_email.assert_called_once_with(
@@ -1046,7 +1051,7 @@ async def test_platform_owner_deactivation_confirmation_uses_actor_email_fallbac
         deactivated_by_platform_owner=True,
     )
     service.email.send_tenant_admin_deactivated_confirmation_email.assert_called_once_with(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Tenant Admin",
         "Acme",
@@ -1093,7 +1098,7 @@ async def test_account_status_platform_owner_confirmation_uses_configured_recipi
     service.email.settings = SimpleNamespace(
         platform_owner_two_factor_email_recipient="shruthimerine271@gmail.com"
     )
-    actor = build_user(email="owner@violyt.ai", full_name="Platform Owner")
+    actor = build_user(email="admin@violyt.ai", full_name="Platform Owner")
     user = build_user(email="tenant-admin@violyt.ai", full_name="Tenant Admin")
     tenant = build_tenant(name="Acme")
     service.users.get = AsyncMock(return_value=actor)
@@ -1128,12 +1133,13 @@ def test_account_reactivated_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "super-user@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Reactivated"
+    assert subject == "Your Violyt account has been reactivated"
     assert "Hello Super User," in text_body
-    assert "Your Violyt account has been reactivated by your Tenant Admin." in text_body
-    assert "You can now sign in and access your account again." in text_body
-    assert "Regards,\nViolyt Team" in text_body
-    assert "Your Violyt account has been reactivated by your Tenant Admin." in html_body
+    assert "Your Violyt account has been reactivated." in text_body
+    assert "You can now sign in and access Violyt again." in text_body
+    assert "Your access has been restored" in text_body
+    assert "Regards,\nThe Violyt Team" in text_body
+    assert "<p>Your access has been restored" in html_body
 
 
 def test_platform_owner_reactivated_tenant_admin_email_matches_required_copy():
@@ -1154,11 +1160,12 @@ def test_platform_owner_reactivated_tenant_admin_email_matches_required_copy():
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
     assert recipient_email == "admin@violyt.ai"
-    assert subject == "Your Violyt Account Has Been Reactivated"
+    assert subject == "Your Violyt account has been reactivated"
     assert "Hello Tenant Admin," in text_body
-    assert "Your Violyt account has been reactivated by the Platform Owner." in text_body
-    assert "You can now sign in and access your account again." in text_body
-    assert "Your Violyt account has been reactivated by the Platform Owner." in html_body
+    assert "Your Violyt account has been reactivated." in text_body
+    assert "You can now sign in and access Violyt again." in text_body
+    assert "Your access has been restored" in text_body
+    assert "<p>Your access has been restored" in html_body
 
 
 def test_user_reactivated_confirmation_email_matches_required_copy():
@@ -1192,12 +1199,12 @@ def test_platform_owner_user_reactivated_email_matches_required_copy():
         return_value=EmailDeliveryResult(
             attempted=True,
             delivered=True,
-            recipient_email="owner@violyt.ai",
+            recipient_email="admin@violyt.ai",
         )
     )
 
     service.send_platform_owner_user_reactivated_email(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Shruthi",
         "Brand User",
@@ -1206,7 +1213,7 @@ def test_platform_owner_user_reactivated_email_matches_required_copy():
     )
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
-    assert recipient_email == "owner@violyt.ai"
+    assert recipient_email == "admin@violyt.ai"
     assert subject == "User Account Reactivated"
     assert "Hello Platform Owner," in text_body
     assert '"Shruthi" (Brand User) has been reactivated by Tenant Admin "Tenant Admin".' in text_body
@@ -1220,19 +1227,19 @@ def test_tenant_admin_reactivated_confirmation_email_matches_required_copy():
         return_value=EmailDeliveryResult(
             attempted=True,
             delivered=True,
-            recipient_email="owner@violyt.ai",
+            recipient_email="admin@violyt.ai",
         )
     )
 
     service.send_tenant_admin_reactivated_confirmation_email(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Tenant Admin",
         "Acme",
     )
 
     recipient_email, subject, text_body, html_body = service._send_email.call_args.args
-    assert recipient_email == "owner@violyt.ai"
+    assert recipient_email == "admin@violyt.ai"
     assert subject == "Tenant Admin Account Reactivated"
     assert "Hello Platform Owner," in text_body
     assert 'Tenant Admin "Tenant Admin" has been successfully reactivated.' in text_body
@@ -1247,7 +1254,7 @@ async def test_user_reactivation_emails_follow_tenant_admin_recipient_rules():
     service.email.send_platform_owner_user_reactivated_email = Mock()
     service.email.settings = SimpleNamespace(platform_owner_two_factor_email_recipient=None)
     actor = build_user(email="tenant-admin@violyt.ai", full_name="Tenant Admin")
-    owner = build_user(email="owner@violyt.ai", full_name="Platform Owner")
+    owner = build_user(email="admin@violyt.ai", full_name="Platform Owner")
     user = build_user(email="member@violyt.ai", full_name="Team Member", metadata_json={"email_notifications_enabled": False})
     tenant = build_tenant(name="Acme")
     service.users.get = AsyncMock(return_value=actor)
@@ -1293,8 +1300,8 @@ async def test_user_reactivation_emails_follow_tenant_admin_recipient_rules():
         call("tenant-admin@violyt.ai", "Tenant Admin", "Team Member", "Brand User"),
     ]
     assert service.email.send_platform_owner_user_reactivated_email.call_args_list == [
-        call("owner@violyt.ai", "Platform Owner", "Team Member", "Super User", "Tenant Admin", "Acme"),
-        call("owner@violyt.ai", "Platform Owner", "Team Member", "Brand User", "Tenant Admin", "Acme"),
+        call("admin@violyt.ai", "Platform Owner", "Team Member", "Super User", "Tenant Admin", "Acme"),
+        call("admin@violyt.ai", "Platform Owner", "Team Member", "Brand User", "Tenant Admin", "Acme"),
     ]
 
 
@@ -1303,7 +1310,7 @@ async def test_user_reactivation_emails_follow_platform_owner_recipient_rules():
     service.email.send_account_reactivated_email = Mock()
     service.email.send_tenant_admin_reactivated_confirmation_email = Mock()
     service.email.settings = SimpleNamespace(platform_owner_two_factor_email_recipient=None)
-    actor = build_user(email="owner@violyt.ai", full_name="Platform Owner")
+    actor = build_user(email="admin@violyt.ai", full_name="Platform Owner")
     user = build_user(email="tenant-admin@violyt.ai", full_name="Tenant Admin")
     tenant = build_tenant(name="Acme")
     service.users.get = AsyncMock(return_value=actor)
@@ -1322,7 +1329,7 @@ async def test_user_reactivation_emails_follow_platform_owner_recipient_rules():
         reactivated_by_platform_owner=True,
     )
     service.email.send_tenant_admin_reactivated_confirmation_email.assert_called_once_with(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Tenant Admin",
         "Acme",
@@ -1344,7 +1351,7 @@ async def test_platform_owner_reactivation_confirmation_uses_actor_email_fallbac
         actor_role_codes={RoleCode.SUPER_ADMIN.value},
         target_role_code=RoleCode.TENANT_ADMIN.value,
         tenant=tenant,
-        actor_email="owner@violyt.ai",
+        actor_email="admin@violyt.ai",
     )
 
     service.email.send_account_reactivated_email.assert_called_once_with(
@@ -1353,7 +1360,7 @@ async def test_platform_owner_reactivation_confirmation_uses_actor_email_fallbac
         reactivated_by_platform_owner=True,
     )
     service.email.send_tenant_admin_reactivated_confirmation_email.assert_called_once_with(
-        "owner@violyt.ai",
+        "admin@violyt.ai",
         "Platform Owner",
         "Tenant Admin",
         "Acme",
@@ -1400,7 +1407,7 @@ async def test_reactivation_platform_owner_confirmation_uses_configured_recipien
     service.email.settings = SimpleNamespace(
         platform_owner_two_factor_email_recipient="shruthimerine271@gmail.com"
     )
-    actor = build_user(email="owner@violyt.ai", full_name="Platform Owner")
+    actor = build_user(email="admin@violyt.ai", full_name="Platform Owner")
     user = build_user(email="tenant-admin@violyt.ai", full_name="Tenant Admin")
     tenant = build_tenant(name="Acme")
     service.users.get = AsyncMock(return_value=actor)

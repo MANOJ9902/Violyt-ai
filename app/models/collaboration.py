@@ -97,6 +97,18 @@ class SocialConnection(UUIDPrimaryKeyMixin, TenantScopedMixin, BrandScopedMixin,
     is_connected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class GoogleDriveConnection(UUIDPrimaryKeyMixin, TenantScopedMixin, BrandScopedMixin, TimestampMixin, Base):
+    __tablename__ = "google_drive_connections"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "brand_space_id", "user_id", name="uq_google_drive_connection_scope"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    access_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scopes: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    is_connected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
 class AnalyticsSnapshot(UUIDPrimaryKeyMixin, TenantScopedMixin, BrandScopedMixin, TimestampMixin, Base):
     __tablename__ = "analytics"
 

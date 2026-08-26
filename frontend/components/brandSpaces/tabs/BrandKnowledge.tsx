@@ -11,6 +11,7 @@ import {
   updateBrandFormSection,
 } from "@/types/brand-space.types";
 import { FormSection } from "./FormFields";
+import { GoogleDriveUploadButton } from "@/components/brandSpaces/GoogleDriveUploadButton";
 import Image from "next/image";
 
 const KNOWLEDGE_UPLOAD_FORMATS = "PDF, JPG, PNG, DOCX, PPT, PPTX, JPEG, TXT";
@@ -78,7 +79,7 @@ function KnowledgeUploadField({ label, items, onAddItems, onRemove }: KnowledgeU
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const addPendingFiles = (files: FileList | null) => {
+  const addPendingFiles = (files: FileList | File[] | null) => {
     if (!files?.length) {
       return;
     }
@@ -190,6 +191,7 @@ function KnowledgeUploadField({ label, items, onAddItems, onRemove }: KnowledgeU
           <UploadCloud className="mb-2 h-4 w-4" />
           Upload
         </Button>
+        <GoogleDriveUploadButton acceptedFormats={KNOWLEDGE_UPLOAD_FORMATS} onFiles={(files) => { addPendingFiles(files); setIsOpen(true); }} />
         {items.map((item) => (
           <KnowledgeUploadedFileCard key={item.id} item={item} onRemove={() => onRemove(item.id)} />
         ))}

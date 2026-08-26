@@ -27,8 +27,12 @@ class BrandIdentityPayload(APIModel):
 
 
 class BrandFoundationsPayload(APIModel):
-    # Shared schema for brand foundations; it keeps route payloads, service data, and serialized responses
-    # aligned.
+    # Shared schema for Brand Foundations configuration.
+    business_models: list[str] = Field(default_factory=list)
+    business_model_details: dict[str, str] = Field(default_factory=dict)
+    business_model_other: str | None = None
+    routes_to_market: list[str] = Field(default_factory=list)
+    routes_to_market_details: dict[str, str] = Field(default_factory=dict)
     brand_mission: str | None = None
     brand_vision: str | None = None
     brand_promise: str | None = None
@@ -79,6 +83,7 @@ class GuardrailPayload(APIModel):
     forbidden_prompt_patterns: list[str] = Field(default_factory=list)
     restricted_topics: list[str] = Field(default_factory=list)
     restricted_claims: list[str] = Field(default_factory=list)
+    permitted_claims: list[str] = Field(default_factory=list)
     blocked_words: list[str] = Field(default_factory=list)
     custom_rules: list[str] = Field(default_factory=list)
     positive_word_bank_asset_ids: list[UUID] = Field(default_factory=list)
@@ -211,6 +216,17 @@ class BrandSectionsUpsertRequest(APIModel):
     sections: list[BrandSectionUpsertRequest] = Field(default_factory=list)
 
 
+class BrandTemplateFieldValue(APIModel):
+    key: str
+    value: str | list[str] | dict[str, int] | list[dict[str, str]]
+    field_type: str
+
+
+class BrandTemplateImportResponse(APIModel):
+    fields: list[BrandTemplateFieldValue]
+    imported_field_count: int
+
+
 class BrandCreateRequest(APIModel):
     # Request contract for brand create; FastAPI validates incoming JSON against these fields before service
     # code runs.
@@ -304,6 +320,11 @@ class BrandAutofillResponse(APIModel):
     sentence_length: str = ""
     perspective: str = ""
     selected_audiences: list[str] = Field(default_factory=list)
+    business_models: list[str] = Field(default_factory=list)
+    business_model_details: dict[str, str] = Field(default_factory=dict)
+    business_model_other: str = ""
+    routes_to_market: list[str] = Field(default_factory=list)
+    routes_to_market_details: dict[str, str] = Field(default_factory=dict)
     audience_goals: str = ""
     audience_motivations: str = ""
     audience_fears: str = ""
@@ -318,6 +339,7 @@ class BrandAutofillResponse(APIModel):
     positive_word_bank: str = ""
     restricted_topics: str = ""
     restricted_claims: str = ""
+    permitted_claims: str = ""
     blocked_words_phrases: str = ""
     brand_mission: str = ""
     brand_vision: str = ""

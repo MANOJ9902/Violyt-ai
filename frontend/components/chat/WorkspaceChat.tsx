@@ -79,7 +79,7 @@ import {
 } from "@/lib/generation-decision";
 import { FormField, StyledInput, StyledSelect } from "../brandSpaces/tabs/FormFields";
 import Image from "next/image";
-import { AUDIENCE_OPTIONS } from "@/lib/brand-space-options";
+import { STUDIO_AUDIENCE_OPTIONS } from "@/lib/brand-space-options";
 import { Label } from "../ui/label";
 import { Tooltips } from "../Tooltip";
 
@@ -865,8 +865,8 @@ function resolveBrandAudienceOptions(context: Record<string, unknown>) {
         ...readStringArray(identity.audience_type),
         ...(typeof identity.audience_type === "string" ? [identity.audience_type] : []),
     ];
-    const uniqueAudiences = Array.from(new Set(selectedAudiences.filter((item) => AUDIENCE_OPTIONS.includes(item))));
-    return uniqueAudiences.length ? uniqueAudiences : AUDIENCE_OPTIONS;
+    const uniqueAudiences = Array.from(new Set(selectedAudiences.filter((item) => STUDIO_AUDIENCE_OPTIONS.includes(item))));
+    return uniqueAudiences.length ? uniqueAudiences : STUDIO_AUDIENCE_OPTIONS;
 }
 
 function getTemplatePreviewUrl(recommendation: TemplateRecommendationResponse) {
@@ -2310,6 +2310,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     );
     const brandLifecycle = brand?.lifecycle_state || "draft";
     const canGenerateInWorkspace = brandLifecycle === "active";
+    const hasRequiredStudioSettings = Boolean(campaignGoal.trim() && studioTargetAudience.trim());
     const generationOwnerSessionId = activeGenerationSessionRef.current;
     const generationBelongsToActiveSession =
         !generationOwnerSessionId || generationOwnerSessionId === resolvedActiveSessionId;
@@ -2844,6 +2845,12 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
             runPipeline.isPending ||
             approveBlueprint.isPending
         ) {
+            return;
+        }
+        if (!hasRequiredStudioSettings) {
+            toast({
+                title: "Please complete the required Studio settings before generating.",
+            });
             return;
         }
         if (!message.trim()) {
@@ -3707,7 +3714,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                             <div className="flex items-center gap-5">
                                                 <Image src="/logo.svg" alt="Violyt Icon" width={40} height={40} className="" />
                                                 <h2 className="font-dmSans text-2xl md:text-3xl xl:text-4xl font-medium tracking-normal text-[#121212]">
-                                                    Welcome back, {currentUser?.name || "there"} {"\u{1F44B}"}
+                                                    Welcome {currentUser?.name || "there"} {"\u{1F44B}"}
                                                 </h2>
                                             </div>
                                             <p className="mt-3 text-center text-sm text-[#5F6068]">

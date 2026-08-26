@@ -26,13 +26,12 @@ const CoreBrandSignals = ({ brandId, form, setForm, onRemoveUpload }: BrandTabPr
         if (!files?.length) {
             return;
         }
-        const [file] = Array.from(files);
-        if (!file) {
-            return;
-        }
-        const nextLogos = [createBrandUploadItem(file)];
+        const nextLogos = [
+            ...logoItems,
+            ...Array.from(files).map((file) => createBrandUploadItem(file)),
+        ];
         updateField("logos", nextLogos);
-        updateField("logo", nextLogos[0] || null);
+        updateField("logo", form.core.logo || nextLogos[0] || null);
     };
 
     return (
@@ -43,7 +42,6 @@ const CoreBrandSignals = ({ brandId, form, setForm, onRemoveUpload }: BrandTabPr
                 bgColor="bg-[#FFFFFF]"
                 items={logoItems}
                 onAdd={addLogos}
-                multiple={false}
                 required
                 onRemove={(itemId) => {
                     if (onRemoveUpload) {

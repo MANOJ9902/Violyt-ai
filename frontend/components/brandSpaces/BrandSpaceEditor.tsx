@@ -8,11 +8,13 @@ import {
     AlertCircle,
     CheckCircle2,
     Clock3,
+    Download,
     Eye,
     FileText,
     Loader2,
     RefreshCw,
     Sparkles,
+    Upload,
     Unplug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,8 +43,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeading } from "@/components/common/DesignPrimitives";
 import { InformationTip } from "@/components/InformationTip";
 import { BrandSpaceHistoryDrawer } from "@/components/brandSpaces/BrandSpaceHistoryDrawer";
-import type { BrandAttachmentResponse, BrandResponse, ValidationSummaryResponse } from "@/lib/api/contracts";
+import { BrandSpaceDriveUploadProvider } from "@/components/brandSpaces/GoogleDriveUploadButton";
+import type { BrandAttachmentResponse, BrandResponse, BrandTemplateImportResponse, ValidationSummaryResponse } from "@/lib/api/contracts";
 import { API } from "@/lib/api/endpoints";
+import { apiClient } from "@/lib/api/client";
 import { request } from "@/lib/api/request";
 import { buildBrandChatHref, buildBrandWorkspaceHref } from "@/lib/brand-routing";
 import { brandSpaceTabs } from "@/lib/brandSpace";
@@ -63,6 +67,7 @@ import {
     type UploadedBrandAssets,
 } from "@/lib/brand-space-persistence";
 import { mapBrandFormToCreateRequest, mapBrandSections } from "@/lib/brand-mappers";
+import { applyBrandSpaceTemplateFields } from "@/lib/brand-space-template";
 import { cn } from "@/lib/utils";
 import { useAutofillBrandFromKnowledge, useBrands, useCreateBrand } from "@/hooks/useBrands";
 import { useChatSessions } from "@/hooks/useContentWorkspace";
@@ -773,6 +778,8 @@ export default function BrandSpaceEditor({
     const [editConfirmationOpen, setEditConfirmationOpen] = useState(false);
     const [capacityRows, setCapacityRows] = useState<CapacityUsageRow[]>([]);
     const [capacityError, setCapacityError] = useState<string | null>(null);
+    const [isTemplateImporting, setIsTemplateImporting] = useState(false);
+    const templateInputRef = useRef<HTMLInputElement>(null);
     const formRef = useRef(form);
     const readOnlySetForm = useMemo(() => (() => undefined) as typeof setForm, []);
 
@@ -946,6 +953,7 @@ export default function BrandSpaceEditor({
         () => uploadStatusItems.some((item) => normalizeUploadState(item.lifecycleState) === "selected"),
         [uploadStatusItems],
     );
+    const canUseBrandSpaceTemplates = currentUser?.role === "TENANT_ADMIN";
     const canOpenWorkspace = Boolean(effectiveBrandId) && brandLifecycleState === "active";
     const canShowHistoryButton =
         Boolean(effectiveBrandId) &&
@@ -992,6 +1000,75 @@ export default function BrandSpaceEditor({
             description,
             variant: "destructive",
         });
+    };
+
+    const handleTemplateDownload = async () => {
+        if (!effectiveBrandId) {
+            showWarningToast("Save a draft first", "Create or save the Brand Space before downloading its template.");
+            return;
+        }
+
+        try {
+            const endpoint = API.BRANDS.TEMPLATE_DOWNLOAD.url;
+            const url = typeof endpoint === "function" ? endpoint(effectiveBrandId) : endpoint;
+            const response = await apiClient.get<Blob>(url, { responseType: "blob" });
+            const objectUrl = window.URL.createObjectURL(response.data);
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = "brand-space-template.docx";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+            const detail = axios.isAxiosError(error)
+                ? error.response?.data?.detail || error.message
+                : error instanceof Error
+                    ? error.message
+                    : "Unable to download the Brand Space template.";
+            showErrorToast("Template download failed", String(detail));
+        }
+    };
+
+    const handleTemplateUpload = async (file: File | null) => {
+        if (!file || !effectiveBrandId || isReadOnly) {
+            return;
+        }
+        if (!file.name.toLowerCase().endsWith(".docx")) {
+            showWarningToast("Upload a Word document", "Choose the completed .docx Brand Space template.");
+            return;
+        }
+
+        setIsTemplateImporting(true);
+        try {
+            const data = new FormData();
+            data.append("file", file);
+            const response = await request<FormData, BrandTemplateImportResponse>(API.BRANDS.TEMPLATE_UPLOAD, {
+                pathParams: effectiveBrandId,
+                data,
+            });
+            setForm((current) => {
+                const next = applyBrandSpaceTemplateFields(current, response.fields);
+                formRef.current = next;
+                return next;
+            });
+            showSuccessToast(
+                "Template values imported",
+                response.imported_field_count + " field(s) were populated. Save changes to persist them.",
+            );
+        } catch (error) {
+            const detail = axios.isAxiosError(error)
+                ? error.response?.data?.detail || error.message
+                : error instanceof Error
+                    ? error.message
+                    : "Unable to import the Brand Space template.";
+            showErrorToast("Template import failed", String(detail));
+        } finally {
+            setIsTemplateImporting(false);
+            if (templateInputRef.current) {
+                templateInputRef.current.value = "";
+            }
+        }
     };
 
     const validateRequiredFieldsForPublish = () => {
@@ -1395,7 +1472,11 @@ export default function BrandSpaceEditor({
                     pathParams: currentBrand.id,
                 });
                 showSuccessToast(
-                    intent === "draft" ? "Draft saved" : "Brand Space changes saved",
+                    intent === "draft"
+                        ? "Draft saved"
+                        : isFirstSaveForBrand
+                            ? "Brand Space Created"
+                            : `Changes saved to "${currentBrand.name}".`,
                     intent === "draft"
                         ? "You can keep editing, add more documents, or publish when you are ready."
                         : undefined,
@@ -1684,6 +1765,7 @@ export default function BrandSpaceEditor({
     };
 
     return (
+        <BrandSpaceDriveUploadProvider brandId={effectiveBrandId || undefined} disabled={isReadOnly}>
         <div className="container space-y-6">
             <PageHeading
                 title={
@@ -1806,7 +1888,7 @@ export default function BrandSpaceEditor({
 
             {canOpenWorkspace && hasPendingUploadItems ? (
                 <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-primary">
-                    This Brand Space is already active. File processing is still running in the background, so you can leave this page and come back later to check status.
+                    This Brand Space is active. File processing is still running in the background You can leave this page and check the status later.
                 </div>
             ) : null}
 
@@ -1858,6 +1940,58 @@ export default function BrandSpaceEditor({
                                 forceMount
                                 className={cn("w-full", !isActive && "hidden")}
                             >
+                                {isActive && canUseBrandSpaceTemplates ? (
+                                    <section className="mb-5 rounded-lg border border-primary/10 bg-primary/[0.04] px-4 py-4 sm:px-5">
+                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                            <div className="min-w-0 max-w-2xl">
+                                                <h2 className="text-base font-semibold text-slate-800">Violyt Brand Intelligence Template</h2>
+                                                <p className="mt-1 text-sm leading-5 text-slate-600">
+                                                    Prefer working offline? Download the template, complete your brand information, and upload it here. Violyt will use it to build your Brand Space intelligence.
+                                                </p>
+                                                {!effectiveBrandId ? (
+                                                    <p className="mt-1 text-xs text-slate-500">
+                                                        Save this Brand Space as a draft first to enable the template actions.
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={!effectiveBrandId}
+                                                    onClick={() => void handleTemplateDownload()}
+                                                    className="h-8 gap-1.5 border-slate-300 px-3 text-xs"
+                                                >
+                                                    <Download className="h-3.5 w-3.5" />
+                                                    <span>Download Template</span>
+                                                </Button>
+                                                {!isReadOnly ? (
+                                                    <>
+                                                        <input
+                                                            ref={templateInputRef}
+                                                            type="file"
+                                                            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                                            className="hidden"
+                                                            onChange={(event) => void handleTemplateUpload(event.target.files?.[0] || null)}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={!effectiveBrandId || isTemplateImporting || isSubmitting}
+                                                            onClick={() => templateInputRef.current?.click()}
+                                                            className="h-8 gap-1.5 border-primary/30 px-3 text-xs text-primary hover:bg-primary/10"
+                                                        >
+                                                            {isTemplateImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                                                            <span>{isTemplateImporting ? "Importing..." : "Upload Template"}</span>
+                                                        </Button>
+                                                    </>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    </section>
+                                ) : null}
                                 <fieldset
                                     disabled={isReadOnly}
                                     className={cn(isReadOnly ? "pointer-events-none opacity-95" : "")}
@@ -1886,7 +2020,6 @@ export default function BrandSpaceEditor({
                     onRemove={handleRemoveUpload}
                 />
             ) : null}
-
 
             {submissionPhase ? (
                 <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-primary">
@@ -2002,5 +2135,6 @@ export default function BrandSpaceEditor({
                 Violyt suggestions may need review. Verify accuracy before use.
             </p> */}
         </div>
+        </BrandSpaceDriveUploadProvider>
     );
 }
