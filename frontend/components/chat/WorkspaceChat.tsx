@@ -3091,7 +3091,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                     {
                         layer_latencies: current.layerLatencies,
                         token_usage: current.tokenUsage,
-                        evaluation: current.evaluation,
+                        evaluation: current.evaluation ?? undefined,
                         total_cost_usd: current.totalCostUsd,
                     },
                     phase2,
