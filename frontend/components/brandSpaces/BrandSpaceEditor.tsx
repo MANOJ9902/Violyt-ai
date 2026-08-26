@@ -1369,6 +1369,7 @@ export default function BrandSpaceEditor({
 
         try {
             let formSnapshot = formRef.current;
+            const isFirstSaveForBrand = mode !== "edit" && !draftBrandId;
             const currentBrand = await ensureBrand();
             setDraftBrand(currentBrand);
             setDraftBrandId(currentBrand.id);
