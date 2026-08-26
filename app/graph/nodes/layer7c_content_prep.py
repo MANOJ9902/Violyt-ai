@@ -72,6 +72,7 @@ def _normalize_blueprint_fields(
     fmt: str,
     platform: str,
     layout_type: str,
+    user_prompt: str = "",
 ) -> CreativeBlueprint:
     output.format = fmt  # type: ignore[assignment]
     output.platform = platform
@@ -115,6 +116,12 @@ def _normalize_blueprint_fields(
                         body=str(text),
                     )
                 )
+        # Fail closed: a carousel with fewer than 4 slides is the Round-3 P0 bug.
+        if len(output.slides) < 4:
+            raise ValueError(
+                f"Carousel requires at least 4 slides; blueprint only has "
+                f"{len(output.slides)}. Re-run Phase 1 or add slides before generate."
+            )
 
     if fmt in ("infographic", "static") and not output.sections and copy.infographic_sections:
         from app.graph.models.layer7c_models import BlueprintInfographicSection
@@ -129,6 +136,52 @@ def _normalize_blueprint_fields(
             )
             for s in copy.infographic_sections
         ]
+
+    # If the LLM generated slides for an infographic prompt (because
+    # layout_type="carousel_story" is shared with education posters), convert
+    # those slides to sections so the infographic render path is used.
+    # Do NOT convert when the user asked for a carousel — keep slides intact.
+    from app.services.pipeline.format_resolution import detect_prompt_format
+
+    prompt_fmt = detect_prompt_format(user_prompt)
+    prompt_asks_carousel = prompt_fmt == "carousel"
+    if (
+        fmt == "infographic"
+        and not prompt_asks_carousel
+        and not output.sections
+        and output.slides
+    ):
+        from app.graph.models.layer7c_models import BlueprintInfographicSection
+
+        output.sections = [
+            BlueprintInfographicSection(
+                section_label=(slide.headline or "")[:80],
+                stat="",
+                includes=[],
+                body=slide.body or slide.supporting_line or "",
+                icon_hint="",
+            )
+            for slide in output.slides
+        ]
+        output.slides = []
+    elif fmt == "static" and prompt_asks_carousel and output.slides:
+        # Prompt said carousel but studio left Static — keep slides; format will be
+        # corrected upstream. Never collapse into a one-poster section list.
+        pass
+    elif fmt == "static" and not output.sections and output.slides and not prompt_asks_carousel:
+        from app.graph.models.layer7c_models import BlueprintInfographicSection
+
+        output.sections = [
+            BlueprintInfographicSection(
+                section_label=(slide.headline or "")[:80],
+                stat="",
+                includes=[],
+                body=slide.body or slide.supporting_line or "",
+                icon_hint="",
+            )
+            for slide in output.slides
+        ]
+        output.slides = []
 
     if not output.headline:
         output.headline = copy.headline
@@ -171,6 +224,12 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
     fmt = str(state.get("format", "static") or "static").strip().lower()
     if fmt not in ("static", "carousel", "infographic"):
         fmt = "static"
+    # Align with runner: leftover Static upgrades when the prompt names a format.
+    from app.services.pipeline.format_resolution import resolve_pipeline_format
+
+    resolved = resolve_pipeline_format(studio_format=fmt, user_prompt=user_prompt)
+    fmt = resolved.format
+    format_warning = resolved.warning or str(state.get("format_warning") or "")
 
     layout = classify_layout(user_prompt, fmt)
     run_id = str(state.get("run_id") or "")
@@ -185,6 +244,25 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
 
     brand_name = (brand_intelligence.brand_core.brand_name or "").strip()
     visual_pack = state.get("visual_pack") or {}
+    brand_audience = ""
+    try:
+        audience_model = getattr(brand_intelligence, "audience_model", None)
+        if audience_model is not None:
+            brand_audience = str(
+                getattr(audience_model, "primary_persona", None)
+                or getattr(audience_model, "summary", None)
+                or getattr(audience_model, "persona_name", None)
+                or ""
+            ).strip()
+            if not brand_audience and isinstance(audience_model, dict):
+                brand_audience = str(
+                    audience_model.get("primary_persona")
+                    or audience_model.get("summary")
+                    or audience_model.get("persona_name")
+                    or ""
+                ).strip()
+    except Exception:
+        brand_audience = ""
     system = _prompt_builder.build_system(
         format_name=fmt,
         user_prompt=user_prompt,
@@ -258,6 +336,7 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
             fmt=fmt,
             platform=platform,
             layout_type=layout.layout_type,
+            user_prompt=user_prompt,
         )
         draft = finalize_blueprint_for_card(
             draft,
@@ -265,6 +344,7 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
             user_prompt=user_prompt,
             live_research=live_research,
             content_intelligence=content_intelligence,
+            brand_audience=brand_audience or None,
         )
 
         last_scores = score_blueprint_editorial_qa(
@@ -315,6 +395,7 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
             user_prompt=user_prompt,
             live_research=live_research,
             content_intelligence=content_intelligence,
+            brand_audience=brand_audience or None,
         )
     except Exception as exc:
         logger.warning("content_prep.proofread_failed", error=str(exc))
@@ -332,6 +413,8 @@ async def layer7c_content_prep(state: ViolytState) -> dict:
 
     return {
         "creative_blueprint": output,
+        "format": fmt,
+        "format_warning": format_warning,
         "layer_latencies": {"l7c_content_prep": total_latency},
         "token_usage": {
             "l7c_content_prep": {

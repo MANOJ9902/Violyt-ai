@@ -84,7 +84,13 @@ class ChatService:
     }
     VISUAL_FOLLOW_UP_REFERENCE_PATTERN = re.compile(
         r"\b(?:make|turn|convert|repurpose|use|reuse|revise|rewrite|edit|change|rework|improve)\s+(?:it|this|that)\b"
-        r"|\b(?:this|that|same|previous|earlier|last)\s+(?:one|creative|design|post|layout|format|version|carousel|slide)\b",
+        r"|\b(?:this|that|same|previous|earlier|last)\s+(?:one|creative|design|post|layout|format|version|carousel|slide)\b"
+        r"|\badd\s+(?:numbers?|stats?|statistics|data|figures?|metrics?|proof\s+points?)\b",
+        re.IGNORECASE,
+    )
+    STATS_FOLLOW_UP_PATTERN = re.compile(
+        r"\b(?:add|include|insert|put)\s+(?:more\s+)?(?:numbers?|stats?|statistics|data(?:\s+points?)?|figures?|metrics?)\b"
+        r"|\b(?:more|extra)\s+(?:numbers?|stats?|data)\b",
         re.IGNORECASE,
     )
     FRESH_VISUAL_PROMPT_PATTERN = re.compile(
@@ -773,11 +779,32 @@ class ChatService:
                     )
                     self._raise_if_generation_cancelled(tenant_id, brand_space_id, session_id)
                     instruction_prompt = workflow_context.prompt if workflow_context else payload.message
+                    revision_scope = dict(intent.revision_scope or {}) if isinstance(intent.revision_scope, dict) else {}
+                    if self.STATS_FOLLOW_UP_PATTERN.search(instruction_prompt):
+                        # "Add numbers/stats" = revise previous creative in place.
+                        intent.uses_previous_output = True
+                        revision_scope.update(
+                            {
+                                "only_targeted": True,
+                                "preserve_visuals": True,
+                                "targeted_fields": list(
+                                    {
+                                        *(revision_scope.get("targeted_fields") or []),
+                                        "stat_highlights",
+                                        "proof_points",
+                                        "body",
+                                    }
+                                ),
+                            }
+                        )
+                        intent.revision_scope = revision_scope
                     should_treat_as_fresh_generation = self._looks_like_distinct_new_visual_topic(
                         previous_content,
                         instruction_prompt,
                         revision_scope=intent.revision_scope,
                     )
+                    if should_treat_as_fresh_generation and self.STATS_FOLLOW_UP_PATTERN.search(instruction_prompt):
+                        should_treat_as_fresh_generation = False
                     if should_treat_as_fresh_generation:
                         logger.info(
                             "chat.send_message.visual_follow_up_reset_to_new_topic session_id=%s previous_content_version_id=%s studio_format=%s file_type=%s",
@@ -1784,6 +1811,12 @@ class ChatService:
         if has_slide_targets:
             return False
         if bool(revision_scope.get("preserve_visuals")) or bool(revision_scope.get("preserve_copy")):
+            return False
+        # Stats/numbers-only edits should rewrite copy in place, not spawn a new creative.
+        stats_only = targeted_fields and targeted_fields.issubset(
+            {"stat_highlights", "proof_points", "sections", "numbers", "stats", "body", "headline"}
+        )
+        if stats_only and bool(revision_scope.get("only_targeted")):
             return False
         if targeted_fields and targeted_fields.issubset({"cta", "hashtags"}):
             return False

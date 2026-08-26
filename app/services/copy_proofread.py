@@ -65,6 +65,14 @@ _DETERMINISTIC_FIXES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bCONUTY\b", re.I), "Country"),
     (re.compile(r"\binvestmet\b", re.I), "investment"),
     (re.compile(r"\bgrewth\b", re.I), "growth"),
+    (re.compile(r"\bgiobal\b", re.I), "global"),
+    (re.compile(r"\bexplaing\b", re.I), "explaining"),
+    (re.compile(r"\bwny\b", re.I), "why"),
+    (re.compile(r"\bdominancein\b", re.I), "dominance in"),
+    (re.compile(r"\bdrven\b", re.I), "driven"),
+    (re.compile(r"\bopportunitites\b", re.I), "opportunities"),
+    (re.compile(r"\bliqudity\b", re.I), "liquidity"),
+    (re.compile(r"\binvoicng\b", re.I), "invoicing"),
 ]
 
 

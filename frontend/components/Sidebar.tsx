@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Edit2, FolderOpen, MoreVertical, PlusCircle, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSidebar } from "@/context/SidebarContext";
@@ -299,7 +299,10 @@ const defaultStudioPanel = {
     size: { width: 1080, height: 1080 },
 };
 
-function BrandChatGroup({
+// Memoized so switching the selected brand doesn't force every other brand's chat-session group to
+// re-render (each mounts its own useChatSessions query) — this was a large part of the reported lag
+// when toggling between brands in the sidebar.
+const BrandChatGroup = memo(function BrandChatGroup({
     brand,
     activeChatId,
     isCurrentBrand,
@@ -522,4 +525,4 @@ function BrandChatGroup({
             </AlertDialog>
         </div>
     );
-}
+});

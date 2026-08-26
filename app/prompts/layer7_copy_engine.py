@@ -406,7 +406,7 @@ Verified Facts:
 Source article is useful — EXTRACT concrete mechanisms, numbers, and conditions into the deck.
 Each carousel slide should teach ONE insight in PLAIN RETAIL LANGUAGE (how it works / why it matters /
 what to watch) — same tone as static/infographic samples. Do NOT use policy jargon or vague lines
-like "Connect the Dots". Translate research into short ₹/% sentences a retail investor gets in 3 seconds.
+like "Connect the Dots". Translate research into short sentences THIS brand's audience gets in 3 seconds.
 """
 
         return f"""BRAND SIGNAL CONTEXT:

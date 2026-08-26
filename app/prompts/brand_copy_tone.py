@@ -59,16 +59,20 @@ ICON STYLE LOCK (NON-NEGOTIABLE — ULTRA-PREMIUM HD 3D, premium editorial quali
 - NOT low-poly. NOT flat clipart. NOT cheap toy blobs. NOT washed-out soft mush. NOT neon/chrome AI junk.
 - NOT blurry, NOT out-of-focus, NOT low-res — icons must read crisp at 100% zoom.
 - Soft keyed studio lighting (top-left key + gentle fill); deep soft contact shadows; clear depth.
-- TOPIC LOCK: choose objects from the user's topic ONLY.
-  Examples:
+- TOPIC LOCK: choose objects from the user's topic and THIS brand's category ONLY.
+  Examples (pick only when the topic matches — never default to finance DNA):
   * capital controls / policy -> gate, lock, shield, arrows, document, currency flow
   * trade deficit / imports-exports -> bars, containers, arrows, balance, table markers
   * bonds / fixed income -> bond certificate, coupon slip, wallet, chart, rupee coin
-- Do NOT default to FD briefcase, handshake, bond certificate, or bank icons for unrelated topics.
+  * food / wellness -> bowl, leaf, bottle, plate, heart pulse
+  * learning / L&D -> book, path, badge, laptop, graduation cap
+  * fashion / lifestyle -> hanger, fabric fold, bag, mirror, colour chip
+- Do NOT default to FD briefcase, handshake, bond certificate, wallet, coin stack, or bank icons
+  for unrelated topics or non-finance brands.
 - Palette: Brand Space primary + Brand Space accent only. Subtle metallic highlights allowed.
 - SIZE: SMALL–MEDIUM so text/paragraphs stay readable — static/infographic icons ~8–11% of
-  card/column; CAROUSEL icons/avatars ~10–12% height. HD premium clay-3D objects
-  (wallet, coins, doc, lock, shield) — never giant mushy heroes that crowd out copy.
+  card/column; CAROUSEL icons/avatars ~10–12% height. HD premium clay-3D objects matching
+  the topic — never giant mushy heroes that crowd out copy.
 - Clean metaphors only — no clutter, no random mixed-topic objects.
 - NEVER pure black / charcoal backgrounds behind icons — always Brand Space background.
 """
@@ -123,8 +127,10 @@ CAROUSEL_ICON_LOCK = f"""
 {PREMIUM_HD_ICON_LOCK}
 CAROUSEL ICON LOCK (NON-NEGOTIABLE — sample PDF avatar/icons):
 - ONE premium HD clay-3D illustrated avatar-object per slide (~12–16% canvas height).
-- Match sample style: soft-touch wallet, coin stack, bond document, lock+gate, shield, chart, phone.
-- Maximum render quality: sharp edges, satin + gold accents, studio-lit, no blur.
+- Match the TOPIC and THIS brand's category — never default to finance props
+  (wallet / coin stack / bond document) unless the prompt is about finance.
+- Soft-touch clay, studio-lit, topic-matched metaphor (book, leaf, bag, chart, shield…).
+- Maximum render quality: sharp edges, Brand Space primary/accent materials, no blur.
 - Place bottom-right or mid-right — text story cards own the left/center.
 - Never soft blurry low-res clay mush. Never clipart. Never emoji. Never cheap calculator blobs.
 - Never omit the icon. Never make it a giant full-width hero.
@@ -243,7 +249,7 @@ NEVER WRITE LIKE THIS (too technical — client rejected):
 COPY RULES (every slide):
 - Headline: simple question or claim — max 8–10 words, complete (no mid-word cuts)
 - supporting_line: ONE short plain sentence with a ₹/% fact or "what it means"
-- body + proof_points: teach with a mini ₹ scenario — words a retail investor gets in 3 seconds
+- body + proof_points: teach with a mini scenario — words THIS brand's audience gets in 3 seconds
 - Each story card: bold label + ONE explanation ≤12 plain English words
 - CTA: short invite ("Comment below!" / "What would you do?") — never a paragraph button
 - India: ₹ and % default; USD only when source is USD (label "USD" — never $ / US $)
@@ -277,12 +283,14 @@ FORMAT: 1080×1350 portrait (4:5). Data-led editorial storytelling.
 Aesthetic: editorial sample DNA — Brand Space background, primary hierarchy, accent highlights, 3D icons.
 
 COLOURS (EXACT — same as ranking / lists / paragraphs):
-- BG full-bleed sky-blue Brand Space background — NEVER invent a foreign brand canvas colour
+- BG full-bleed Brand Space background — NEVER invent a foreign brand canvas colour
 - Headlines / section titles: Brand Space primary ONLY
 - Accent: Brand Space accent ONLY — never a borrowed palette
 - Body gray Brand Space body
-- Soft cards white/Brand Space card on ice-blue
+- Soft cards white/Brand Space card on Brand Space background
 - Footer: solid Brand Space primary bar + WHITE tagline
+- FORBIDDEN sample colours unless they are the Brand Space hexes: navy #0B2C5F, orange #FFA400, ice-blue fills
+COPY UNIQUENESS: each reason/insight card body must be a DIFFERENT sentence — never paste the same line on every card.
 
 LOGO: empty TOP-RIGHT pocket (~24% width × ~12% height) — never draw wordmark (Brand Space composite).
 
@@ -364,24 +372,26 @@ STATIC EXPLAIN QUALITY LOCK:
 
 # Mandatory Brand Space accent on ALL static creatives (explain + ranking + hub)
 STATIC_ORANGE_STUB = f"""
-STATIC ORANGE LOCK (ALL static formats — FAIL if missing):
+STATIC ACCENT LOCK (ALL static formats — FAIL if missing):
 Brand Space accent REQUIRED ≥2% of image on EVERY static creative:
 - Explain: Brand Space accent dividers, CTA button, bullet dots, icon accents
 - Horizontal bar ranking: Brand Space accent highlight row, accent headline phrase, accent arrow annotation
 - Vertical country ranking (Top Countries): Brand Space accent rank badges, accent line, CTA, coin icons
 - Hub facts: Brand Space accent hub ring accents, divider lines
 Never tan/gold-only static that drops the Brand Space accent.
+Never invent navy/orange unless those exact hexes are the Brand Space primary/accent.
 """
 
 INFOGRAPHIC_EXPLAIN_ORANGE_STUB = f"""
-ORANGE BRAND LOCK (infographic explain — match sample):
+ACCENT BRAND LOCK (infographic explain — match sample STRUCTURE only):
 Brand Space accent REQUIRED:
 1) Thick Brand Space accent vertical bars left of EVERY section heading
 2) 1–3 Brand Space accent highlight words in intro/section line OR callout
 3) Brand Space accent callout box border; optional compact Brand Space accent CTA
-4) Orange accents on clay-3D icons where natural
+4) Accent accents on clay-3D icons where natural
 Headline stays Brand Space primary but MUST include Brand Space accent text somewhere in body.
-Orange ≥2% of image. Never drop Brand Space accent.
+Accent ≥2% of image. Never drop Brand Space accent.
+Never paint sample navy/orange — use Brand Space primary/accent hexes only.
 """
 
 # Legacy alias — route by format in callers
@@ -419,8 +429,8 @@ LAYOUT:
    - Horizontal rounded BAR (length ∝ value)
    - Value INSIDE bar right end (e.g. "5.621 mb/d" or "₹50B")
    - % share OUTSIDE bar on the right (bold)
-3) Highlight the focal country row in ORANGE bar (others blue)
-4) Orange arrow annotation → 1–2 line insight text block on the right
+3) Highlight the focal country row in Brand Space accent bar (others Brand Space primary/secondary)
+4) Brand Space accent arrow annotation → 1–2 line insight text block on the right
 5) Premium clay-3D topic icons bottom-right (oil barrels / coins — topic-matched)
 6) Source footer bottom-left (e.g. "Source: Indian Express, Energy Institute")
 7) Tiny empty top-right pocket for logo — never draw brand wordmark text
@@ -434,8 +444,8 @@ STATIC_HORIZONTAL_BAR_IMAGE_STUB = f"""
 STATIC HORIZONTAL BAR = sample_static_oil_consumption_bars.png:
 BG Brand Space background. Brand Space primary headline + Brand Space accent highlight phrase.
 Rows: COUNTRY | flag circle | horizontal bar | value inside | % outside.
-Focal row (India/topic) = ORANGE bar; others = blue bars.
-Orange arrow → insight text. Clay-3D icons bottom-right. Source footer.
+Focal row (India/topic) = Brand Space accent bar; others = Brand Space primary/secondary bars.
+Accent arrow → insight text. Clay-3D icons bottom-right. Source footer.
 Never vertical rank badges. Never bond benefit cards.
 """
 
@@ -446,7 +456,7 @@ STATIC RANKING + INSIGHT (when user asks top-N AND why/describe about focal coun
 - Bake the ranked list/data as the PRIMARY layout (all 7 rows with values).
 - Add 1–2 line INSIGHT annotation (Brand Space accent arrow or callout box) answering the why/describe part.
   Example: "India's rising energy demand reflects expanding mobility, industrial growth, and a fast-growing economy."
-- Highlight focal country (India) in ORANGE bar/row when user mentions India.
+- Highlight focal country (India) in Brand Space accent bar/row when user mentions India.
 {STATIC_ORANGE_STUB}
 """
 
@@ -635,7 +645,7 @@ BRAND COLOURS + ICONS + FIT
 - Brand Space primary + REQUIRED Brand Space accent every creative
 {HEADLINE_COLOR_LOCK}
 {ORANGE_COVERAGE_LOCK}
-- BG Brand Space background; cream/soft cards OK as cards only — page BG stays ice-blue
+- BG Brand Space background; cream/soft cards OK as cards only — page BG stays Brand Space background
 - Icons: ULTRA-PREMIUM clay-3D / soft-touch studio renders (high detail, subtle gloss, strong shadows)
   — never flat clipart, never cheap low-poly, never washed-out blobs
 {ICON_STYLE_LOCK}
@@ -697,20 +707,32 @@ Logo composited. Legal footer composited only if Brand Space provided one. Lette
 
 STATIC_IMAGE_EXTRA_LOCKS = f"""
 TOP-RIGHT CORNER: leave COMPLETELY BLANK (background colour only). NEVER draw a logo, leaf icon, compass icon, circular badge, decorative symbol, or ANY graphic element in the top-right corner. The brand logo is composited in post-processing — this area MUST be empty.
-BRAND/LOGO BAN: never draw brand wordmark / watermark / "Brand Logo" placeholder anywhere.
+BRAND/LOGO BAN: never draw a brand-name watermark / signature / "Brand Logo" placeholder anywhere.
+The ONLY brand mark is the Brand Space logo asset composited in post (top-right).
+Never bake plain brand-name text like "Jiraaf" at the bottom or corners.
+PAGE BACKGROUND (CRITICAL):
+- ONE full-bleed Brand Space background only — edge to edge, identical everywhere.
+- NEVER draw a nested white / off-white / pale-blue page panel, floating frame, or second background.
+- NEVER leave a white strip under the content.
+CTA (CRITICAL): DO NOT bake any CTA button / pill / "Explore More" chip.
+  Leave the bottom ≥14% of the canvas EMPTY Brand Space background.
+  The CTA is composited in post — baking one causes a cutoff ghost CTA.
 BRAND SPACE COLOUR LOCK:
 - Background MUST be Brand Space background full bleed.
 - Headlines Brand Space primary only.
 - Accent MUST be Brand Space accent — never a borrowed palette.
-- Accent on icons/dividers/CTA ≥ visible at thumbnail size.
+- Icon materials ONLY Brand Space hexes — no green, mint, teal, gold, neon.
+- Accent on icons/dividers ≥ visible at thumbnail size.
 {NO_LEGAL_STATIC_RULE}
 {STATIC_ORANGE_STUB}
 INDIA: ₹/% retail · ¥ Japan · USD letters if source USD — NEVER $ / US $ / ESD / £.
 Headlines Brand Space primary; accent Brand Space accent MUST show; BG Brand Space background.
 Flags match countries (no ASA/HAE invents). Totals add up.
 TONE: short retail hooks — no Vostro/hedge/sector-exposure jargon side panels.
-CTA: compact ≤28% width, ≤4 words — never a wide paragraph button.
-NO mid-word text breaks. No garbled labels.
+TEXT FIT (CRITICAL):
+- Never break a word across lines (never "c" then "an").
+- Complete words only; scale font down; never clip mid-word or mid-sentence.
+- Keep ≥8% clear margin on all sides; cards must not touch the bottom reserve.
 """
 
 CAROUSEL_LEGAL_LOCK_RULE = f"""

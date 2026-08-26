@@ -121,6 +121,18 @@ export const DIGITAL_ACCESS_OPTIONS = [
     "Multi Device Power User",
 ];
 
+// Fixed color roles shown in the Brand Color Palette table's "Role" column. These map directly to the
+// role hints read by app/services/brand_visual_pack.py (_additional_role_name) so the AI image pipeline
+// knows exactly which purpose each hex serves.
+export const BRAND_COLOR_ROLE_OPTIONS = [
+    "Supporting Dark",
+    "Primary Tint",
+    "Secondary Tint",
+    "Neutral",
+    "Accent",
+    "Background",
+];
+
 export const LOGO_PLACEMENT_OPTIONS = [
     "Top - Right",
     "Top - Left",

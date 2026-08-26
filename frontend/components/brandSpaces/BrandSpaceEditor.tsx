@@ -186,6 +186,20 @@ function extractedRole(entry: Record<string, unknown>) {
     return String(entry.role || "").trim().toLowerCase();
 }
 
+// Title-cases the extracted "Role" column (e.g. "supporting_dark" -> "Supporting Dark") so it lines up
+// with BRAND_COLOR_ROLE_OPTIONS shown in the Brand Color Palette table.
+function extractedRoleLabel(entry: Record<string, unknown>) {
+    const raw = String(entry.role || "").trim().replace(/[_-]+/g, " ");
+    if (!raw) {
+        return "";
+    }
+    return raw
+        .split(" ")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ");
+}
+
 function colorPaletteEntriesFromData(data: Record<string, unknown>) {
     const structuredEntries = Array.isArray(data.palette_entries)
         ? data.palette_entries
@@ -229,6 +243,16 @@ function colorNameFromPaletteEntry(entry: Record<string, unknown>) {
     );
 }
 
+// Identifies "the same extraction" for a given upload so re-syncs (status polling, re-submits) don't
+// keep re-running when nothing in the source file changed. Without this, every poll/save would blindly
+// rebuild additionalColors from the file and silently discard any manual edits (e.g. a Role the user
+// just picked, or a color row they added by hand) made on top of the extracted defaults.
+function fingerprintPaletteEntries(entries: Record<string, unknown>[]) {
+    return entries
+        .map((entry) => `${extractedRole(entry)}|${colorNameFromPaletteEntry(entry)}|${extractedHex(entry).toUpperCase()}`)
+        .join(";");
+}
+
 function applyColorPaletteEntries(
     form: BrandFormState,
     activeColorPaletteUploadId: string,
@@ -242,12 +266,16 @@ function applyColorPaletteEntries(
         visualIdentity: {
             ...form.visualIdentity,
             activeColorPaletteUploadId,
+            activeColorPaletteFingerprint: fingerprintPaletteEntries(entries),
             primaryColor: primary ? extractedHex(primary) : "",
+            primaryColorName: primary ? colorNameFromPaletteEntry(primary) : "",
             secondaryColor: secondary ? extractedHex(secondary) : "",
+            secondaryColorName: secondary ? colorNameFromPaletteEntry(secondary) : "",
             additionalColors: additional.length
                 ? additional.map((entry) => ({
                     name: colorNameFromPaletteEntry(entry),
                     hex: extractedHex(entry),
+                    role: extractedRoleLabel(entry) || undefined,
                 }))
                 : createDefaultAdditionalColors(),
         },
@@ -269,7 +297,13 @@ function selectColorPaletteUpload(form: BrandFormState, itemId: string): BrandFo
             },
         };
     }
-    return applyColorPaletteEntries(form, itemId, entries);
+    const fingerprint = fingerprintPaletteEntries(entries);
+    const alreadySynced =
+        form.visualIdentity.activeColorPaletteUploadId === itemId &&
+        form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
+    // Once this exact extraction has already been applied for this upload, leave the form alone so
+    // manual edits (a new row, a changed Role/name/hex) survive later re-syncs of the same file.
+    return alreadySynced ? form : applyColorPaletteEntries(form, itemId, entries);
 }
 
 function attachmentToUploadPatch(asset: BrandAttachmentResponse): UploadStatePatch {
@@ -341,7 +375,10 @@ function applyExtractedVisualIdentityData(
     if (fieldKey === "color_palette" || assetCategory === "color_palette") {
         const entries = colorPaletteEntriesFromData(structuredData);
         const activeId = form.visualIdentity.activeColorPaletteUploadId;
-        if (entries.length && itemId && (!activeId || activeId === itemId)) {
+        const fingerprint = entries.length ? fingerprintPaletteEntries(entries) : "";
+        const alreadySynced =
+            activeId === itemId && form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
+        if (entries.length && itemId && (!activeId || activeId === itemId) && !alreadySynced) {
             return applyColorPaletteEntries(form, itemId, entries);
         }
     }

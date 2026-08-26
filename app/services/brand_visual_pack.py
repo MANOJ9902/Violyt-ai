@@ -34,6 +34,17 @@ def _is_light(hex_color: str) -> bool:
     return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) >= 200
 
 
+def _is_card_wash(hex_color: str) -> bool:
+    """True for pale Brand Space secondary washes used as carousel card fills.
+
+    Slightly looser than `_is_light` so sky blues like #A2CDF5 (lum ~199) qualify.
+    """
+    rgb = hex_to_rgb(hex_color)
+    if not rgb:
+        return False
+    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) >= 175
+
+
 _ROLE_NAME_KEYS = {
     "primary": ("primary colour", "primary color", "primary"),
     "secondary": ("secondary colour", "secondary color", "secondary"),
@@ -248,23 +259,38 @@ class BrandVisualPack:
 
     def palette_lock(self) -> str:
         font = f" FONT: {self.font_primary}." if self.font_primary else ""
+        extras = ""
+        if self.additional:
+            bits = [
+                f"{c.get('name') or c.get('role') or 'extra'} {c.get('hex')}"
+                for c in self.additional
+                if isinstance(c, dict) and c.get("hex")
+            ]
+            if bits:
+                extras = " Extras: " + ", ".join(bits[:4]) + "."
         return (
-            f"BRAND SPACE PALETTE for {self.brand_name or 'this brand'} (authoritative): "
-            f"background {self.background}, headlines {self.headline}, primary {self.primary}, "
-            f"secondary {self.secondary} (cards/fills), accent {self.accent}, body {self.body}, "
-            f"cards {self.card}.{font} Use ONLY these colours. Vector/PDF colour notes do not override "
-            "these hexes. Do not invent tints or another brand's palette."
+            f"BRAND SPACE PALETTE for {self.brand_name or 'this brand'} (AUTHORITATIVE HEX LOCK): "
+            f"background={self.background}, headlines/primary={self.primary}, "
+            f"secondary/cards={self.secondary}, accent/CTA={self.accent}, "
+            f"body={self.body}, cards={self.card}.{extras}{font} "
+            "Paint ONLY these exact hexes — including Brand Space ice/sky blues when listed. "
+            "FORBIDDEN unless listed above: classic sample navy (#0B2C5F/#003975), "
+            "sample orange (#FFA400/#FF8A00), foreign teal/mint/gold, or any OTHER brand palette. "
+            "Vector/PDF template swatches NEVER override these Brand Space hexes."
         )
 
     def image_extra_locks(self, *, fmt: str = "") -> str:
         legal = ""
         if fmt == "carousel" and self.has_legal:
             legal = (
-                "Leave the bottom ~14% empty for a composited legal footer. "
-                "Do not bake disclaimer text into the image.\n"
+                "Leave the bottom ~20% empty for a composited legal footer. "
+                "Do not bake disclaimer text or Learn More buttons into the image.\n"
             )
         elif fmt == "carousel":
-            legal = "No legal footer for this brand. Do not invent a disclaimer strip.\n"
+            legal = (
+                "Leave the bottom ~20% empty Brand Space background. "
+                "Do not invent a disclaimer strip or Learn More button.\n"
+            )
         else:
             legal = "No regulatory footer strip unless the Brand Space supplied one.\n"
         mascot = ""
@@ -273,9 +299,16 @@ class BrandVisualPack:
         ds = f"Layout notes from Brand Space: {self.design_system_summary}\n" if self.design_system_summary else ""
         return (
             f"\n{self.palette_lock()}\n"
-            f"TOP-RIGHT: leave a blank logo pocket; the real logo is composited in post.\n"
+            f"PAGE BACKGROUND (NON-NEGOTIABLE): full-bleed exact {self.background} ONLY. "
+            f"NEVER paint primary/navy ({self.primary}) as the page canvas or header band — "
+            f"primary is for HEADLINE TEXT only. Cards use {self.secondary}/{self.card}. "
+            f"Accent {self.accent} is for CTA/highlights only.\n"
+            f"TOP-RIGHT: leave a blank logo pocket; the real logo is composited in post. "
+            f"NEVER draw a white box behind any logo. NEVER draw LinkedIn / Instagram / X / "
+            f"platform logos, badges, or watermarks anywhere.\n"
             f"{legal}{mascot}{ds}"
             "AUDIENCE: depict the Brand Space persona demographics — not a generic stock crowd.\n"
+            "TEXT FIT: every word fully inside the frame — scale font down; never clip mid-word.\n"
         )
 
 
@@ -344,25 +377,49 @@ def build_visual_pack(
             muted = hx
             additional.append({"name": label or "muted", "hex": hx, "role": "muted"})
         else:
-            # Duplicate "secondary" rows, CSS names, and stray hexes stay off the image lock.
-            ignored_extra.append(f"{label or 'extra'}:{hx}")
+            # Duplicate primary/secondary PDF swatches stay off the lock.
+            # Extra Accent / tint rows can still appear as extras without overriding form roles.
+            used = {
+                (primary or "").upper(),
+                (secondary or "").upper(),
+                (accent or "").upper(),
+                (background or "").upper(),
+                (surface or "").upper(),
+                (muted or "").upper(),
+            }
+            if role in {"primary", "secondary"}:
+                ignored_extra.append(f"{label or 'extra'}:{hx}")
+            elif hx and hx.upper() not in used:
+                additional.append(
+                    {
+                        "name": label or role_hint or "extra",
+                        "hex": hx,
+                        "role": role or "extra",
+                    }
+                )
+            else:
+                ignored_extra.append(f"{label or 'extra'}:{hx}")
 
     source = "resolved_brand_context" if (primary or secondary or accent) and context else "neutral_fallback"
     if not primary and snapshot:
         source = "overview_snapshot" if palette_obj else source
 
-    # Vector/PDF template swatches fill empty primary/secondary only. They never override
-    # Brand Space form hexes or named additional roles (especially accent).
-    if not primary or not secondary:
-        roles = derive_palette_roles(visual) if visual else {}
+    # Gap-fill ONLY from Brand Space palette_entries that already have an explicit role.
+    # Never score PDF/template swatches into primary/secondary (cross-brand leak risk).
+    if not primary or not secondary or not background or not surface or not muted or not accent:
+        roles = derive_palette_roles(visual, allow_template_swatches=False) if visual else {}
         if not primary:
             primary = _hex(roles.get("primary"), "")
         if not secondary:
             secondary = _hex(roles.get("secondary"), "")
+        if not accent:
+            accent = _hex(roles.get("accent"), "")
         if not background:
             background = _hex(roles.get("background"), "")
         if not surface:
             surface = _hex(roles.get("surface"), "")
+        if not muted:
+            muted = _hex(roles.get("muted") or roles.get("neutral"), "")
 
     if not primary:
         primary = _NEUTRAL_PRIMARY
@@ -375,11 +432,12 @@ def build_visual_pack(
     # Canvas default is white when Brand Space did not set a background. Never invent a tint of primary.
     if not background:
         background = _NEUTRAL_BG
-    # Light secondary is the Brand Space surface (cards). Do not lighten primary into a fake indigo wash.
-    if surface:
-        card = surface
-    elif secondary and _is_light(secondary) and secondary.upper() != primary.upper():
+    # Card fills: prefer pale Brand Space SECONDARY (sample carousels use secondary as card wash).
+    # Primary Tint / surface is a supporting wash — only use it when secondary is not a card wash.
+    if secondary and _is_card_wash(secondary) and secondary.upper() != primary.upper():
         card = secondary
+    elif surface:
+        card = surface
     else:
         card = _NEUTRAL_BG
     headline = primary

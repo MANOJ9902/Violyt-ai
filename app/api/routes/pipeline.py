@@ -77,6 +77,7 @@ def _response_from_state(
         user_prompt=request_prompt or state.get("user_prompt", ""),
         platform=request_platform or state.get("platform", "linkedin"),
         format=request_format or state.get("format", "static"),
+        format_warning=(str(state.get("format_warning") or "").strip() or None),
         brand_context=_dump(state.get("brand_context")),
         brand_intelligence=_dump(state.get("brand_intelligence")),
         campaign_brief=_dump(state.get("campaign_brief")),

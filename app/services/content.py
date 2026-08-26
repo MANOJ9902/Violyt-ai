@@ -7011,9 +7011,9 @@ class ContentService:
                     visual_identity["palette_entries"] = logo_palette_entries
 
         if not visual_identity.get("brand_color_palette"):
-            derived_palette_roles = derive_palette_roles(visual_identity)
-            if derived_palette_roles:
-                visual_identity["brand_color_palette"] = derived_palette_roles
+            # Never invent a palette from logo/PDF swatches. Leave empty so
+            # BrandVisualPack uses Brand Space form or neutral fallback only.
+            pass
 
         resolved_context["identity"] = identity
         resolved_context["visual_identity"] = visual_identity

@@ -1112,6 +1112,7 @@ export interface PipelineRunResponse {
   user_prompt: string;
   platform: string;
   format: string;
+  format_warning?: string | null;
   brand_context?: BrandContextOutputResponse;
   brand_intelligence?: BrandIntelligenceOutputResponse;
   campaign_brief?: CampaignBriefOutputResponse;

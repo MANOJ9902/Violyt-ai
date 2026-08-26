@@ -197,7 +197,10 @@ def decompose_intent(user_prompt: str, fmt: str = "infographic") -> IntentDecomp
         geography=geography,
         freshness=freshness,  # type: ignore[arg-type]
         depth="simplified",
-        audience_hint="retail investors / brand audience from Brand Space",
+        # Brand-agnostic fallback only — never hardcode one brand's persona (e.g. "retail investors")
+        # here, since decompose_intent() has no brand context and this bled Jiraaf's audience into
+        # other brands' generated content whenever their own persona/audience data was empty.
+        audience_hint="the Brand Space's target audience",
         evidence_requirement=evidence_req,
         content_type=content_type,
         compliance_sensitive=compliance,

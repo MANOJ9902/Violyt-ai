@@ -65,6 +65,11 @@ class IntentRouterService:
         "hashtags",
         "layout",
         "visuals",
+        "stat_highlights",
+        "proof_points",
+        "sections",
+        "numbers",
+        "stats",
     }
     _LLM_ALLOWED_SLIDE_TARGETS = {"cover", "last"}
     _LLM_CONFIDENCE_THRESHOLD = 0.7
@@ -236,7 +241,8 @@ class IntentRouterService:
                         "If a message asks about brand facts such as audience, colors, tone, motivations, positioning, or strategy, classify it as strategy_chat and set direct_reply to null. "
                         "Allowed deliverable_type values: null, blog, linkedin_post, instagram_caption, social_caption, x_post, x_thread, youtube_description, newsletter, email, script, long_description, general_copy. "
                         "revision_scope must be either null or an object with keys: targeted_fields, slide_indexes, slide_targets, preserve_visuals, preserve_copy, change_layout, change_tone, only_targeted. "
-                        "targeted_fields must be an array using only: headline, body, cta, hashtags, layout, visuals. "
+                        "targeted_fields must be an array using only: headline, body, cta, hashtags, layout, visuals, stat_highlights, proof_points, sections, numbers, stats. "
+                        "When the user asks to add numbers/stats/data to the previous creative, set uses_previous_output=true, only_targeted=true, preserve_visuals=true, and targeted_fields including stat_highlights and body. "
                         "slide_targets must be an array using only: cover, last."
                     ),
                     user=(

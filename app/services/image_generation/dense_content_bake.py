@@ -51,6 +51,9 @@ DENSE CONTENT LOCK (infographic / static — carousel uses CAROUSEL_DENSE_LOCK i
 • Each insight card = SMALL clay-3D icon + TITLE + BODY paragraph (complete sentences).
 • Prefer lines with digits / ₹ / % / named schemes. Omit empty slogan cards.
 • Never clip mid-word. Never invent statistics not in the COPY block.
+• Every card BODY is a DIFFERENT sentence — never repeat one insight across cards, and never repeat a card's own title as its body.
+• Top-right logo pocket stays EMPTY page background — no logo, wordmark, brand-name text or white plate (Brand Space logo is composited in post).
+• Never draw LinkedIn / Instagram / X / Facebook / YouTube logos, badges or platform watermarks.
 • CAROUSEL ONLY: never bake source / survey / institution names (no "Source:", no "(BIS…)").
 """
 
@@ -80,10 +83,15 @@ def extract_dense_cards(
             return
         if k:
             used.add(k)
+        title_out = title_s or scrub(body_s, max_words=6)
+        body_out = body_s
+        # Baking the same sentence as both title and body renders as duplicated text.
+        if _key(body_out) == _key(title_out):
+            body_out = ""
         cards.append(
             {
-                "title": title_s or scrub(body_s, max_words=6),
-                "body": body_s or title_s,
+                "title": title_out,
+                "body": body_out,
                 "stat": stat_s,
             }
         )
@@ -131,16 +139,15 @@ def format_dense_cards_block(
     lines = [f"\n{heading}:\n", DENSE_LAYOUT_LOCK, "\n"]
     for i, card in enumerate(cards, start=1):
         title = card.get("title") or f"Point {i}"
-        body = card.get("body") or title
+        body = card.get("body") or ""
         stat = card.get("stat") or ""
+        body_part = f' + BODY "{body}"' if body else " (no body line — title only)"
         if stat:
             lines.append(
-                f'  CARD {i}: SMALL ICON + STAT "{stat}" + TITLE "{title}" + BODY "{body}"\n'
+                f'  CARD {i}: SMALL ICON + STAT "{stat}" + TITLE "{title}"{body_part}\n'
             )
         else:
-            lines.append(
-                f'  CARD {i}: SMALL ICON + TITLE "{title}" + BODY "{body}"\n'
-            )
+            lines.append(f'  CARD {i}: SMALL ICON + TITLE "{title}"{body_part}\n')
     return "".join(lines)
 
 

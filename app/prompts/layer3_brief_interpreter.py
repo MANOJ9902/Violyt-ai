@@ -63,4 +63,8 @@ BRAND BEHAVIOR MODEL:
 - Visual mood: {brand_intelligence.visual_behavior.visual_mood}
 - Guardrails: {brand_intelligence.guardrails}
 
-Convert this into a complete campaign brief."""
+Convert this into a complete campaign brief.
+
+AUDIENCE (from Brand Space / brand intelligence — use ONLY this audience):
+- Primary persona: {getattr(getattr(brand_intelligence, "audience_model", None), "primary_persona", None) or "Brand Space target audience"}
+- Do NOT invent a different audience (never borrow retail-investor / Jiraaf language unless that is this brand)."""

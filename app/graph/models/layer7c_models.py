@@ -182,7 +182,10 @@ class CreativeBlueprint(BaseModel):
         if fmt not in ("static", "carousel", "infographic"):
             # layout_type carousel_story often arrives without format=carousel
             layout = str(out.get("layout_type") or "").strip().lower()
-            if layout == "carousel_story" or out.get("slides"):
+            if layout == "carousel_story" and out.get("sections") and not out.get("slides"):
+                # carousel_story layout with sections but no slides = education poster (infographic)
+                fmt = "infographic"
+            elif layout == "carousel_story" or out.get("slides"):
                 fmt = "carousel"
             elif layout in ("static_hub_facts", "static_ranking") or out.get("sections"):
                 fmt = "static"

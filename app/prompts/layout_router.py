@@ -20,6 +20,7 @@ Strong data intents (trade / rank / hub) OVERRIDE a mistaken carousel click.
 
 from dataclasses import dataclass
 from typing import Literal
+import re
 
 LayoutType = Literal["carousel_story", "static_hub_facts", "static_ranking"]
 
@@ -282,6 +283,17 @@ def classify_layout(
     fmt = (selected_format or "").strip().lower()
     if fmt not in ("static", "carousel", "infographic"):
         fmt = ""
+
+    # Explicit format words in the prompt override a conflicting leftover studio dropdown.
+    prompt_fmt = ""
+    if re.search(r"\binfographics?\b", text):
+        prompt_fmt = "infographic"
+    elif re.search(r"\bcarousels?\b|\bswipe\b", text):
+        prompt_fmt = "carousel"
+    elif re.search(r"\bstatic\s+post\b|\bsingle\s+(?:image|post)\b", text):
+        prompt_fmt = "static"
+    if prompt_fmt and (not fmt or fmt != prompt_fmt):
+        fmt = prompt_fmt
 
     is_hub = any(k in text for k in _HUB_KEYS)
     is_trade = is_trade_data_board(user_prompt)

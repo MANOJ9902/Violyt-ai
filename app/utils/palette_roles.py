@@ -146,14 +146,53 @@ def _score_accent(entry: dict[str, Any], rgb: tuple[int, int, int]) -> float:
     return score
 
 
-def derive_palette_roles(visual_identity: dict[str, Any] | None) -> dict[str, str]:
-    # Handles derive palette roles as a reusable helper for services that need the same formatting or
-    # normalization rule.
+_ADDITIONAL_ROLE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "primary": ("primary colour", "primary color", "primary"),
+    "secondary": ("secondary colour", "secondary color", "secondary"),
+    "accent": ("accent", "highlight", "cta", "button"),
+    "background": ("background", "bg", "canvas"),
+    "surface": ("surface", "card", "panel", "primary tint", "secondary tint", "tint"),
+    "neutral": ("neutral", "muted", "grey", "gray", "supporting dark", "body"),
+}
+
+
+def resolve_role_from_additional(additional: Any, role: str) -> str | None:
+    # Looks up an explicit Role (e.g. "Background", "Supporting Dark") tagged on a brand_color_palette
+    # "additional" row from the Brand Color Palette table. Without this, a color only ever set via that
+    # table's Role column (instead of a bare top-level "background"/"accent" key) would be invisible to
+    # every downstream palette-aware prompt/render step that calls derive_palette_roles().
+    if not isinstance(additional, list) or role not in VALID_PALETTE_ROLES:
+        return None
+    keywords = _ADDITIONAL_ROLE_KEYWORDS.get(role, ())
+    for item in additional:
+        if not isinstance(item, dict):
+            continue
+        hint = str(item.get("role") or "").strip().casefold()
+        label = str(item.get("name") or "").strip().casefold()
+        haystack = hint or label
+        if not haystack:
+            continue
+        if haystack == role or any(keyword in haystack for keyword in keywords):
+            hex_code = normalize_hex(item.get("hex") or item.get("hex_code") or item.get("color"))
+            if hex_code:
+                return hex_code
+    return None
+
+
+def derive_palette_roles(
+    visual_identity: dict[str, Any] | None,
+    *,
+    allow_template_swatches: bool = False,
+) -> dict[str, str]:
+    """Resolve palette roles from Brand Space form + role-tagged entries.
+
+    By default PDF/template creative swatches are ignored so image generation
+    never invents another brand's navy/orange from reference PDFs.
+    Set allow_template_swatches=True only for non-generation analytics.
+    """
     visual_identity = visual_identity or {}
     explicit_palette = visual_identity.get("brand_color_palette", {}) or {}
     explicit: dict[str, str] = {}
-    # This branch separates the special case from the normal path so later logic can work with cleaner
-    # assumptions.
     if isinstance(explicit_palette, dict):
         explicit = {
             str(key).strip().lower(): normalized
@@ -161,6 +200,12 @@ def derive_palette_roles(visual_identity: dict[str, Any] | None) -> dict[str, st
             if str(key).strip().lower() in VALID_PALETTE_ROLES
             if (normalized := normalize_hex(value))
         }
+        for role in VALID_PALETTE_ROLES:
+            if role in explicit:
+                continue
+            resolved = resolve_role_from_additional(explicit_palette.get("additional"), role)
+            if resolved:
+                explicit[role] = resolved
 
     palette_entries = [
         entry
@@ -171,7 +216,15 @@ def derive_palette_roles(visual_identity: dict[str, Any] | None) -> dict[str, st
         )
         if isinstance(entry, dict) and _entry_hex(entry)
     ]
-    template_entries = _collect_template_palette_entries(visual_identity.get("template_intelligence"))
+    template_entries = (
+        _collect_template_palette_entries(visual_identity.get("template_intelligence"))
+        if allow_template_swatches
+        else []
+    )
+    # When templates are disabled, only use entries that already declare a role
+    # (Brand Space upload / form) — never invent roles by scoring random hexes.
+    if not allow_template_swatches:
+        palette_entries = [e for e in palette_entries if _entry_role(e) in VALID_PALETTE_ROLES]
     candidates = [*palette_entries, *template_entries]
     merged: dict[str, str] = dict(explicit)
 
@@ -180,6 +233,13 @@ def derive_palette_roles(visual_identity: dict[str, Any] | None) -> dict[str, st
         hex_code = _entry_hex(entry)
         if role in VALID_PALETTE_ROLES and hex_code:
             merged.setdefault(role, hex_code)
+
+    # Heuristic scoring invents primary/secondary from random swatches — only allow
+    # when explicitly opted in (never for image generation / Brand Space form path).
+    if not allow_template_swatches:
+        if "background" not in merged and merged.get("neutral"):
+            merged["background"] = merged["neutral"]
+        return {key: value for key, value in merged.items() if value}
 
     used = {value for value in merged.values() if value}
 

@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { BRAND_COLOR_ROLE_OPTIONS } from "@/lib/brand-space-options";
 import type { BrandUploadItem } from "@/types/brand-space.types";
 import { Label } from "@/components/ui/label";
 import { InformationTip } from "@/components/InformationTip";
@@ -619,6 +620,8 @@ export function FontPickerField({
 }
 
 export function AdditionalColorRow({
+    role,
+    onRoleChange,
     name,
     hex,
     onNameChange,
@@ -626,6 +629,8 @@ export function AdditionalColorRow({
     canRemove,
     onRemove,
 }: {
+    role: string;
+    onRoleChange: (value: string) => void;
     name: string;
     hex: string;
     onNameChange: (value: string) => void;
@@ -635,7 +640,14 @@ export function AdditionalColorRow({
 }) {
     return (
         <div className="flex items-center gap-2 md:w-[calc(100%+2.25rem)]">
-            <div className="grid flex-1 gap-3 md:grid-cols-2">
+            <div className="grid flex-1 gap-3 md:grid-cols-3">
+                <StyledSelect
+                    value={role}
+                    onValueChange={onRoleChange}
+                    placeholder="Select role"
+                    options={BRAND_COLOR_ROLE_OPTIONS}
+                    className="bg-section-input-field"
+                />
                 <StyledInput placeholder="Define color name" value={name} onChange={(e) => onNameChange(e.target.value)}
                     className="bg-section-input-field"
                 />

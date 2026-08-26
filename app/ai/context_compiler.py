@@ -544,9 +544,8 @@ class ContextCompilerService:
 
     @classmethod
     def _derived_palette_roles(cls, visual_identity: dict[str, Any]) -> dict[str, str]:
-        # Derives derived palette roles from visual identity for LLM prompt context.
-        # This turns source evidence into a stable planning hint.
-        return derive_palette_roles(visual_identity)
+        # Brand Space form + role-tagged entries only — never PDF template scoring.
+        return derive_palette_roles(visual_identity, allow_template_swatches=False)
 
     @classmethod
     def _clean_knowledge_content(cls, value: Any, limit: int | None = None) -> str:

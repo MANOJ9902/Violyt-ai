@@ -16,12 +16,18 @@ def resolve_brand_palette_lock(
     primary_color: str = "",
     secondary_color: str = "",
     accent_color: str = "",
+    background_color: str = "",
     additional_colors: list[dict] | None = None,
 ) -> str:
     label = (brand_name or "this brand").strip() or "this brand"
     parts = [f"BRAND LOCK ({label}): Use ONLY this Brand Space palette."]
+    bg = normalize_hex(background_color) or ""
+    if bg:
+        parts.append(
+            f"PAGE BACKGROUND: {bg} full-bleed ONLY — never paint primary/navy as the canvas."
+        )
     if primary_color:
-        parts.append(f"PRIMARY: {primary_color} — headlines.")
+        parts.append(f"PRIMARY: {primary_color} — headlines/text ONLY (not page background).")
     if secondary_color:
         parts.append(f"SECONDARY: {secondary_color} — cards and supporting fills.")
     if accent_color:
@@ -38,6 +44,9 @@ def resolve_brand_palette_lock(
         parts.append(color_behavior or visual_mood)
     if not primary_color and not secondary_color:
         parts.append("Use Brand Space visual identity colors only — do not invent another brand's palette.")
+    parts.append(
+        "BAN: LinkedIn/Instagram/X platform logos, white logo boxes, truncated text."
+    )
     return " ".join(parts)
 
 

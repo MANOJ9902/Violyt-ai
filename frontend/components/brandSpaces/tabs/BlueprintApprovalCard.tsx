@@ -108,19 +108,32 @@ export default function BlueprintApprovalCard({
             {(draft.sources || []).map((src, i) => {
               const url = (src.url || "").trim();
               const isHttp = /^https?:\/\//i.test(url);
+              const title = src.title || url;
+              const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(title)}`;
               return (
               <li key={`${url}-${i}`} className="text-xs text-slate-700 break-all">
                 {isHttp ? (
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-800 underline underline-offset-2 hover:text-amber-950"
-                  >
-                    {src.title || url}
-                  </a>
+                  <>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-800 underline underline-offset-2 hover:text-amber-950"
+                    >
+                      {title}
+                    </a>
+                    <a
+                      href={searchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 text-slate-400 hover:text-slate-600"
+                      title="Search for this source"
+                    >
+                      (search)
+                    </a>
+                  </>
                 ) : (
-                  <span>{src.title || url || "—"} (no openable link)</span>
+                  <span>{title || "—"} (no openable link)</span>
                 )}
               </li>
               );

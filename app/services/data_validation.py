@@ -167,13 +167,19 @@ class DataValidatorService:
                 visual_identity["background_style"] = reference_summary["synthesis"]["background_style"]
             if reference_summary["synthesis"].get("logo_anchor") and not visual_identity.get("logo_position"):
                 visual_identity["logo_position"] = reference_summary["synthesis"]["logo_anchor"]
-        if palette_summary["entries"]:
+        # Brand Space form hexes are authoritative. PDF/template swatches stay in
+        # palette_entries only — never overwrite brand_color_palette with scored roles.
+        if explicit_palette_roles:
+            visual_identity["brand_color_palette"] = explicit_palette_roles
+        elif palette_summary.get("role_map"):
+            # Only when the form has no palette: use explicitly role-tagged Brand Space
+            # upload rows (not template scoring).
             visual_identity["brand_color_palette"] = derive_palette_roles(
                 {
-                    "brand_color_palette": explicit_palette_roles or palette_summary["role_map"],
+                    "brand_color_palette": palette_summary["role_map"],
                     "palette_entries": palette_summary["entries"],
-                    "template_intelligence": reference_summary["templates"],
-                }
+                },
+                allow_template_swatches=False,
             )
         if reference_summary["references"]:
             visual_identity["reference_creatives"] = reference_summary["references"]

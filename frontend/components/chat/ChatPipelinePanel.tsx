@@ -10,16 +10,21 @@ import {
   ChevronRight,
   Pencil,
   X,
+  Share2,
 } from "lucide-react";
 import { SurfaceCard } from "@/components/common/DesignPrimitives";
 import BlueprintApprovalCard from "@/components/brandSpaces/tabs/BlueprintApprovalCard";
 import PostCaptionBlock from "@/components/chat/PostCaptionBlock";
-import PromptRunAnalytics, { type LayerTokenUsage } from "@/components/chat/PromptRunAnalytics";
 import type { CreativeBlueprintResponse } from "@/lib/api/contracts";
 import { buildPostCaption } from "@/lib/post-caption";
 import { usePipeline } from "@/hooks/usePipeline";
 import { apiOrigin } from "@/lib/env";
 import { cn } from "@/lib/utils";
+
+export type LayerTokenUsage = {
+  input_tokens: number;
+  output_tokens: number;
+};
 
 export type ChatPipelineStatus =
   | "idle"
@@ -36,6 +41,7 @@ export type ChatPipelineState = {
   prompt?: string;
   format?: string;
   platform?: string;
+  formatWarning?: string | null;
   blueprint?: CreativeBlueprintResponse | null;
   imageUrls?: string[];
   error?: string | null;
@@ -180,6 +186,45 @@ function ImageCarousel({
     void downloadImage(current, `violyt-creative-${index + 1}.${ext}`);
   }, [current, index]);
 
+  const [isSharing, setIsSharing] = useState(false);
+  const handleShare = useCallback(async () => {
+    if (!current || isSharing) return;
+    setIsSharing(true);
+    try {
+      const url = resolveUrl(current);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+      const blob = await res.blob();
+      const ext = current.includes(".jpg") || current.includes(".jpeg") ? "jpg" : "png";
+      const file = new File([blob], `violyt-creative-${index + 1}.${ext}`, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: blueprint?.headline || "Violyt creative",
+          text: blueprint?.supporting_line || "",
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: blueprint?.headline || "Violyt creative",
+          text: blueprint?.supporting_line || "",
+          url,
+        });
+      } else {
+        // Fallback: download the image
+        void downloadImage(current, `violyt-creative-${index + 1}.${ext}`);
+      }
+    } catch (err) {
+      // User cancelled or share failed — silently ignore abort errors
+      if (err instanceof Error && err.name !== "AbortError") {
+        // Fallback: download
+        const ext = current.includes(".jpg") || current.includes(".jpeg") ? "jpg" : "png";
+        void downloadImage(current, `violyt-creative-${index + 1}.${ext}`);
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  }, [current, index, blueprint, isSharing]);
+
   const openEdit = () => {
     setEditError(null);
     setFields(fieldsFromBlueprint(blueprint, formatLabel, index));
@@ -313,6 +358,15 @@ function ImageCarousel({
               <Download className="h-3.5 w-3.5" />
               Download{isMulti ? ` ${index + 1}` : ""}
             </button>
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              disabled={isSharing}
+              className="inline-flex h-8 items-center gap-1.5 border border-emerald-200 bg-white px-3 text-[11px] font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              {isSharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+              Share{isMulti ? ` ${index + 1}` : ""}
+            </button>
           </div>
         </div>
       </div>
@@ -415,6 +469,11 @@ export default function ChatPipelinePanel({
 
   return (
     <div className="mr-auto w-full max-w-[720px] space-y-4 px-3">
+      {state.formatWarning ? (
+        <SurfaceCard className="border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs font-medium text-amber-900">{state.formatWarning}</p>
+        </SurfaceCard>
+      ) : null}
       {(state.status === "running" || state.status === "generating") && (
         <SurfaceCard className="border-[#E8EAF0] bg-[#F7F8FB] p-5">
           <div className="flex items-start gap-3">
@@ -422,13 +481,13 @@ export default function ChatPipelinePanel({
             <div className="space-y-1">
               <p className="text-sm font-semibold text-[#121212]">
                 {state.status === "running"
-                  ? "Violyt Intelligence Pipeline is running…"
-                  : "Generating finished AI creative…"}
+                  ? "Violyt Intelligence is working…"
+                  : "Generating finished creative…"}
               </p>
               <p className="text-xs text-[#6A6E8B]">
                 {state.status === "running"
                   ? "Preparing your creative brief and blueprint. Usually 3–6 minutes — please keep this tab open."
-                  : "Creating your AI image with approved text baked in (usually 1–2 minutes)…"}
+                  : "Creating your brand image with approved text, baked in usually 1–2 minutes…"}
               </p>
             </div>
           </div>
@@ -436,22 +495,13 @@ export default function ChatPipelinePanel({
       )}
 
       {state.status === "awaiting_blueprint_approval" && state.blueprint ? (
-        <>
-          <PromptRunAnalytics
-            layerLatencies={state.layerLatencies}
-            tokenUsage={state.tokenUsage}
-            evaluation={state.evaluation}
-            totalCostUsd={state.totalCostUsd}
-            className="mb-2"
-          />
-          <BlueprintApprovalCard
-            blueprint={state.blueprint}
-            format={state.format || state.blueprint.format || "static"}
-            isApproving={isApproving}
-            onApprove={onApprove}
-            onCancel={onCancel}
-          />
-        </>
+        <BlueprintApprovalCard
+          blueprint={state.blueprint}
+          format={state.format || state.blueprint.format || "static"}
+          isApproving={isApproving}
+          onApprove={onApprove}
+          onCancel={onCancel}
+        />
       ) : null}
 
       {state.status === "complete" && completeUrls.length > 0 ? (
@@ -478,13 +528,6 @@ export default function ChatPipelinePanel({
                 : ""}
             </p>
           )}
-          <PromptRunAnalytics
-            layerLatencies={state.layerLatencies}
-            tokenUsage={state.tokenUsage}
-            imageCount={completeUrls.length}
-            evaluation={state.evaluation}
-            totalCostUsd={state.totalCostUsd}
-          />
           <ImageCarousel
             urls={completeUrls}
             formatLabel={state.format}
@@ -501,19 +544,32 @@ export default function ChatPipelinePanel({
                 {(state.blueprint?.sources || []).map((src, i) => {
                   const url = (src.url || "").trim();
                   const isHttp = /^https?:\/\//i.test(url);
+                  const title = src.title || url;
+                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(title)}`;
                   return (
                   <li key={`${url}-${i}`} className="text-xs text-slate-700 break-all">
                     {isHttp ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-emerald-800 underline underline-offset-2 hover:text-emerald-950"
-                      >
-                        {src.title || url}
-                      </a>
+                      <>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-800 underline underline-offset-2 hover:text-emerald-950"
+                        >
+                          {title}
+                        </a>
+                        <a
+                          href={searchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 text-slate-400 hover:text-slate-600"
+                          title="Search for this source"
+                        >
+                          (search)
+                        </a>
+                      </>
                     ) : (
-                      <span>{src.title || url || "—"}</span>
+                      <span>{title || "—"}</span>
                     )}
                   </li>
                   );

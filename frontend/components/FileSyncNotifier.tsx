@@ -78,15 +78,30 @@ function toSnapshotItem(brandId: string, asset: BrandAttachmentResponse): FileSy
   };
 }
 
-async function fetchTenantFileSyncSnapshot(brandIds: string[]) {
-  const attachmentResults = await Promise.allSettled(
-    brandIds.map(async (brandId) => {
-      const groups = await listBrandSpaceAttachments(brandId);
-      return groups.flatMap((group) => (group.assets || []).map((asset) => toSnapshotItem(brandId, asset)));
-    }),
-  );
+const FILE_SYNC_FETCH_CONCURRENCY = 2;
 
-  return attachmentResults.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+async function fetchBrandSyncItems(brandId: string) {
+  const groups = await listBrandSpaceAttachments(brandId);
+  // Keep only the tiny fields needed for toast transitions — drop heavy payload shapes.
+  return groups.flatMap((group) =>
+    (group.assets || []).map((asset) => toSnapshotItem(brandId, asset)),
+  );
+}
+
+async function fetchTenantFileSyncSnapshot(brandIds: string[]) {
+  const items: FileSyncSnapshotItem[] = [];
+  // Sequential small batches — parallel Promise.all over every brand was crashing Edge
+  // tabs (multi‑MB attachment payloads loaded at once).
+  for (let index = 0; index < brandIds.length; index += FILE_SYNC_FETCH_CONCURRENCY) {
+    const batch = brandIds.slice(index, index + FILE_SYNC_FETCH_CONCURRENCY);
+    const batchResults = await Promise.allSettled(batch.map((brandId) => fetchBrandSyncItems(brandId)));
+    for (const result of batchResults) {
+      if (result.status === "fulfilled") {
+        items.push(...result.value);
+      }
+    }
+  }
+  return items;
 }
 
 export function FileSyncNotifier({ user }: { user: UiUser }) {
@@ -103,13 +118,15 @@ export function FileSyncNotifier({ user }: { user: UiUser }) {
     [brands],
   );
   const brandIdKey = brandIds.join(",");
+  // Slow the poll when many Brand Spaces exist — attachment list endpoints are heavy.
+  const pollMs = brandIds.length > 4 ? Math.max(NOTIFICATION_REFETCH_INTERVAL_MS, 60_000) : NOTIFICATION_REFETCH_INTERVAL_MS;
 
   const { data: snapshot = [], isSuccess: hasLoadedSnapshot } = useQuery({
     queryKey: ["brand-space-file-sync-snapshot", user.id, brandIdKey],
     enabled: isTenantAdmin && brandIds.length > 0,
     queryFn: () => fetchTenantFileSyncSnapshot(brandIds),
     refetchInterval: isTenantAdmin && brandIds.length > 0
-      ? () => (typeof document !== "undefined" && document.hidden ? false : NOTIFICATION_REFETCH_INTERVAL_MS)
+      ? () => (typeof document !== "undefined" && document.hidden ? false : pollMs)
       : false,
     refetchOnWindowFocus: false,
   });

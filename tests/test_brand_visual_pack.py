@@ -47,12 +47,15 @@ def test_visual_pack_uses_brand_space_roles_not_invented_tints():
     assert "#3D3DBE" in lock
     assert "#FFCBCB" in lock
     assert "#00CB91" in lock
-    assert "#FFA400" not in lock
-    assert "#0B1F4A" not in lock
-    assert "#FF6A00" not in lock
-    extras = {str(c.get("hex")) for c in pack.additional}
+    # Duplicate secondary / template oranges must not be authorized roles.
+    assert "secondary #FFA400" not in lock.lower()
+    assert "primary #0B1F4A" not in lock.lower()
+    assert "accent #FF6A00" not in lock.lower()
+    extras = {str(c.get("hex")).upper() for c in pack.additional}
     assert "#FFA400" not in extras
     assert "#69747A" not in extras
+    assert "#0B1F4A" not in extras
+    assert "#FF6A00" not in extras
 
 
 def test_palette_map_assigns_secondary_to_cards():

@@ -50,16 +50,59 @@ def is_empty_insight(text: str) -> bool:
     return False
 
 
+def _normalize_insight_key(text: str) -> str:
+    """Collapse punctuation/case so near-identical insight lines match."""
+    t = re.sub(r"\s+", " ", (text or "").strip().casefold())
+    t = re.sub(r"[^a-z0-9%₹$₹\s]+", "", t)
+    return t.strip()
+
+
+def _section_insight_blob(sec: Any) -> str:
+    return " ".join(
+        [
+            getattr(sec, "body", None) or "",
+            " ".join(str(x) for x in (getattr(sec, "includes", None) or [])),
+        ]
+    ).strip()
+
+
+def _bodies_are_near_duplicates(a: str, b: str) -> bool:
+    """True when two insight bodies are the same idea (exact or heavy overlap)."""
+    ka, kb = _normalize_insight_key(a), _normalize_insight_key(b)
+    if not ka or not kb:
+        return False
+    if ka == kb:
+        return True
+    if ka in kb or kb in ka:
+        return True
+    wa, wb = set(ka.split()), set(kb.split())
+    if not wa or not wb:
+        return False
+    overlap = len(wa & wb) / max(1, min(len(wa), len(wb)))
+    return overlap >= 0.72
+
+
+def count_duplicate_insight_bodies(blueprint: Any) -> int:
+    """How many insight panels reuse another panel's body (exact / near-exact)."""
+    seen: list[str] = []
+    dupes = 0
+    for sec in blueprint.sections or []:
+        # Compare BODY alone — different stats/includes must not hide cloned so-whats.
+        body = str(getattr(sec, "body", None) or "").strip()
+        if not body or is_empty_insight(body):
+            continue
+        if any(_bodies_are_near_duplicates(body, prev) for prev in seen):
+            dupes += 1
+        else:
+            seen.append(body)
+    return dupes
+
+
 def count_empty_insight_sections(blueprint: Any) -> int:
     """How many sections carry empty / filler insight copy."""
     n = 0
     for sec in blueprint.sections or []:
-        blob = " ".join(
-            [
-                sec.body or "",
-                " ".join(str(x) for x in (sec.includes or [])),
-            ]
-        ).strip()
+        blob = _section_insight_blob(sec)
         # Real proof rows with a serious figure and a non-filler label/body are fine.
         real_proof = bool(
             (sec.stat or "").strip()
@@ -134,6 +177,17 @@ _GLOBAL_TEXT_FIXES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bduiable\b", re.I), "durable"),
     (re.compile(r"\bGldbally\b"), "Globally"),
     (re.compile(r"\bgldbally\b"), "globally"),
+    (re.compile(r"\bgiobal\b", re.I), "global"),
+    (re.compile(r"\bexplaing\b", re.I), "explaining"),
+    (re.compile(r"\bwny\b", re.I), "why"),
+    (re.compile(r"\bdominancein\b", re.I), "dominance in"),
+    (re.compile(r"\bdrven\b", re.I), "driven"),
+    (re.compile(r"\battri-\b", re.I), "attributed"),
+    (re.compile(r"\bopportunitites\b", re.I), "opportunities"),
+    (re.compile(r"\bopportunitie\b", re.I), "opportunities"),
+    (re.compile(r"\bforegin\b", re.I), "foreign"),
+    (re.compile(r"\bliqudity\b", re.I), "liquidity"),
+    (re.compile(r"\binvoicng\b", re.I), "invoicing"),
     (re.compile(r"\bcaurious\b", re.I), "cautious"),
     (re.compile(r"\badeption\b", re.I), "adoption"),
     (re.compile(r"\bimplicatiohs\b", re.I), "implications"),
@@ -372,7 +426,43 @@ def apply_text_hygiene(
         t = text or ""
         t = re.sub(r"^\s*Web\s*Search\s*:\s*", "", t, flags=re.I)
         t = re.sub(r"^\s*Answer\s+WHY\b[:\s]*", "", t, flags=re.I)
-        t = re.sub(r"\s+", " ", t).strip()
+        # Conversational LLM filler that leaked into baked cards
+        t = re.sub(
+            r"^\s*(Certainly!?|Sure!?|Of course!?|Absolutely!?)\s*",
+            "",
+            t,
+            flags=re.I,
+        )
+        t = re.sub(
+            r"^\s*(Here'?s|Here is)\s+(an?\s+)?(explanation|overview|summary|breakdown)\s+(of\s+)?(why\s+)?",
+            "",
+            t,
+            flags=re.I,
+        )
+        t = re.sub(
+            r"^\s*(Create an infographic|Cover liquidity|explaining why the US)\b[:\s,-]*",
+            "",
+            t,
+            flags=re.I,
+        )
+        t = re.sub(r"\s+", " ", t).strip(" ,;:-")
+        return t
+
+    def _strip_prompt_echo(text: str, prompt: str) -> str:
+        """Drop labels/bodies that are just fragments of the user prompt."""
+        t = (text or "").strip()
+        if not t:
+            return t
+        p = re.sub(r"\s+", " ", (prompt or "").strip().casefold())
+        key = re.sub(r"[^a-z0-9\s]+", "", t.casefold())
+        if len(key.split()) <= 6 and key and key in re.sub(r"[^a-z0-9\s]+", "", p):
+            return ""
+        if re.search(
+            r"^(explaining why|cover liquidity|create an|insights for indian)\b",
+            t,
+            re.I,
+        ):
+            return ""
         return t
 
     for field in ("headline", "supporting_line", "body", "hook", "cta", "customer_quote", "title", "purpose"):
@@ -381,13 +471,20 @@ def apply_text_hygiene(
             setattr(bp, field, _strip_research_meta(val))
     for sec in bp.sections or []:
         if sec.section_label:
-            cleaned_label = _strip_research_meta(sec.section_label)
+            cleaned_label = _strip_prompt_echo(
+                _strip_research_meta(sec.section_label), user_prompt
+            )
             if len(cleaned_label.split()) < 3 and (sec.body or "").strip():
                 # Recover a usable title from body when research meta wiped the label
                 cleaned_label = " ".join((sec.body or "").split()[:6]).rstrip(".,;:")
             sec.section_label = cleaned_label
         if sec.body:
             sec.body = _strip_research_meta(sec.body)
+            # Drop prompt-echo bodies that are not real insights
+            if _strip_prompt_echo(sec.body, user_prompt) == "" and not re.search(
+                r"\d", sec.body or ""
+            ):
+                sec.body = ""
         if sec.includes:
             sec.includes = [_strip_research_meta(str(x)) for x in sec.includes]
     # Drop sections that are empty after stripping research meta
@@ -546,15 +643,19 @@ def attach_sources_from_research(
     return blueprint
 
 
-def _audience_for_platform(platform: str) -> str:
+def _audience_for_platform(platform: str, brand_audience: str | None = None) -> str:
+    """Prefer Brand Space persona; never invent a hardcoded Jiraaf retail-investor line."""
+    brand = (brand_audience or "").strip()
+    if brand and "audience from brand space" not in brand.casefold():
+        return brand
     p = (platform or "").strip().lower()
     if p in ("instagram", "ig"):
-        return "Indian Instagram users / retail savers"
+        return "Brand Space target audience on Instagram"
     if p in ("x", "twitter"):
-        return "Indian X (Twitter) users / retail savers"
+        return "Brand Space target audience on X"
     if p in ("linkedin", "li"):
-        return "Indian LinkedIn professionals / retail savers"
-    return "Indian retail savers / professionals"
+        return "Brand Space target audience on LinkedIn"
+    return "Brand Space target audience"
 
 
 def polish_blueprint_meta(
@@ -562,6 +663,7 @@ def polish_blueprint_meta(
     *,
     layout_type: LayoutType,
     user_prompt: str,
+    brand_audience: str | None = None,
 ) -> CreativeBlueprint:
     """Fill empty Purpose / Audience / Tone so the approval card isn't blank."""
     platform = (blueprint.platform or "linkedin").strip().lower()
@@ -579,14 +681,15 @@ def polish_blueprint_meta(
         else:
             blueprint.purpose = "Educate with a short swipe story"
 
-    # Always align audience with SELECTED platform (never force LinkedIn for IG/X)
+    # Prefer Brand Space persona. Strip platform-wrong labels without forcing Jiraaf DNA.
     audience = (blueprint.audience or "").strip()
     audience_l = audience.lower()
     wrong_linkedin = "linkedin" in audience_l and platform in ("instagram", "x")
     wrong_ig = "instagram" in audience_l and platform in ("linkedin", "x")
     wrong_x = (("twitter" in audience_l or audience_l.startswith("indian x")) and platform in ("linkedin", "instagram"))
-    if not audience or wrong_linkedin or wrong_ig or wrong_x:
-        blueprint.audience = _audience_for_platform(platform)
+    placeholder = "audience from brand space" in audience_l
+    if not audience or wrong_linkedin or wrong_ig or wrong_x or placeholder:
+        blueprint.audience = _audience_for_platform(platform, brand_audience=brand_audience)
 
     if not (blueprint.tone or "").strip():
         blueprint.tone = "simple, educational, sample-style"
@@ -1358,6 +1461,7 @@ def score_blueprint_editorial_qa(
         if _sloganish.search((s.body or "").strip()) and not re.search(r"\d", s.body or "")
     )
     empty_insights = count_empty_insight_sections(blueprint)
+    duplicate_insights = count_duplicate_insight_bodies(blueprint)
 
     answers_why = 7 if re.search(r"\bwhy\b", prompt_l) and (
         "because" in text_blob.casefold()
@@ -1373,14 +1477,18 @@ def score_blueprint_editorial_qa(
         approved = sum(1 for e in content_intelligence.evidence if e.approved_for_creative)
         claims_verified = min(10, 4 + approved)
     narrative = 7 if (blueprint.sections and len(blueprint.sections) >= 3) else 4
-    if empty_insights:
-        # Digits in the hero band must not mask empty insight panels.
+    if empty_insights or duplicate_insights:
+        # Digits in the hero band must not mask empty / cloned insight panels.
         narrative = min(narrative, 3)
         copy_complete = 3
     else:
         copy_complete = 2 if (has_adan or dangling) else 8
     if has_adan or dangling:
         copy_complete = min(copy_complete, 2)
+    if duplicate_insights:
+        # Same sentence on every card is a hard editorial fail (PDF sample check).
+        copy_complete = min(copy_complete, 2)
+        narrative = min(narrative, 2)
     visual_usable = 7
     on_brand = 6
     if content_intelligence and (content_intelligence.insight_thesis or ""):
@@ -1395,6 +1503,7 @@ def score_blueprint_editorial_qa(
         "copy_complete": copy_complete,
         "visually_usable": visual_usable,
         "on_brand_beyond_aesthetics": on_brand,
+        "unique_insight_bodies": 2 if duplicate_insights else 8,
     }
 
 
@@ -1437,8 +1546,14 @@ def editorial_qa_repair_instructions(scores: dict[str, int], user_prompt: str = 
         "- Complete sentences only — never truncate mid-word (no 'Transfor-', no ending on 'with').",
         "- Spell UDAN correctly (never ADAN).",
         "- Infographic: 1 hero statistic + 3–5 supporting data cards + 1 insight body each.",
+        "- EACH insight card MUST have a DISTINCT body — never repeat the same sentence across cards.",
         "- Do NOT invent precise numbers not in the Content Intelligence evidence pack.",
     ]
+    if int(scores.get("unique_insight_bodies", 10) or 10) < 6:
+        lines.append(
+            "- FAIL: repeated insight bodies detected. Rewrite every card with a different so-what "
+            "(liquidity vs reserves vs trust vs network effects) — no shared thesis line."
+        )
     if re.search(r"\bwhy\b", (user_prompt or ""), re.I):
         lines.append("- Explicitly explain the economic rationale, not just 'more airports'.")
     return "\n".join(lines)
@@ -1626,6 +1741,25 @@ def evaluate_blueprint_gate(
             )
         )
         repair_target = "l7"
+    duplicate_insights = count_duplicate_insight_bodies(blueprint)
+    if duplicate_insights:
+        originality = min(originality, 0.25)
+        narrative = min(narrative, 0.3)
+        repairs.append(
+            RepairInstruction(
+                target_layer="l7c_content_prep",
+                failure_reason=(
+                    f"{duplicate_insights} insight card(s) repeat the same body text"
+                ),
+                repair_action=(
+                    "Rewrite each supporting card with a UNIQUE so-what body "
+                    "(different driver: liquidity, reserves, network effects, trust, "
+                    "invoicing share). Never paste the same sentence on every card."
+                ),
+                priority="critical",
+            )
+        )
+        repair_target = repair_target or "l7c"
     if has_adan:
         repairs.append(
             RepairInstruction(
@@ -1704,6 +1838,7 @@ def evaluate_blueprint_gate(
         or sparse
         or has_adan
         or dangling
+        or bool(duplicate_insights)
         or (must_why and scores.get("answers_why", 0) < 6)
     )
     editorial_pass = blueprint_passes_editorial_qa(scores)
@@ -1914,13 +2049,30 @@ def ensure_insightful_sections(
     if not insights:
         return blueprint
 
+    # Never hand the same thesis/body to multiple cards — that is the
+    # "repeating insights all over the image" failure mode.
+    unique_insights: list[tuple[str, str, str]] = []
+    seen_bodies: set[str] = set()
+    for label, value, body in insights:
+        key = _normalize_insight_key(body)
+        if key and key in seen_bodies:
+            continue
+        if key:
+            seen_bodies.add(key)
+        unique_insights.append((label, value, body))
+    insights = unique_insights
+    if not insights:
+        return blueprint
+
     sections = list(blueprint.sections or [])
     insight_i = 0
     rebuilt: list[Any] = []
+    used_bodies: list[str] = []
     for sec in sections:
         blob = " ".join(
             [sec.body or "", " ".join(str(x) for x in (sec.includes or []))]
         ).strip()
+        body_text = str(sec.body or "").strip()
         # Fake proof rows (stat="1" + slogan body) must be replaced too —
         # digits in the hero band used to let these through.
         real_proof = bool(
@@ -1928,20 +2080,36 @@ def ensure_insightful_sections(
             and re.search(r"[₹$%]|[0-9]{2,}", sec.stat or "")
             and not is_empty_insight(blob)
         )
-        if (not real_proof) and is_empty_insight(blob) and insight_i < len(insights):
+        cloned = bool(body_text) and any(
+            _bodies_are_near_duplicates(body_text, prev) for prev in used_bodies
+        )
+        if ((not real_proof) and is_empty_insight(blob) or cloned) and insight_i < len(insights):
+            while insight_i < len(insights) and any(
+                _bodies_are_near_duplicates(insights[insight_i][2], prev)
+                for prev in used_bodies
+            ):
+                insight_i += 1
+            if insight_i >= len(insights):
+                rebuilt.append(sec)
+                if body_text:
+                    used_bodies.append(body_text)
+                continue
             label, value, body = insights[insight_i]
             insight_i += 1
+            used_bodies.append(body)
             rebuilt.append(
                 BlueprintInfographicSection(
                     section_label=label,
                     # Supporting insights stay without a duplicate hero number.
-                    stat=None,
+                    stat=None if cloned else (sec.stat if real_proof else None),
                     includes=[value] if value else [],
                     body=body,
                     icon_hint=sec.icon_hint,
                 )
             )
         else:
+            if body_text:
+                used_bodies.append(body_text)
             rebuilt.append(sec)
 
     # If the poster had only proof/empty rows, append remaining insights.
@@ -1984,6 +2152,134 @@ def ensure_insightful_sections(
     notes = list(blueprint.brand_alignment_notes or [])
     notes.append("insight_panels_filled_from_content_intelligence")
     blueprint.brand_alignment_notes = notes[:8]
+    return blueprint
+
+
+def dedupe_repeated_insight_bodies(
+    blueprint: CreativeBlueprint,
+    *,
+    content_intelligence: Any | None = None,
+    user_prompt: str = "",
+) -> CreativeBlueprint:
+    """Force unique section bodies when the LLM pasted the same insight everywhere."""
+    from app.graph.models.layer7c_models import BlueprintInfographicSection
+
+    if count_duplicate_insight_bodies(blueprint) == 0:
+        return blueprint
+
+    # Build replacement pool from approved evidence / data points / prompt cues.
+    pool: list[str] = []
+    seen_pool: set[str] = set()
+
+    def _push(text: str) -> None:
+        body = _clip_complete(re.sub(r"\bADAN\b", "UDAN", text or "", flags=re.I), 28)
+        key = _normalize_insight_key(body)
+        if not body or is_empty_insight(body) or not key or key in seen_pool:
+            return
+        seen_pool.add(key)
+        pool.append(body)
+
+    if content_intelligence is not None:
+        for e in getattr(content_intelligence, "evidence", None) or []:
+            if not getattr(e, "approved_for_creative", False):
+                continue
+            interp = str(getattr(e, "interpretation", "") or "").strip()
+            claim = str(getattr(e, "claim", "") or "").strip()
+            value = str(getattr(e, "value", "") or "").strip()
+            if interp:
+                _push(interp)
+            elif claim and value:
+                _push(f"{value} — {claim}")
+            elif claim:
+                _push(claim)
+            elif value:
+                _push(value)
+        fa = getattr(content_intelligence, "format_architecture", None)
+        for point in list(getattr(fa, "supporting_data_points", None) or [])[:6]:
+            _push(str(point))
+        thesis = str(
+            getattr(content_intelligence, "insight_thesis", None)
+            or getattr(fa, "core_insight", None)
+            or ""
+        ).strip()
+        # Thesis is used at most once — never as the body for every card.
+        if thesis:
+            _push(thesis)
+
+    # Topic-aware fallbacks so we never leave clones even without evidence.
+    topic = (user_prompt or blueprint.headline or "this topic").strip()
+    for fallback in (
+        f"Liquidity depth keeps {topic[:40]} trades easy to clear at scale.",
+        f"Reserve demand for dollars anchors pricing confidence worldwide.",
+        f"Network effects lock counterparties into dollar invoicing habits.",
+        f"Rule-of-law and market size sustain trust beyond any single cycle.",
+        f"Dollar funding markets transmit shocks and opportunities globally.",
+    ):
+        _push(fallback)
+
+    seen_bodies: list[str] = []
+    pool_i = 0
+    rebuilt: list[Any] = []
+    changed = 0
+    for sec in list(blueprint.sections or []):
+        body = str(getattr(sec, "body", None) or "").strip()
+        needs_replace = bool(body) and any(
+            _bodies_are_near_duplicates(body, prev) for prev in seen_bodies
+        )
+        if needs_replace:
+            # Skip pool entries that collide with already-used bodies.
+            while pool_i < len(pool) and any(
+                _bodies_are_near_duplicates(pool[pool_i], prev) for prev in seen_bodies
+            ):
+                pool_i += 1
+            if pool_i < len(pool):
+                new_body = pool[pool_i]
+                pool_i += 1
+                # Prefer a distinct label when the LLM cloned the thesis into the title too.
+                new_label = sec.section_label
+                label_key = _normalize_insight_key(str(new_label or ""))
+                if label_key and (
+                    _bodies_are_near_duplicates(str(new_label or ""), body)
+                    or _bodies_are_near_duplicates(str(new_label or ""), new_body)
+                    or " (2)" in str(new_label or "")
+                    or " (3)" in str(new_label or "")
+                ):
+                    new_label = _clip_complete(new_body, 8) or new_label
+                rebuilt.append(
+                    BlueprintInfographicSection(
+                        section_label=new_label,
+                        includes=list(sec.includes or []),
+                        body=new_body,
+                        icon_hint=sec.icon_hint,
+                        stat=sec.stat,
+                    )
+                )
+                seen_bodies.append(new_body)
+                changed += 1
+                continue
+        if body and not is_empty_insight(body):
+            seen_bodies.append(body)
+        rebuilt.append(sec)
+
+    if changed:
+        blueprint.sections = rebuilt
+        notes = list(blueprint.brand_alignment_notes or [])
+        notes.append(f"deduped_{changed}_repeated_insight_bodies")
+        blueprint.brand_alignment_notes = notes[:10]
+
+    # Footer / closing quote must not echo a supporting card body.
+    quote = str(getattr(blueprint, "customer_quote", None) or "").strip()
+    if quote and any(_bodies_are_near_duplicates(quote, b) for b in seen_bodies):
+        while pool_i < len(pool) and any(
+            _bodies_are_near_duplicates(pool[pool_i], prev) for prev in seen_bodies + [quote]
+        ):
+            pool_i += 1
+        if pool_i < len(pool):
+            blueprint.customer_quote = pool[pool_i]
+            pool_i += 1
+            notes = list(blueprint.brand_alignment_notes or [])
+            notes.append("deduped_repeated_closing_quote")
+            blueprint.brand_alignment_notes = notes[:10]
     return blueprint
 
 
@@ -2117,6 +2413,7 @@ def finalize_blueprint_for_card(
     user_prompt: str,
     live_research: dict[str, Any] | None = None,
     content_intelligence: Any | None = None,
+    brand_audience: str | None = None,
 ) -> CreativeBlueprint:
     """Single gate: check + fix ALL safe LLM mistakes, then show on the card.
 
@@ -2189,6 +2486,11 @@ def finalize_blueprint_for_card(
         content_intelligence=content_intelligence,
         user_prompt=user_prompt,
     )
+    blueprint = dedupe_repeated_insight_bodies(
+        blueprint,
+        content_intelligence=content_intelligence,
+        user_prompt=user_prompt,
+    )
 
     if layout_type == "static_hub_facts":
         blueprint = repair_bank_hub_sections(blueprint, user_prompt=user_prompt)
@@ -2208,10 +2510,19 @@ def finalize_blueprint_for_card(
     blueprint = condense_explain_blueprint_copy(
         blueprint, layout_type=layout_type
     )
+    # Condense can re-create near-duplicates; kill them before the card.
+    blueprint = dedupe_repeated_insight_bodies(
+        blueprint,
+        content_intelligence=content_intelligence,
+        user_prompt=user_prompt,
+    )
     # Hygiene again after enrichment/condense (catch ADAN etc.)
     blueprint = apply_text_hygiene(blueprint, user_prompt=user_prompt)
     blueprint = polish_blueprint_meta(
-        blueprint, layout_type=layout_type, user_prompt=user_prompt
+        blueprint,
+        layout_type=layout_type,
+        user_prompt=user_prompt,
+        brand_audience=brand_audience,
     )
 
     # Re-run bank lock after hygiene (labels may have changed)

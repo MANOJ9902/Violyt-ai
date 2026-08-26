@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
         "appreciation-ten-vii-rarely.trycloudflare.com",
     ],
     images: {
+        // Login/sidebar logos are SVGs; Next image optimizer rejects SVG unless allowed.
+        dangerouslyAllowSVG: true,
+        contentDispositionType: "attachment",
+        contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
         remotePatterns: [
             {
                 protocol: "http",
@@ -27,6 +31,16 @@ const nextConfig: NextConfig = {
                 hostname: "localhost",
                 port: "8000",
                 pathname: "/storage/**",
+            },
+            {
+                protocol: "https",
+                hostname: "65.0.82.127",
+                pathname: "/storage/**",
+            },
+            {
+                protocol: "https",
+                hostname: "65.0.82.127",
+                pathname: "/api/v1/storage/**",
             },
             {
                 protocol: "https",

@@ -21,22 +21,39 @@ from app.prompts.brand_copy_tone import (
 from app.prompts.layout_router import classify_layout
 from app.prompts.creative_templates import resolve_creative_template
 from app.prompts.creative_sizes import canvas_label, size_string
+from app.services.image_generation.brand_render_lock import build_lock_from_pack
 from app.services.blueprint_quality import repair_explain_infographic_copy, repair_generic_headline
 
-# gpt-image-1 practical prompt budget (API also truncates ~6000)
-_IMAGE_PROMPT_BUDGET = 5800
+# gpt-image-1 accepts 32k prompt chars. The old 5800 budget silently trimmed the
+# banded infographic layout — losing the brand-colour and no-cutoff blocks at the
+# tail — which is why palette adherence looked random between runs.
+_IMAGE_PROMPT_BUDGET = 12000
 
 
-def _budget_prompt(content: str, locks: str = "", budget: int = _IMAGE_PROMPT_BUDGET) -> str:
-    """Keep slide CONTENT intact; only trim trailing locks if over budget."""
+def _budget_prompt(
+    content: str,
+    locks: str = "",
+    budget: int = _IMAGE_PROMPT_BUDGET,
+    *,
+    mandatory: str = "",
+) -> str:
+    """Keep slide CONTENT intact; only trim trailing locks if over budget.
+
+    `mandatory` (the per-brand render contract) is never trimmed — it leads the
+    prompt so a long layout block can't push the colour/logo/no-cutoff rules out.
+    """
     content = (content or "").strip()
     locks = (locks or "").strip()
-    if len(content) >= budget:
-        return content[:budget]
-    remaining = budget - len(content) - 2
+    mandatory = (mandatory or "").strip()
+
+    head = f"{mandatory}\n\n" if mandatory else ""
+    room = max(0, budget - len(head))
+    if len(content) >= room:
+        return f"{head}{content[:room]}"
+    remaining = room - len(content) - 2
     if remaining <= 0 or not locks:
-        return content
-    return f"{content}\n\n{locks[:remaining]}"
+        return f"{head}{content}"
+    return f"{head}{content}\n\n{locks[:remaining]}"
 
 logger = get_logger(__name__)
 
@@ -317,7 +334,13 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
 
     brand_id = state.get("brand_id", "unknown")
     platform = state.get("platform", "linkedin")
-    fmt = state.get("format", "static")
+    fmt = str(state.get("format", "static") or "static").strip().lower()
+    user_prompt_l8 = str(state.get("user_prompt") or "")
+    if fmt == "static" and re.search(
+        r"\bcarousels?\b|\bswipe(?:able)?\b|\bmulti[- ]?slide\b", user_prompt_l8, re.I
+    ):
+        fmt = "carousel"
+        logger.info("visual_reasoning.format_prompt_override", format="carousel")
 
     if not brand_intelligence or not format_plan or not copy or not creative_concepts:
         logger.error("visual_reasoning.missing_inputs")
@@ -515,6 +538,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             + (f"HOOK: \"{blueprint.hook}\"\n" if blueprint.hook else "")
             + (f"STORY FLOW: {story}\n" if story else "")
             + (f"SECTIONS (render these section labels/facts): {sections}\n" if sections else "")
+            + (
+                "SECTION UNIQUENESS LOCK: every section body/insight line above is DISTINCT. "
+                "Render each card with its OWN body — never repeat one sentence across cards.\n"
+                if sections and len(sections) >= 2
+                else ""
+            )
             + (f"PROOF POINTS: {proof_points}\n" if proof_points else "")
             + (f"STAT HIGHLIGHTS: {stat_highlights}\n" if stat_highlights else "")
             + (
@@ -528,9 +557,11 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             + "CRITICAL: Generate a FINISHED creative. Render the approved strings as sharp typography in the image. "
             "Do not leave empty shells. Do not invent alternate copy. The approved headline/body/sections are FINAL — do not rewrite them. "
             + (
-                f"REQUIRED: use {brand_name}'s EXACT Brand Space palette — "
+                f"REQUIRED: use {brand_name}'s EXACT Brand Space hexes ONLY — "
                 + f"PRIMARY {pack.primary}, SECONDARY {pack.secondary}, ACCENT {pack.accent}, "
                 + f"BACKGROUND {pack.background}. "
+                + "Do NOT paint sample navy (#0B2C5F/#003975) or sample orange (#FFA400) "
+                + "unless that exact hex is listed above. "
                 + (f"FONT: {pack.font_primary} — use this font for all headlines; " if pack.font_primary else "")
                 + "AUDIENCE: depict the EXACT target audience from Brand Space persona. "
             )
@@ -622,6 +653,10 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 else [s.model_dump() for s in (copy.slide_copy or [])]
             ),
             canvas=canvas_desc,
+            background=pack.background,
+            primary=pack.primary,
+            secondary=pack.secondary,
+            accent=pack.accent,
         )
 
         try:
@@ -718,6 +753,10 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         tenant_id = UUID("00000000-0000-0000-0000-000000000000")
 
     # 4. Image generation with gpt-image-1 + brand logo composite, falling back to SDXL/Mock
+    # Reserve room for the mandatory contract so no builder's COPY block gets chopped.
+    _mandatory_lock = build_lock_from_pack(pack, fmt=fmt)
+    _content_budget = max(2000, _IMAGE_PROMPT_BUDGET - len(_mandatory_lock) - 8)
+
     async def _generate_one_image(
         prompt: str,
         image_size: str,
@@ -733,7 +772,13 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         extra = ""
         if not skip_extra_locks:
             extra = pack.image_extra_locks(fmt=fmt)
-        safe_prompt = _budget_prompt(prompt, extra, _IMAGE_PROMPT_BUDGET)
+        # Applies to EVERY brand, format and platform — never skipped, never trimmed.
+        safe_prompt = _budget_prompt(
+            prompt,
+            extra,
+            _IMAGE_PROMPT_BUDGET,
+            mandatory=_mandatory_lock,
+        )
         logger.info(
             "visual_reasoning.image_prompt_budget",
             suffix=fallback_suffix,
@@ -759,6 +804,9 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 composite_close_mascot=composite_close_mascot,
                 close_mascot_storage_path=pack.mascot_storage_path if composite_close_mascot else "",
                 canvas_bg_hex=pack.background,
+                composite_cta_text=(cta or "Explore More") if fmt in {"static", "infographic"} else "",
+                cta_accent_hex=pack.accent if fmt in {"static", "infographic"} else "",
+                legal_color_hex=pack.legal_color,
             )
             logger.info(
                 "visual_reasoning.dalle_success",
@@ -802,6 +850,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                         composite_close_mascot=composite_close_mascot,
                         close_mascot_storage_path=pack.mascot_storage_path if composite_close_mascot else "",
                         canvas_bg_hex=pack.background,
+                        legal_color_hex=pack.legal_color,
                     )
                     filename = f"sdxl-branded-{uuid4().hex[:8]}.png"
                     stored = storage.save_bytes(
@@ -858,6 +907,11 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         raise ValueError(
             "Carousel selected but no slides were prepared in the blueprint. "
             "Re-run Phase 1 or add slides on the approval card before generating."
+        )
+    if fmt == "carousel" and len(carousel_slides) < 4:
+        raise ValueError(
+            f"Carousel selected but only {len(carousel_slides)} slide(s) are ready "
+            "(need at least 4). Re-run Phase 1 or add slides before generating."
         )
 
     if fmt == "carousel" and carousel_slides:
@@ -949,9 +1003,17 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             if not str(slide_headline or "").strip():
                 slide_headline = (slide_body or "").split(".")[0].strip() or f"Slide {n}"
 
-            hl_words = str(slide_headline).split()
-            if len(hl_words) > 6:
-                slide_headline = " ".join(hl_words[:6]).rstrip(".,;:")
+            hl_words = str(slide_headline or "").split()
+            # Prefer complete headlines — never leave dangling verbs ("drive", "are").
+            if len(hl_words) > 12:
+                hl_words = hl_words[:12]
+            _dangling = {
+                "a", "an", "the", "and", "or", "with", "for", "to", "of", "in", "on",
+                "is", "are", "drive", "drives", "make", "makes", "how", "why", "what",
+            }
+            while hl_words and hl_words[-1].strip(".,;:?!").casefold() in _dangling:
+                hl_words.pop()
+            slide_headline = " ".join(hl_words).rstrip(".,;:") if hl_words else str(slide_headline or "")
 
             fact_lines = _content_fact_lines(
                 bp_slide,
@@ -986,8 +1048,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             story_blocks = [
                 strip_carousel_source_citations(b) for b in story_blocks if b
             ]
-            # PDF info pages carry 3-4 cards — builder enforces the final cap.
-            story_blocks = [b for b in story_blocks if b][:4]
+            # Prefer 2–3 fully-visible teaching cards (depth over clutter).
+            story_blocks = [b for b in story_blocks if b][:3]
 
             color_behavior = ""
             if brand_intelligence and brand_intelligence.visual_behavior:
@@ -1021,7 +1083,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             slide_prompt = _budget_prompt(
                 slide_prompt,
                 continuity + "\n" + carousel_style_extra,
-                _IMAGE_PROMPT_BUDGET,
+                _content_budget,
             )
             logger.info(
                 "visual_reasoning.carousel_slide_prompt",
@@ -1114,6 +1176,10 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 format_dense_stats_block,
                 scrub as _dense_scrub,
             )
+            from app.services.image_generation.lean_static_prompt import (
+                build_lean_static_prompt,
+                cards_from_blueprint,
+            )
 
             text_bake_suffix = _error_free_text_block(
                 [
@@ -1142,74 +1208,149 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             )
             card_bake = ""
             is_rank_layout = layout_type == "static_ranking"
-            if blueprint:
-                dense_cards = extract_dense_cards(blueprint, max_cards=8 if not is_rank_layout else 12)
-                card_lines = [
-                    "\nEXACT CARD / ROW TEXT — bake ONLY these quoted strings (zero invented words):\n",
-                    DENSE_LAYOUT_LOCK,
-                    "\n",
-                    format_dense_stats_block(blueprint, max_stats=6),
-                ]
-                if is_rank_layout and (blueprint.sections or []):
-                    # Ranking keeps name + metric rows, but still include BODY so-what when present.
-                    for i, sec in enumerate((blueprint.sections or [])[:12], start=1):
-                        raw_label = (sec.section_label or "").strip()
-                        sec_body = (sec.body or "").strip()
-                        first = next(
-                            (str(x).strip() for x in (sec.includes or []) if str(x).strip()),
-                            "",
-                        )
-                        if not raw_label or raw_label.casefold() in {"item", f"item {i}"}:
-                            raw_label = " ".join((sec_body or first).split()[:8]).rstrip(".,;:") or f"Point {i}"
-                        label = sanitize_ranking_text(raw_label)
-                        stat = sanitize_ranking_text(str(sec.stat or "").strip())
-                        if stat:
-                            import re as _re
+            # LinkedIn static is short landscape (~627px) — long card bodies get clipped.
+            try:
+                _ew, _eh = (int(x) for x in str(size).split("x")[:2])
+            except Exception:
+                _ew, _eh = 1080, 1080
+            is_short_landscape = fmt == "static" and _ew > _eh and _eh <= 720
+            max_card_words = 10 if is_short_landscape else 28
+            max_cards = 4 if is_short_landscape else (8 if not is_rank_layout else 12)
 
-                            stat = _re.sub(r"US\s*\$", "USD ", stat, flags=_re.I)
-                            stat = _re.sub(r"\$", "", stat)
-                        body_line = _dense_scrub(sec_body or first, max_words=22)
-                        card_lines.append(f'ROW {i} name: "{label}"\n')
-                        if stat:
-                            card_lines.append(f'ROW {i} metric: "{stat}"\n')
-                        if body_line:
-                            card_lines.append(f'ROW {i} BODY: "{body_line}"\n')
-                elif dense_cards:
-                    card_lines.append(format_dense_cards_block(dense_cards))
-                elif blueprint.sections:
-                    for i, sec in enumerate((blueprint.sections or [])[:8], start=1):
-                        label = sanitize_ranking_text((sec.section_label or f"Point {i}").strip())
-                        body_line = _dense_scrub(sec.body or "", max_words=28)
-                        if not body_line:
+            # Landscape static: one lean copy-first prompt under budget — do NOT
+            # concatenate expander + dense locks (that was truncating rules).
+            if is_short_landscape and blueprint and not is_rank_layout:
+                lean_cards = cards_from_blueprint(
+                    blueprint, max_cards=4, max_words=8
+                )
+                if not lean_cards:
+                    lean_cards = [
+                        {
+                            "title": (c.get("title") or "")[:],
+                            "body": "",
+                            "stat": "",
+                        }
+                        for c in extract_dense_cards(blueprint, max_cards=4)
+                    ]
+                lean_prompt = build_lean_static_prompt(
+                    canvas_desc=canvas_desc,
+                    headline=str(headline or ""),
+                    supporting=str(supporting or ""),
+                    cards=lean_cards,
+                    palette=brand_palette,
+                    brand_name=brand_name,
+                    cta=str(cta or "Explore More"),
+                )
+                logger.info(
+                    "visual_reasoning.lean_static_prompt",
+                    prompt_len=len(lean_prompt),
+                    cards=len(lean_cards),
+                    budget=_content_budget,
+                )
+                single_url = await _generate_one_image(
+                    lean_prompt[:_content_budget],
+                    size,
+                    composite_legal_footer=False,
+                    skip_extra_locks=True,
+                )
+                generated_urls.append(single_url)
+            else:
+                if blueprint:
+                    dense_cards = extract_dense_cards(blueprint, max_cards=max_cards)
+                    if is_short_landscape:
+                        for card in dense_cards:
+                            body_c = (card.get("body") or "").strip()
+                            title = (card.get("title") or "").strip()
+                            if body_c and title and body_c.casefold() != title.casefold():
+                                card["body"] = _dense_scrub(body_c, max_words=max_card_words)
+                            else:
+                                card["body"] = ""
+                    card_lines = [
+                        "\nEXACT CARD / ROW TEXT — bake ONLY these quoted strings (zero invented words):\n",
+                        DENSE_LAYOUT_LOCK,
+                        "\n",
+                        format_dense_stats_block(blueprint, max_stats=4 if is_short_landscape else 6),
+                    ]
+                    if is_rank_layout and (blueprint.sections or []):
+                        for i, sec in enumerate((blueprint.sections or [])[:12], start=1):
+                            raw_label = (sec.section_label or "").strip()
+                            sec_body = (sec.body or "").strip()
                             first = next(
                                 (str(x).strip() for x in (sec.includes or []) if str(x).strip()),
                                 "",
                             )
-                            body_line = _dense_scrub(first, max_words=28)
-                        card_lines.append(
-                            f'CARD {i}: SMALL ICON + TITLE "{label}" + BODY "{body_line}"\n'
-                        )
-                card_lines.append(
-                    f"Layout: {creative_template.image_stub}\n"
-                    "Icons SMALL. Bake every TITLE + BODY. Prefer latest numbers.\n"
-                )
-                card_bake = "".join(card_lines)
+                            if not raw_label or raw_label.casefold() in {"item", f"item {i}"}:
+                                raw_label = (
+                                    " ".join((sec_body or first).split()[:8]).rstrip(".,;:")
+                                    or f"Point {i}"
+                                )
+                            label = sanitize_ranking_text(raw_label)
+                            stat = sanitize_ranking_text(str(sec.stat or "").strip())
+                            if stat:
+                                import re as _re
 
-            layout_hint = creative_template.l8_image_hint(canvas_desc=canvas_desc)
-            if creative_template.layout_type == "static_ranking":
-                layout_hint += f"\n{INFOGRAPHIC_AUDIENCE_TONE_LOCK}\n"
-            layout_hint += (
-                f"Canvas size LOCKED: {canvas_desc}. Fit every element inside with >=6% margins.\n"
-                "Never clip CTA/text/icons. CTA COMPACT <=28% width, <=4 words.\n"
-                "STATIC/INFOGRAPHIC: dense structured cards with small icons + neat paragraphs.\n"
-            )
-            # Put dense card copy first so the 6000-char API cut never drops the facts.
-            single_url = await _generate_one_image(
-                (card_bake + text_bake_suffix + layout_hint + image_gen_prompt)[:6000],
-                size,
-                composite_legal_footer=False,
-            )
-            generated_urls.append(single_url)
+                                stat = _re.sub(r"US\s*\$", "USD ", stat, flags=_re.I)
+                                stat = _re.sub(r"\$", "", stat)
+                            body_line = _dense_scrub(sec_body or first, max_words=22)
+                            card_lines.append(f'ROW {i} name: "{label}"\n')
+                            if stat:
+                                card_lines.append(f'ROW {i} metric: "{stat}"\n')
+                            if body_line:
+                                card_lines.append(f'ROW {i} BODY: "{body_line}"\n')
+                    elif dense_cards:
+                        card_lines.append(format_dense_cards_block(dense_cards))
+                    elif blueprint.sections:
+                        for i, sec in enumerate((blueprint.sections or [])[:max_cards], start=1):
+                            label = sanitize_ranking_text(
+                                (sec.section_label or f"Point {i}").strip()
+                            )
+                            body_line = _dense_scrub(sec.body or "", max_words=max_card_words)
+                            if not body_line:
+                                first = next(
+                                    (
+                                        str(x).strip()
+                                        for x in (sec.includes or [])
+                                        if str(x).strip()
+                                    ),
+                                    "",
+                                )
+                                body_line = _dense_scrub(first, max_words=max_card_words)
+                            if is_short_landscape and body_line.casefold() == label.casefold():
+                                body_line = ""
+                            if body_line:
+                                card_lines.append(
+                                    f'CARD {i}: SMALL ICON + TITLE "{label}" + BODY "{body_line}"\n'
+                                )
+                            else:
+                                card_lines.append(
+                                    f'CARD {i}: SMALL ICON + TITLE "{label}" (no body line — title only)\n'
+                                )
+                    card_lines.append(
+                        f"Layout: {creative_template.image_stub}\n"
+                        "Icons SMALL. Bake every TITLE + BODY. Prefer latest numbers.\n"
+                    )
+                    card_bake = "".join(card_lines)
+
+                layout_hint = creative_template.l8_image_hint(canvas_desc=canvas_desc)
+                if creative_template.layout_type == "static_ranking":
+                    layout_hint += f"\n{INFOGRAPHIC_AUDIENCE_TONE_LOCK}\n"
+                layout_hint += (
+                    f"Canvas size LOCKED: {canvas_desc}. Fit every element inside with >=8% side/top margins "
+                    "and >=14% EMPTY bottom reserve (NO baked CTA — CTA is composited in post).\n"
+                    "ONE full-bleed Brand Space background only — never a nested white/pale page panel "
+                    "or second background colour.\n"
+                    "Never clip text/icons. Never break a word mid-letter (no 'c'+'an').\n"
+                    "Icon materials ONLY Brand Space hexes — no green/mint/teal/gold.\n"
+                    "SPELLING: bake letter-perfect locked copy only — no invented typos.\n"
+                    "STATIC/INFOGRAPHIC: dense structured cards with small icons + neat paragraphs.\n"
+                )
+                # Put dense card copy first so the prompt cut never drops the facts.
+                single_url = await _generate_one_image(
+                    (card_bake + text_bake_suffix + layout_hint + image_gen_prompt)[:_content_budget],
+                    size,
+                    composite_legal_footer=False,
+                )
+                generated_urls.append(single_url)
 
     # Set the generated image fields on the output Pydantic model
     output.generated_image_url = generated_urls[0] if generated_urls else ""

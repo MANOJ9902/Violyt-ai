@@ -80,6 +80,9 @@ export interface TargetAudienceFields {
 export interface AdditionalColorField {
   name: string;
   hex: string;
+  // Fixed role hint (e.g. "Supporting Dark", "Primary Tint") so the AI image pipeline can tell colors
+  // apart by purpose instead of guessing from the free-text name. Optional/additive for backward compat.
+  role?: string;
 }
 
 export interface VisualIdentityFields {
@@ -89,13 +92,31 @@ export interface VisualIdentityFields {
   referenceCreatives: BrandUploadItem[];
   moodBoards: BrandUploadItem[];
   primaryColor: string;
+  primaryColorName: string;
   secondaryColor: string;
+  secondaryColorName: string;
   additionalColors: AdditionalColorField[];
   colorPaletteUploads: BrandUploadItem[];
   activeColorPaletteUploadId: string;
+  // Fingerprint of the extracted entries last applied from the active color palette upload. Lets the
+  // editor tell "this file's extraction was already applied" apart from "the user changed something",
+  // so repeated status polling/re-syncs never silently discard manual edits (e.g. a Role change or a
+  // manually added color row) made on top of the extracted defaults.
+  activeColorPaletteFingerprint: string;
   typography: string;
   uploadedFonts: BrandUploadItem[];
   fontStyleGuide: BrandUploadItem[];
+}
+
+// Default rows shown in the Brand Color Palette table beyond Primary/Secondary, matching the fixed
+// Role/Colour Name/HEX layout the brand guidelines are provided in.
+export function createDefaultAdditionalColors(): AdditionalColorField[] {
+  return [
+    { name: "", hex: "", role: "Supporting Dark" },
+    { name: "", hex: "", role: "Primary Tint" },
+    { name: "", hex: "", role: "Secondary Tint" },
+    { name: "", hex: "", role: "Neutral" },
+  ];
 }
 
 export interface BrandRuleFields {
@@ -232,10 +253,13 @@ export const emptyBrandFormState: BrandFormState = {
     referenceCreatives: [],
     moodBoards: [],
     primaryColor: "",
+    primaryColorName: "",
     secondaryColor: "",
-    additionalColors: [{ name: "", hex: "" }],
+    secondaryColorName: "",
+    additionalColors: createDefaultAdditionalColors(),
     colorPaletteUploads: [],
     activeColorPaletteUploadId: "",
+    activeColorPaletteFingerprint: "",
     typography: "",
     uploadedFonts: [],
     fontStyleGuide: [],
@@ -472,14 +496,18 @@ export function removeBrandUploadItem(form: BrandFormState, itemId: string): Bra
       referenceCreatives: removeFromList(form.visualIdentity.referenceCreatives),
       moodBoards: removeFromList(form.visualIdentity.moodBoards),
       primaryColor: shouldClearPalette ? "" : form.visualIdentity.primaryColor,
+      primaryColorName: shouldClearPalette ? "" : form.visualIdentity.primaryColorName,
       secondaryColor: shouldClearPalette ? "" : form.visualIdentity.secondaryColor,
-      additionalColors: shouldClearPalette ? [{ name: "", hex: "" }] : form.visualIdentity.additionalColors,
+      secondaryColorName: shouldClearPalette ? "" : form.visualIdentity.secondaryColorName,
+      additionalColors: shouldClearPalette ? createDefaultAdditionalColors() : form.visualIdentity.additionalColors,
       colorPaletteUploads: nextColorPaletteUploads,
       activeColorPaletteUploadId: shouldClearPalette
         ? ""
         : shouldReplaceActivePalette
           ? nextColorPaletteUploads[0]?.id || ""
           : form.visualIdentity.activeColorPaletteUploadId,
+      activeColorPaletteFingerprint:
+        shouldClearPalette || shouldReplaceActivePalette ? "" : form.visualIdentity.activeColorPaletteFingerprint,
       uploadedFonts: removeFromList(form.visualIdentity.uploadedFonts),
       fontStyleGuide: removeFromList(form.visualIdentity.fontStyleGuide),
     },

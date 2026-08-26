@@ -25,6 +25,7 @@ import {
   sanitizeOptionArray,
 } from "@/lib/brand-space-options";
 import {
+  createDefaultAdditionalColors,
   createPersistedBrandUploadItem,
   emptyBrandFormState,
   normalizeBrandLogoItems,
@@ -373,16 +374,22 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     referenceCreatives: createKnowledgeItems(visualIdentity.reference_creatives, "reference_creative"),
     moodBoards: createKnowledgeItems(visualIdentity.mood_boards, "mood_board", ["Mood Board"]),
     primaryColor: String(colorPalette.primary || ""),
+    primaryColorName: String(colorPalette.primary_name || ""),
     secondaryColor: String(colorPalette.secondary || ""),
+    secondaryColorName: String(colorPalette.secondary_name || ""),
     additionalColors:
       Array.isArray(colorPalette.additional) && colorPalette.additional.length
         ? colorPalette.additional.map((item) => ({
             name: String(toRecord(item).name || ""),
             hex: String(toRecord(item).hex || ""),
+            role: String(toRecord(item).role || "") || undefined,
           }))
-        : [{ name: "", hex: "" }],
+        : createDefaultAdditionalColors(),
     colorPaletteUploads,
     activeColorPaletteUploadId,
+    // Left blank on a fresh server load; the editor's attachment-hydration pass re-derives and stamps
+    // this the first time it reconciles with the active color palette upload.
+    activeColorPaletteFingerprint: "",
     typography: String(typography.primary_style || ""),
     uploadedFonts: [],
     fontStyleGuide: createKnowledgeItems(visualIdentity.font_style_guides, "visual_identity", ["Font Guide"]),
@@ -786,10 +793,32 @@ export function mapBrandSections(form: BrandFormState, uploads?: UploadedBrandAs
         },
         brand_color_palette: {
           primary: form.visualIdentity.primaryColor || "",
+          primary_name: form.visualIdentity.primaryColorName || "",
           secondary: form.visualIdentity.secondaryColor || "",
+          secondary_name: form.visualIdentity.secondaryColorName || "",
+          // Lift Role-tagged additional rows into top-level slots so generation
+          // and UI round-trips stay aligned (values still come from the form).
+          ...(() => {
+            const lifted: Record<string, string> = {};
+            for (const color of form.visualIdentity.additionalColors) {
+              const role = String(color.role || "").trim().toLowerCase();
+              const hex = String(color.hex || "").trim();
+              if (!hex) continue;
+              if (role === "accent" && !lifted.accent) lifted.accent = hex;
+              if (role === "background" && !lifted.background) lifted.background = hex;
+              if ((role === "supporting dark" || role === "muted" || role === "neutral") && !lifted.muted) {
+                lifted.muted = hex;
+                lifted.neutral = hex;
+              }
+              if ((role === "primary tint" || role === "surface") && !lifted.surface) {
+                lifted.surface = hex;
+              }
+            }
+            return lifted;
+          })(),
           additional: form.visualIdentity.additionalColors
             .filter((color) => color.name || color.hex)
-            .map((color) => ({ name: color.name, hex: color.hex })),
+            .map((color) => ({ name: color.name, hex: color.hex, role: color.role || "" })),
         },
         typography: {
           primary_style: form.visualIdentity.typography || "",

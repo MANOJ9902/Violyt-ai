@@ -58,7 +58,7 @@ class TextOverlayElement(BaseModel):
     ] = "body"
     text: str = ""
     font_size: int = 24
-    color_hex: str = "#0B2C5F"
+    color_hex: str = "#1F2937"
     position_box: str = "top-center"
 
     @model_validator(mode="before")
@@ -110,7 +110,7 @@ class TextOverlayElement(BaseModel):
             }
             out["font_size"] = defaults.get(out["element_type"], 24)
         if not out.get("color_hex"):
-            out["color_hex"] = out.get("color") or "#0B2C5F"
+            out["color_hex"] = out.get("color") or "#1F2937"
         if not out.get("position_box"):
             positions = {
                 "headline": "top-center",

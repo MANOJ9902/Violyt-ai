@@ -58,19 +58,31 @@ async def execute_phase1(run_id: str, request: dict[str, Any]) -> dict[str, Any]
         initial_state["brand_name"] = visual_pack.brand_name
         initial_state["visual_pack"] = visual_pack.to_dict()
 
+        from app.services.pipeline.format_resolution import resolve_pipeline_format
+
         fmt_in = fmt.strip().lower()
-        layout = classify_layout(user_prompt, fmt_in or None)
-        if not fmt_in or fmt_in == "auto" or layout.reason.startswith("intent_"):
-            initial_state["format"] = layout.suggested_format
-            visual_pack = await load_brand_visual_pack(brand_id, fmt=layout.suggested_format or "")
+        resolved = resolve_pipeline_format(studio_format=fmt_in, user_prompt=user_prompt)
+        chosen_fmt = resolved.format
+        layout = classify_layout(user_prompt, chosen_fmt or None)
+        # Prefer the layout router's suggestion when Studio was auto / empty.
+        if (not fmt_in or fmt_in == "auto") and layout.suggested_format:
+            chosen_fmt = layout.suggested_format
+        if chosen_fmt != fmt_in or resolved.overridden:
+            visual_pack = await load_brand_visual_pack(brand_id, fmt=chosen_fmt or "")
             initial_state["visual_pack"] = visual_pack.to_dict()
-            logger.info(
-                "pipeline.run.layout_routed",
-                layout=layout.layout_type,
-                format=layout.suggested_format,
-                reason=layout.reason,
-                user_format=fmt_in or "auto",
-            )
+        initial_state["format"] = chosen_fmt
+        if resolved.warning:
+            initial_state["format_warning"] = resolved.warning
+        logger.info(
+            "pipeline.run.format_resolved",
+            layout=layout.layout_type,
+            format=chosen_fmt,
+            studio_format=resolved.studio_format,
+            prompt_format=resolved.prompt_format or None,
+            overridden=resolved.overridden,
+            warning=resolved.warning or None,
+            reason=layout.reason,
+        )
 
         save_checkpoint(run_id, serialize_state_for_checkpoint(dict(initial_state)), status="running")
 

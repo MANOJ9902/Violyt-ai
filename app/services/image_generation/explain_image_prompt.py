@@ -25,9 +25,45 @@ _SAFE_CHARS = re.compile(r"[^\w\s₹%&.,'\"?!():;\-–/×+]")
 
 def _scrub(text: str, *, max_words: int = 16) -> str:
     t = sanitize_ranking_text(str(text or ""))
+    # Strip conversational filler before bake
+    t = re.sub(
+        r"^\s*(Certainly!?|Sure!?|Of course!?|Absolutely!?)\s*",
+        "",
+        t,
+        flags=re.I,
+    )
+    t = re.sub(
+        r"^\s*(Here'?s|Here is)\s+(an?\s+)?(explanation|overview|summary|breakdown)\s+(of\s+)?(why\s+)?",
+        "",
+        t,
+        flags=re.I,
+    )
+    t = re.sub(
+        r"^\s*(Create an infographic|Cover liquidity|explaining why the US)\b[:\s,-]*",
+        "",
+        t,
+        flags=re.I,
+    )
     t = _SAFE_CHARS.sub("", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return " ".join(t.split()[:max_words]).strip()
+    t = re.sub(r"\s+", " ", t).strip(" ,;:-")
+    # Common bake typos the model still invents
+    for bad, good in (
+        ("giobal", "global"),
+        ("explaing", "explaining"),
+        ("wny", "why"),
+        ("dominancein", "dominance in"),
+        ("drven", "driven"),
+        ("opportunitites", "opportunities"),
+        ("liqudity", "liquidity"),
+    ):
+        t = re.sub(rf"\b{bad}\b", good, t, flags=re.I)
+    words = t.split()
+    if len(words) <= max_words:
+        return t
+    clipped = " ".join(words[:max_words]).rstrip(" ,;:-")
+    # Never leave a dangling hyphenated fragment like "attri-"
+    clipped = re.sub(r"\b\w+-\s*$", "", clipped).strip()
+    return clipped
 
 
 def _split_fact(raw: str) -> tuple[str, str]:
@@ -100,25 +136,33 @@ def build_explain_infographic_prompt(
     )
 
     # ── Extract section cards from blueprint sections ──────────────────────────
+    # Cap density so CTA + footer fit with bottom margin (prevents cropped buttons).
     cards: list[tuple[str, str, str]] = []  # (TITLE, body, icon_hint)
-    for sec in sections[:8]:
-        raw_label = _scrub(getattr(sec, "section_label", None) or "", max_words=8).upper()
-        raw_body = _scrub(getattr(sec, "body", None) or "", max_words=28)
+    for sec in sections[:4]:
+        raw_label = _scrub(getattr(sec, "section_label", None) or "", max_words=6).upper()
+        raw_body = _scrub(getattr(sec, "body", None) or "", max_words=22)
         includes = [str(x).strip() for x in (getattr(sec, "includes", None) or []) if str(x).strip()]
         stat = _scrub(getattr(sec, "stat", None) or "", max_words=8)
 
         # Use includes as body if body is empty
         if not raw_body and includes:
-            raw_body = _scrub(includes[0], max_words=28)
+            raw_body = _scrub(includes[0], max_words=22)
 
         # Use stat as suffix if available
         if stat and stat not in raw_body:
             raw_body = f"{raw_body} ({stat})" if raw_body else stat
 
+        if not raw_label or re.search(r"EXPLAINING WHY|COVER LIQUIDITY|CREATE AN", raw_label):
+            seed = raw_body or stat or "KEY POINT"
+            raw_label = _scrub(seed, max_words=5).upper() or "KEY POINT"
+
         if raw_label or raw_body:
-            # Pick a generic icon hint based on label content
             icon_hint = _pick_icon_hint(raw_label + " " + raw_body)
             cards.append((raw_label or "POINT", raw_body, icon_hint))
+
+    # Prefer short CTAs so the pill never wraps/clips
+    if cta_text and len(cta_text.split()) > 3:
+        cta_text = " ".join(cta_text.split()[:3])
 
     # ── Build card lines for the prompt ───────────────────────────────────────
     card_lines = "\n".join(
@@ -138,7 +182,13 @@ def build_explain_infographic_prompt(
         "BRANDING: empty TOP-RIGHT corner (~24% width × ~12% height) — COMPLETELY BLANK background only. "
         "NEVER draw any logo, badge, or wordmark in the top-right. "
         "Real Brand Space logo is composited in post.\n"
+        "NEVER bake plain brand-name watermark text anywhere (corners/footer/signature).\n"
         "Do not bake a legal disclaimer on this infographic.\n\n"
+        "SAFE MARGINS (NON-NEGOTIABLE):\n"
+        "- Keep ≥8% empty margin on LEFT/RIGHT/TOP.\n"
+        "- Keep ≥12% empty margin at BOTTOM below the CTA — NEVER crop the CTA button or its text.\n"
+        "- CTA pill must sit FULLY inside the frame, centered, with clear space under it.\n"
+        "- Prefer fewer larger cards over cramped overflow.\n\n"
         "COLOUR PALETTE (Brand Space only):\n"
         f"- Headlines / section titles: {heading}\n"
         f"- Secondary {secondary} — MUST appear as card/panel fills\n"
@@ -147,31 +197,37 @@ def build_explain_infographic_prompt(
         f"- Card border: {hairline}\n"
         f"- Body text: {body_c}\n"
         "STORY ARC (required): hook headline → insight thesis line → at-a-glance stats → "
-        "4–6 reason cards (each a story beat) → one proof chart → Brand Space primary footer tagline.\n"
+        "up to 4 reason cards (each a story beat) → Brand Space primary footer tagline → CTA.\n"
         "Language: everyday investor, insight-led, COMPLETE sentences. No textbook essays.\n"
-        "FORBIDDEN baked text: 'Web Search:', 'Answer WHY', research meta-labels, mid-sentence cuts, ADAN.\n\n"
+        "FORBIDDEN baked text: 'Web Search:', 'Certainly!', 'Here's an explanation', "
+        "'Cover liquidity', 'Answer WHY', research meta-labels, mid-sentence cuts, ADAN.\n"
+        "SPELLING LOCK: bake EVERY word letter-perfect exactly as written below — "
+        "do not invent typos (global not giobal, driven not drven, explaining not explaing).\n\n"
         "TYPOGRAPHY: bold geometric sans. Hierarchy = huge title > section > body.\n\n"
         f"TITLE (3-line layout, key middle word LARGEST — allow ONE keyword in {accent}):\n"
         f"{headline_lines}\n\n"
         "HERO (under logo pocket — NO text on hero):\n"
         "Premium photoreal/3D topic object — studio lit, soft shadow.\n\n"
         "CARDS: rounded ~20px, soft shadow, float on Brand Space background. ONE SMALL clay-3D icon each "
-        "(~8–11% of card) + bold TITLE + neat 2–3 line BODY paragraph.\n"
+        "(~8–11% of card) + bold TITLE + neat 2-line BODY paragraph.\n"
         f"ICON STYLE: glossy 3D in {heading}/{accent} — NOT flat, NOT emoji, NOT giant icons crowding text.\n\n"
         "LAYOUT:\n"
         f"1) TOP: headline in {heading} + insight supporting line in {body_c} + empty top-right logo pocket\n"
         f'   Supporting thesis: "{sub_headline}"\n'
-        "2) Optional at-a-glance stat strip (3–5 latest numbers)\n"
+        "2) Optional at-a-glance stat strip (2–3 latest numbers)\n"
         f"3) MIDDLE: {grid_desc} reason cards — bake EVERY section body (REQUIRED)\n"
-        f"4) BOTTOM: optional compact CTA pill in {accent} with white text\n"
-        "5) NEVER empty cards. NEVER repeated titles. NEVER replace facts with sample filler.\n\n"
+        "4) FOOTER line only — leave the bottom ~12% EMPTY for a composited CTA pill "
+        "(do NOT bake any CTA button or Explore More text into the image)\n"
+        "5) NEVER empty cards. NEVER repeated titles. NEVER repeated bodies. "
+        "Each card BODY must be a different sentence — do not paste one insight on every card.\n"
+        "6) NEVER replace facts with sample filler. NEVER cut off words mid-token.\n\n"
         "RENDER: Octane/Redshift look — crisp edges, GI, HDR.\n"
         "NEGATIVE: cream BG, teal titles, generic navy/orange, hub-spoke web-search UI, clipart, "
-        "watermark, neon, handwritten fonts, truncated text.\n"
+        "watermark, neon, handwritten fonts, truncated text, cropped CTA, misspelled words.\n"
         f"COLOUR BAN: never paint navy/orange/gold/ice-blue unless that hex is {heading}, {secondary}, or {accent}.\n\n"
         "=== BAKE ONLY THIS COPY (letter-perfect, COMPLETE sentences) ===\n"
         f'HEADLINE: "{hl}"\n'
-        + (f'CTA (fill {accent}, white text, compact pill): "{cta_text}"\n' if cta_text else "")
+        + (f'CTA (fill {accent}, white text, compact pill, FULLY inside bottom margin): "{cta_text}"\n' if cta_text else "")
         + f'SUPPORTING LINE: "{sub_headline}"\n'
         f"SECTION CARDS ({num_cards} cards total):\n"
         f"{card_lines}\n"

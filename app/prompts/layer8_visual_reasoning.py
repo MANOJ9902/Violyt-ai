@@ -76,6 +76,7 @@ class VisualReasoningPromptBuilder(BasePromptBuilder):
             primary_color=_primary,
             secondary_color=_secondary,
             accent_color=str(pack.get("accent") or ""),
+            background_color=str(pack.get("background") or ""),
             additional_colors=pack.get("additional") if isinstance(pack.get("additional"), list) else None,
         )
         color_json_example = palette_lock
@@ -188,18 +189,20 @@ POSTER RULES:
 """
             format_instructions = infographic_instructions
         else:
-            bg_note = static_background_instruction(brand_name=brand_name)
+            _bg = str(pack.get("background") or "")
+            bg_note = static_background_instruction(brand_name=brand_name, background=_bg)
             palette_note = palette_lock
             format_instructions = f"""
 STATIC SOCIAL FORMAT — BRAND-SPECIFIC ({brand_name or 'active brand'}):
 - Canvas: exact format×platform size (LinkedIn static 1200x627, Instagram 1080x1080, X 1200x675).
 - ABSOLUTE BOUNDARY: every element fully inside the canvas — nothing bleeds or clips past edges.
 - Safe margin ≥6% all sides. Reduce/drop content rather than clip.
-- Background: {bg_note}.
+- Background: {bg_note}. NEVER paint primary/navy as the page canvas or header band.
 - {palette_note}
 - Education / explain topics → hub + icon cards with short facts.
 - Ranking / comparison ONLY when the user asked for top-N / country-wise / vs ranks.
-- TOP-RIGHT CORNER: leave COMPLETELY BLANK — background only. NEVER draw logo, leaf, compass, badge, or decorative icon here. Brand logo is composited in post.
+- TOP-RIGHT CORNER: leave COMPLETELY BLANK — background only. NEVER draw logo, white logo box, leaf, compass, badge, or decorative icon here. Brand logo is composited in post.
+- NEVER draw LinkedIn / Instagram / X / platform logos or watermarks.
 - Headline + 1 support line + short facts. NO textbook paragraphs.
 - COMPLETE SENTENCES — never truncate mid-word. Shrink font if needed; never clip text.
 - Perfect spelling on all baked text. Zero typos.
@@ -244,7 +247,7 @@ REQUIRED JSON SHAPE (fill every field; do not rename keys):
       "element_type": "headline",
       "text": "Exact headline",
       "font_size": 42,
-      "color_hex": "#0B2C5F",
+      "color_hex": "#1F2937",
       "position_box": "top-center"
     }},
     {{
@@ -492,6 +495,10 @@ Return ONLY raw JSON."""
             customer_name=customer_name,
             layout_type=layout_type,
             canvas=canvas,
+            background=str(kwargs.get("background") or ""),
+            primary=str(kwargs.get("primary") or ""),
+            secondary=str(kwargs.get("secondary") or ""),
+            accent=str(kwargs.get("accent") or ""),
         )
 
     def _build_carousel_prompt(
@@ -813,6 +820,10 @@ Return ONLY the finished image-generation prompt."""
         customer_name: str = "",
         layout_type: str = "",
         canvas: str = "",
+        background: str = "",
+        primary: str = "",
+        secondary: str = "",
+        accent: str = "",
     ) -> str:
         # Use canvas from size_string if not passed in
         if not canvas:
@@ -825,8 +836,12 @@ Return ONLY the finished image-generation prompt."""
             brand_name=brand_name,
             color_behavior=color_behavior,
             visual_mood=visual_mood,
+            primary_color=primary,
+            secondary_color=secondary,
+            accent_color=accent,
+            background_color=background,
         )
-        bg_note = static_background_instruction(brand_name=brand_name)
+        bg_note = static_background_instruction(brand_name=brand_name, background=background)
         is_bank_hub = layout_type == "static_hub_facts" or any(
             k in topic
             for k in (
@@ -943,22 +958,28 @@ ABSOLUTE BOUNDARY: Every pixel of every element (headline, icon, card, CTA, sour
 fully inside the {ratio} canvas. Nothing may bleed, clip, or extend past any edge.
 Safe margin ≥6% on ALL four sides. Shorten or drop content before clipping occurs.
 
-Background: {static_bg}.
+Background: {static_bg}. NEVER paint primary/navy as the page canvas or a dark header band —
+primary is for headline TEXT only. Soft Brand Space cards on the Brand Space background.
+ONE full-bleed Brand Space background ONLY — never a nested white/pale page panel or second BG.
 Style: premium educational creative with glossy 3D accents + sharp baked typography.
 {static_colours}
-Logo: tiny top-right empty pocket only — never draw brand-name text.
-Layout: Bold large headline, supporting line, ranked rows OR fact cards, compact CTA.
+Logo: tiny top-right EMPTY pocket only — never draw brand-name text, never draw a white logo box.
+BAN: LinkedIn / Instagram / X platform logos, badges, watermarks.
+BAN: green/mint/teal/gold icon materials — Brand Space hexes only.
+Layout: Bold large headline, supporting line, ranked rows OR fact cards.
+CTA: DO NOT bake any CTA button — leave bottom ≥14% EMPTY Brand Space background (composited in post).
 {education_block}
 {ranking_block}
 If sections/facts are provided below and this is NOT a ranking, prefer education cards or hub layout.
 {NO_LEGAL_STATIC_RULE}
 Never use $ or US $ — prefer ₹ / ¥ / USD letters / %.
+TEXT FIT: complete words only — never break a word across lines; scale font down; never clip.
 
 Exact text (bake letter-perfect — never invent gibberish):
 Headline: {headline}
 Supporting: {supporting_line}
 Body: {body}
-CTA: {cta}
+CTA (for reference only — DO NOT paint a button): {cta}
 Quote (omit if empty): {customer_quote} {customer_name}
 Fact / rank rows:
 {rows_text or '(none)'}

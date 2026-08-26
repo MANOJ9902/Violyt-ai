@@ -127,25 +127,45 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                         </FormField>
                 </div>
 
-                <div className="space-y-5 max-w-md">
+                <div className="space-y-5 max-w-xl">
                     <div className="flex flex-col gap-3">
                         <h1 className="text-base font-medium text-[#121212]">
                             Brand Color Palette (HEX)<span className="ml-1 text-red-500">*</span>
                         </h1>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div className="flex h-12 items-center rounded-xl bg-section-input-field px-4 py-3 text-sm text-[#2C2C2C]">
-                                Primary color
+                        <p className="text-sm text-slate-500">
+                            Assign a Role to each color so Violyt knows exactly where to use it (backgrounds, headings, accents, etc).
+                        </p>
+                        <div className="hidden gap-3 px-1 text-xs font-medium uppercase tracking-wide text-slate-500 md:grid md:grid-cols-3">
+                            <span>Role</span>
+                            <span>Colour Name</span>
+                            <span>HEX</span>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <div className="flex h-12 items-center rounded-xl bg-section-input-field px-4 py-3 text-sm font-medium text-[#2C2C2C]">
+                                Primary Colour
                             </div>
+                            <StyledInput
+                                placeholder="Define color name"
+                                value={form.visualIdentity.primaryColorName}
+                                onChange={(e) => updateField("primaryColorName", e.target.value)}
+                                className="bg-section-input-field"
+                            />
                             <ColorHexInput
                                 value={form.visualIdentity.primaryColor}
                                 onValueChange={(value) => updateField("primaryColor", value)}
                                 className="rounded-xl bg-section-input-field"
                             />
                         </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div className="flex h-12 items-center rounded-xl bg-section-input-field px-4 py-3 text-sm text-[#2C2C2C]">
-                                Secondary color
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <div className="flex h-12 items-center rounded-xl bg-section-input-field px-4 py-3 text-sm font-medium text-[#2C2C2C]">
+                                Secondary Colour
                             </div>
+                            <StyledInput
+                                placeholder="Define color name"
+                                value={form.visualIdentity.secondaryColorName}
+                                onChange={(e) => updateField("secondaryColorName", e.target.value)}
+                                className="bg-section-input-field"
+                            />
                             <ColorHexInput
                                 value={form.visualIdentity.secondaryColor}
                                 onValueChange={(value) => updateField("secondaryColor", value)}
@@ -155,6 +175,12 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                         {form.visualIdentity.additionalColors.map((color, index) => (
                             <AdditionalColorRow
                                 key={`additional-color-${index}`}
+                                role={color.role || ""}
+                                onRoleChange={(value) => {
+                                    const nextColors = [...form.visualIdentity.additionalColors];
+                                    nextColors[index] = { ...nextColors[index], role: value };
+                                    updateField("additionalColors", nextColors);
+                                }}
                                 name={color.name}
                                 hex={color.hex}
                                 onNameChange={(value) => {
@@ -179,7 +205,7 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                         <div className="flex justify-end">
                             <AddMoreButton
                                 onClick={() =>
-                                    updateField("additionalColors", [...form.visualIdentity.additionalColors, { name: "", hex: "" }])
+                                    updateField("additionalColors", [...form.visualIdentity.additionalColors, { name: "", hex: "", role: "" }])
                                 }
                             />
                         </div>

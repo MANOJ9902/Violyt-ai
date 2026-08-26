@@ -46,8 +46,9 @@ _BARE_ORG_TAIL = re.compile(
     re.IGNORECASE,
 )
 
-# Bottom reserve for the Pillow-composited gray legal footer (PDF footer ≈ 10%).
-_LEGAL_FOOTER_RESERVE = "14%"
+# Bottom reserve — keep Learn More / legal / CTA from eating story cards.
+# Align with carousel_layout_grid (~20–24% empty when a footer/CTA may appear).
+_LEGAL_FOOTER_RESERVE = "20%"
 
 def _palette(p: dict[str, str] | None) -> dict[str, str]:
     p = p or {}
@@ -75,7 +76,7 @@ def _design_system(p: dict[str, str], *, has_legal: bool, has_mascot: bool) -> s
     footer = (
         f"bottom {_LEGAL_FOOTER_RESERVE} EMPTY {p['bg']} for the composited legal footer."
         if has_legal
-        else "no legal footer band — do not invent disclaimer text."
+        else f"bottom {_LEGAL_FOOTER_RESERVE} EMPTY {p['bg']} — no Learn More button, no invented CTA pill."
     )
     mascot = (
         "CLOSE page: leave lower-right empty for a composited brand mascot."
@@ -83,17 +84,19 @@ def _design_system(p: dict[str, str], *, has_legal: bool, has_mascot: bool) -> s
         else "CLOSE page: no mascot unless Brand Space supplied one."
     )
     return f"""
-CAROUSEL DESIGN SYSTEM (Brand Space palette — same structure every slide):
-CANVAS: full-bleed {p['bg']}. 4:5 vertical (1080×1350). Spacious editorial, ~6% margins.
-PALETTE (restrained — nothing else):
-  headline {p['headline']} · secondary/cards {p['secondary']} · accent {p['accent']} only ·
-  body {p['body']} · muted {p['muted']}.
-TYPOGRAPHY: {p['font']}. Sentence case. ExtraBold headline 1–2 lines. Never serif/handwritten.
-INFO CARDS: wide rounded rectangles, fill {p['card']}, icon LEFT ~25%, text RIGHT ~75%.
-ICONS: premium miniature 3D isometric objects matching THIS slide's point — not another brand's icons.
-SPACING: logo pocket top-right EMPTY · {footer}
-{mascot}
-Every slide = SAME campaign. Uncluttered. No neon. No second background.
+CAROUSEL DESIGN SYSTEM — Brand Space HEX LOCK (paint ONLY these):
+CANVAS: full-bleed exact {p['bg']} on EVERY slide — same page colour, no drift, no navy header.
+HEADLINES: ExtraBold exact {p['headline']}, LEFT-aligned in left ~75%, TEXT ONLY (never a page fill).
+CARDS: wide rounded rectangles filled exact {p['card']}. SECONDARY wash {p['secondary']}.
+ACCENT / key numbers only: exact {p['accent']}. BODY {p['body']}. MUTED {p['muted']}.
+FORBIDDEN: white canvas, gray cards, sample navy #0B2C5F, sample orange #FFA400, foreign teal.
+TYPOGRAPHY: {p['font']}. Sentence case. ExtraBold headline 1–2 complete lines.
+INFO CARDS: fill {p['card']}, LEFT story text (~70%), RIGHT ONE clay-3D icon (~12–16% H).
+ICONS: ONE premium HD clay-3D studio object per card — sharp edges, satin accent highlights,
+  studio light, contact shadow. NOT flat isometric, NOT emoji, NOT clipart.
+SPACING: logo pocket top-right EMPTY · {footer}{mascot}
+Every slide = SAME campaign + SAME {p['bg']} canvas. No neon. No second background.
+NO Learn More / Explore More buttons on cover or info slides — CTA text only on CLOSE.
 """
 
 CAROUSEL_DENSE_LOCK = """
@@ -107,9 +110,10 @@ CAROUSEL CONTENT LOCK:
 CLEAN_LAYOUT_LOCK = f"""
 CLEAN EDITORIAL LOCK:
 • Calm LinkedIn-native craft. NO connector graphs / path lines / flowchart arrows.
-• Leave TOP-RIGHT logo pocket EMPTY. Leave BOTTOM {_LEGAL_FOOTER_RESERVE} EMPTY pale-blue.
-• ≥4% clear gap between last content and the footer band — cards must NOT touch it.
-• BAN: page counters, white logo boxes, dark invented footer bars, source citations, second background.
+• Leave TOP-RIGHT logo pocket EMPTY. Leave BOTTOM {_LEGAL_FOOTER_RESERVE} EMPTY (Brand Space background only — no invented pale strip, no brand-name watermark).
+• ≥6% clear gap between last content and the bottom reserve — cards must NOT touch it.
+• BAN: page counters, white logo boxes, LinkedIn/platform logos, dark invented footer bars, source citations, second background, navy header bands.
+• BAN: incomplete headlines, mid-word clips, truncated card sentences, '...' ellipsis cutoffs.
 """
 
 CREATIVE_DEPTH_LOCK = """
@@ -126,14 +130,14 @@ ROLE_LAYOUT_SPECS: dict[str, dict[str, object]] = {
         "role": "cover",
         "geometry": "cover",
         "composition": (
-            "COVER PAGE (PDF slide 1): TOP-RIGHT logo pocket EMPTY. UPPER-LEFT: very large "
-            "ExtraBold headline in Brand Space primary, left-aligned, max 2 lines, fully left of the logo pocket. "
-            "Directly below: large Brand Space accent supporting statement carrying the key number. "
-            "LOWER ~55%: ONE large premium cinematic 3D hero scene related to the topic "
-            "(clean, realistic, Brand Space lighting, Brand Space accent) — it must NOT "
-            "overpower the headline. Just above the footer reserve: ONE slim Brand Space primary rounded "
-            "banner with short white bold teaser text + small Brand Space accent icon. "
-            "NO info cards on the cover."
+            "COVER PAGE: TOP-RIGHT logo pocket EMPTY (~22% W × ~12% H). "
+            "UPPER-LEFT (left ~70%): very large ExtraBold headline in Brand Space primary, "
+            "left-aligned, max 2 COMPLETE lines — never under the logo pocket. "
+            "Directly below: large Brand Space accent supporting statement with the key number. "
+            "MIDDLE/LOWER: ONE large premium clay-3D hero object (topic-matched, studio-lit). "
+            "Just ABOVE the bottom empty reserve: ONE educational teaser line "
+            "(e.g. \"Here's what you need to know\") — NEVER a Learn More / Explore More button. "
+            "Bottom reserve stays empty Brand Space background. NO info cards on the cover."
         ),
         "max_blocks": 0,
         "max_words_block": 14,
@@ -142,28 +146,28 @@ ROLE_LAYOUT_SPECS: dict[str, dict[str, object]] = {
         "role": "info",
         "geometry": "info",
         "composition": (
-            "INFORMATION PAGE (PDF slides 2–5): TOP-RIGHT logo pocket EMPTY. "
-            "TOP-CENTRE: large ExtraBold headline in Brand Space primary (1–2 lines, centred). "
-            "Below: ONE short centred gray explanatory sentence. "
-            "MIDDLE: 3–4 WIDE rounded Brand Space card fills stacked with even gaps — each card = "
-            "miniature 3D isometric icon LEFT (~25% width) → thin vertical divider → concise "
-            "text RIGHT with the key number/phrase in bold Brand Space primary. "
-            "Optionally ONE centred Brand Space primary takeaway sentence below the cards (bold key phrase). "
-            "Everything stops ≥4% above the footer reserve."
+            "INFORMATION PAGE: TOP-RIGHT logo pocket EMPTY. "
+            "TOP-LEFT (left ~75%): large ExtraBold headline in Brand Space primary "
+            "(1–2 COMPLETE lines, LEFT-aligned — never centred under the logo). "
+            "Below: ONE short Brand Space body explanatory sentence. "
+            "MIDDLE: 2–3 WIDE rounded Brand Space card fills stacked with even gaps — each card = "
+            "LEFT concise teaching sentence (mechanism + number) ~70% → RIGHT one clay-3D icon ~12–16% H. "
+            "Bold the key number/phrase in Brand Space primary inside each card. "
+            "Everything stops ≥6% above the bottom empty reserve. "
+            "NO Learn More button. NO page counters. NO source cites."
         ),
-        "max_blocks": 4,
-        "max_words_block": 20,
+        "max_blocks": 3,
+        "max_words_block": 22,
     },
     "close": {
         "role": "close",
         "geometry": "close",
         "composition": (
-            "CLOSE PAGE (PDF slide 6): TOP-RIGHT logo pocket EMPTY. LEFT ~55%: very large "
-            "ExtraBold question headline in Brand Space primary (max 3 short lines), left-aligned. Below it: "
-            "one short bold charcoal invite line (e.g. share your thoughts in the comments). "
-            "RIGHT ~45% of the canvas stays EMPTY for a composited Brand Space mascot "
-            "when one exists. NEVER draw a mascot, animal character, or fake brand figure. "
-            "NO info cards. NO hero scene."
+            "CLOSE PAGE: TOP-RIGHT logo pocket EMPTY. LEFT ~55%: very large "
+            "ExtraBold question headline in Brand Space primary (max 3 short COMPLETE lines), left-aligned. "
+            "Below it: one short bold invite line (share your thoughts / save this) — TEXT ONLY, no button. "
+            "RIGHT ~45% stays EMPTY for a composited Brand Space mascot when one exists. "
+            "NEVER draw a mascot or fake brand figure. NO info cards. NO hero scene. NO Learn More pill."
         ),
         "max_blocks": 0,
         "max_words_block": 12,
@@ -212,24 +216,39 @@ def strip_carousel_heading_numbers(text: str) -> str:
     return t if t else "KEY INSIGHT"
 
 
-def _fit_headline(text: str, *, max_chars: int = 34, max_lines: int = 2) -> str:
-    """Keep headline short enough to sit clear of the logo pocket without mid-word clip.
+def _fit_headline(text: str, *, max_chars: int = 64, max_lines: int = 2) -> str:
+    """Keep a COMPLETE headline — never ship a mid-sentence stub.
 
-    Hard cap at 6 words — headlines stay short so they fit fully.
-    The image model is told to scale the font DOWN to fit, not clip.
+    Prefer the full short headline. Only trim at a word boundary when clearly over
+    length, and never leave dangling verbs/connectors ("drive", "are", "the").
     """
     t = strip_carousel_heading_numbers(text)
-    words = t.split()
-    if not words:
+    t = re.sub(r"\s+", " ", t).strip(" ,;:-–")
+    if not t:
         return "KEY INSIGHT"
-    # Hard cap at 6 words — anything longer risks overflow at the ExtraBold weight.
-    if len(words) > 6:
-        words = words[:6]
-    # Also remove dangling connectors at the end
-    dangling = {"a", "an", "the", "and", "or", "with", "for", "to", "of", "in", "on", "is"}
-    while words and words[-1].strip(".,;:").casefold() in dangling:
+    words = t.split()
+    # Allow complete teaching headlines (up to 12 words / ~64 chars).
+    if len(words) > 12:
+        words = words[:12]
+    dangling = {
+        "a", "an", "the", "and", "or", "with", "for", "to", "of", "in", "on", "is",
+        "are", "was", "were", "be", "by", "from", "as", "that", "which", "drive",
+        "drives", "make", "makes", "get", "gets", "how", "why", "what",
+    }
+    while words and words[-1].strip(".,;:?!").casefold() in dangling:
         words.pop()
-    return " ".join(words) if words else "KEY INSIGHT"
+    out = " ".join(words).strip(" ,;:-–")
+    # If still looks incomplete (ends with connector-ish), prefer a safer short title.
+    if not out:
+        return "KEY INSIGHT"
+    if len(out) > max_chars:
+        # Trim to last full word under max_chars — never mid-word.
+        clipped = out[:max_chars].rsplit(" ", 1)[0].strip(" ,;:-–")
+        words2 = clipped.split()
+        while words2 and words2[-1].strip(".,;:?!").casefold() in dangling:
+            words2.pop()
+        out = " ".join(words2) if words2 else out[:max_chars]
+    return out or "KEY INSIGHT"
 
 
 def _slide_spec(slide_number: int, role: str, *, is_last: bool = False) -> dict[str, object]:
@@ -261,14 +280,16 @@ def _render_blocks(blocks: list[str], spec: dict[str, object]) -> str:
 
     n = len(items)
     return (
-        f"INFO CARDS (exactly {n} wide rounded soft-blue cards, stacked with even gaps):\n"
+        f"INFO CARDS (exactly {n} wide Brand Space card-fill story cards, stacked with even gaps):\n"
         + "\n".join(
-            f'  CARD {i}: [3D isometric icon depicting this point] | divider | '
-            f'"{b}" (bold the key number/phrase in Brand Space primary)'
+            f'  CARD {i}: LEFT teaching sentence "{b}" (bold key number/phrase in Brand Space primary) '
+            f"| RIGHT one clay-3D topic icon (Brand Space accent highlights)"
             for i, b in enumerate(items, start=1)
         )
-        + f"\nAll {n} cards identical shape/fill/radius. Icon LEFT ~25%, text RIGHT ~75%.\n"
-        "Do NOT add extra cards. Do NOT place cards inside the bottom footer reserve.\n"
+        + f"\nAll {n} cards identical radius + Brand Space card fill. Text LEFT ~70%, icon RIGHT ~12–16% H.\n"
+        "Each card must teach a DIFFERENT mechanism / proof point — no repeated so-whats.\n"
+        "Do NOT add extra cards. Do NOT place cards inside the bottom empty reserve.\n"
+        "Do NOT bake Learn More / Explore More buttons anywhere on this page.\n"
     )
 
 
@@ -312,17 +333,30 @@ def build_carousel_slide_image_prompt(
         if str(b).strip()
     ]
     blocks = [b for b in raw_blocks if b]
-    cta_label = _scrub(cta, max_words=8) if (is_last and cta) else ""
+    cta_label = ""
+    if is_last and cta:
+        raw = _scrub(cta, max_words=10)
+        # Close slide: invite text only — never Learn More, never "Explore with <Brand>".
+        if brand_name:
+            raw = re.sub(re.escape(brand_name), "", raw, flags=re.I).strip(" ,;:-–!")
+        raw = re.sub(r"\bexplore\s+with\b.*$", "", raw, flags=re.I).strip(" ,;:-–!")
+        if raw and not re.search(r"\b(learn|explore|read|click|tap)\s+more\b", raw, re.I):
+            cta_label = raw
+        else:
+            cta_label = "Share your thoughts in the comments"
     topic_clean = _scrub(topic, max_words=12)
     priors = [_fit_headline(p) for p in (prior_headlines or []) if str(p).strip()][:9]
     prior_line = "; ".join(f'"{p}"' for p in priors) if priors else "(first slide)"
 
     cards = _render_blocks(blocks, spec)
 
-    # Cover teaser banner text — prefer supporting/CTA, else default from the PDF.
+    # Cover teaser — educational line only. Never bake Learn More / Explore More as a button.
     teaser = ""
     if geometry == "cover":
-        teaser = _scrub(cta or "Here's what you need to know", max_words=9) or (
+        raw_cta = (cta or "").strip()
+        if re.search(r"\b(learn|explore|read|click|tap)\s+more\b", raw_cta, re.I):
+            raw_cta = ""
+        teaser = _scrub(raw_cta or "Here's what you need to know", max_words=9) or (
             "Here's what you need to know"
         )
 
@@ -337,40 +371,43 @@ def build_carousel_slide_image_prompt(
         if has_mascot
         else ""
     )
-    return (
-        f"=== BRAND CAROUSEL — {brand_name or 'Brand Space'} ===\n"
-        "Premium editorial carousel. Every slide belongs to the same campaign.\n"
-        f"Canvas {canvas_desc} (4:5 vertical). Slide {slide_number}/{total_slides}. "
-        f"Page type: {geometry.upper()} (role: {spec['role']}).\n"
-        f"{_design_system(pal, has_legal=has_legal, has_mascot=has_mascot)}\n"
-        f"{CAROUSEL_DENSE_LOCK}\n"
-        "════════════════════════════════════\n"
-        "ABSOLUTE BANS\n"
-        "════════════════════════════════════\n"
-        "• NO connector graphs, path lines, dotted trails, flowchart arrows.\n"
-        "• NO numbers in headline — never '1.', '2.', '01', step counters.\n"
-        "• NO page numbers / '1 of N' / slide badges.\n"
-        "• NO logo / brand wordmark baked — top-right EMPTY (Brand Space PNG composite).\n"
-        "• NO source names, survey names, 'Source:' labels, or institution cites — EVER.\n"
-        f"{footer_rule}"
-        "• Complete words only — NEVER clip mid-word.\n"
-        "• FONT SIZE: scale the headline font DOWN until ALL words fit fully — never clip, never '...'.\n"
-        "  INFO pages: headline is centred, Bold, within the centre 80%, clear of the logo pocket.\n"
-        "  COVER pages: headline is LEFT-aligned ExtraBold in the left 60% of the canvas.\n"
-        "• Props from THIS slide's copy only.\n"
-        f"{mascot_rule}\n"
-        f"COMPOSITION: {spec['composition']}\n"
-        f"{cards}\n"
-        f'HEADLINE (ExtraBold {pal["headline"]}): "{hl}"\n'
-        f"FORBIDDEN prior headlines: {prior_line}\n\n"
-        "COPY TO BAKE (already scrubbed — no sources):\n"
+    # COPY FIRST: prompt-budget trimming happens from the tail, so the exact strings
+    # that must be baked lead the prompt and can never be cut off.
+    copy_block = (
+        "COPY TO BAKE — render these EXACT strings, complete, nothing else:\n"
         + (f'TOPIC: "{topic_clean}"\n' if topic_clean else "")
         + f'HEADLINE: "{hl}"\n'
         + (f'SUBHEAD: "{sup}"\n' if sup and geometry != "close" else "")
         + (f'BODY: "{body_txt}"\n' if body_txt else "")
-        + (f'TEASER BANNER (primary pill, white text): "{teaser}"\n' if teaser else "")
-        + (f'CTA / INVITE LINE: "{cta_label}"\n' if cta_label else "")
-        + "=== END ===\n"
+        + (f'TEASER LINE (text only, NOT a button, NOT a brand watermark): "{teaser}"\n' if teaser else "")
+        + (f'CLOSE INVITE (text only, NO brand-name watermark): "{cta_label}"\n' if cta_label else "")
+        + f"{cards}\n"
+        + f"FORBIDDEN prior headlines (say something different): {prior_line}\n"
+    )
+
+    return (
+        f"=== BRAND CAROUSEL — {brand_name or 'Brand Space'} ===\n"
+        f"Canvas {canvas_desc} (4:5 vertical). Slide {slide_number}/{total_slides}. "
+        f"Page type: {geometry.upper()} (role: {spec['role']}).\n"
+        f"{copy_block}\n"
+        f'HEADLINE STYLE: ExtraBold {pal["headline"]}, LEFT ~72%, complete lines.\n'
+        f"COMPOSITION: {spec['composition']}\n"
+        f"HEX LOCK (Brand Space exact): BG={pal['bg']} HEADLINE={pal['headline']} "
+        f"CARD={pal['card']} ACCENT={pal['accent']} BODY={pal['body']} SECONDARY={pal['secondary']}.\n"
+        f"{_design_system(pal, has_legal=has_legal, has_mascot=has_mascot)}\n"
+        f"{CAROUSEL_DENSE_LOCK}\n"
+        "ABSOLUTE BANS:\n"
+        "• NO connector graphs, path lines, dotted trails, flowchart arrows.\n"
+        "• NO numbers in headline — never '1.', '2.', '01', step counters.\n"
+        "• NO page numbers / '1 of N' / slide badges.\n"
+        "• NO source names, survey names, 'Source:' labels, or institution cites — EVER.\n"
+        f"{footer_rule}"
+        "• NO Learn More / Explore More buttons.\n"
+        "• Props from THIS slide's copy only.\n"
+        "• DEPTH: each card/body must teach a concrete mechanism or ₹/% proof — no vague slogans.\n"
+        f"{mascot_rule}"
+        f"{CLEAN_LAYOUT_LOCK}\n"
+        "=== END ===\n"
     )
 
 
@@ -378,8 +415,9 @@ def build_carousel_style_stub(palette: dict[str, str] | None = None) -> str:
     pal = _palette(palette)
     return (
         f"CAROUSEL: BG {pal['bg']}; headlines {pal['headline']}; accent {pal['accent']}; "
-        f"cards {pal['card']} (3D isometric icon left, divider, text right); "
-        "NO source names; NO numbers in headline; empty logo pocket."
+        f"cards {pal['card']} (story text left, clay-3D icon right); "
+        "NO Learn More buttons; NO source names; empty top-right logo pocket; "
+        "LEFT-aligned headlines in left 75%."
     )
 
 

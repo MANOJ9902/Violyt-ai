@@ -12999,12 +12999,14 @@ class AIOrchestratorService:
         scene_graph_payload.setdefault("styles", {})
 
         # Fix 1: Apply brand background color dynamically (not hardcoded white)
+        # Uses derive_palette_roles() (allow_template_swatches=False, its default) rather than a raw dict
+        # lookup so a "Background" role set via an additional color row (Brand Color Palette table) is
+        # honored, not just a bare top-level key — without ever inventing a color from a reference PDF.
         visual_identity = request.resolved_brand_context.get("visual_identity", {})
-        brand_color_palette = visual_identity.get("brand_color_palette", {})
-        if isinstance(brand_color_palette, dict) and "background" in brand_color_palette:
-            background_color = brand_color_palette["background"]
-            if background_color and background_color != "#FFFFFF":  # Only set if not default white
-                scene_graph_payload["styles"]["background_fill"] = background_color
+        resolved_palette_roles = derive_palette_roles(visual_identity) if isinstance(visual_identity, dict) else {}
+        background_color = resolved_palette_roles.get("background")
+        if background_color and background_color.upper() != "#FFFFFF":  # Only set if not default white
+            scene_graph_payload["styles"]["background_fill"] = background_color
 
         if logo_position_hint:
             scene_graph_payload["styles"]["logo_position"] = logo_position_hint
@@ -29367,7 +29369,6 @@ class AIOrchestratorService:
                 raw_slide.get("description"),
                 raw_slide.get("detail"),
                 fallback_slide.get("supporting_line"),
-                supporting_line,
             ]
             resolved_support = next(
                 (
@@ -29437,6 +29438,23 @@ class AIOrchestratorService:
                     or cls._normalize_metadata_text(fallback_slide.get("headline"), limit=120)
                     or cls._carousel_role_title(story_role or role, headline=headline, cta=cta)
                 )
+            # Avoid heading = subheading duplication: if the resolved support
+            # matches the headline, try to derive a distinct subheading from
+            # slide-specific proof points or body points instead.
+            if (
+                resolved_support
+                and resolved_title
+                and resolved_support.casefold().strip() == resolved_title.casefold().strip()
+            ):
+                distinct_points = [
+                    point
+                    for point in slide_points
+                    if point and point.casefold().strip() != resolved_title.casefold().strip()
+                ]
+                resolved_support = cls._normalize_metadata_text(
+                    distinct_points[0] if distinct_points else "",
+                    limit=220,
+                )
             slide = {
                 "role": role,
                 "headline": resolved_title,
@@ -29454,7 +29472,8 @@ class AIOrchestratorService:
                     for point in slide_points
                     if not resolved_support or point.casefold() != resolved_support.casefold()
                 ][:point_budget],
-                "stat_highlights": cls._normalize_metadata_list(raw_slide.get("stat_highlights"), limit=3),
+                "stat_highlights": cls._normalize_metadata_list(raw_slide.get("stat_highlights"), limit=3)
+                    or (stat_highlights[:2] if index == 1 else []),
                 "cta": cls._normalize_metadata_text(raw_slide.get("cta"), limit=90) or (cta if role == "closing" else ""),
                 "visual_focus": cls._normalize_metadata_text(raw_slide.get("visual_focus"), limit=160),
                 "transition_note": cls._normalize_metadata_text(raw_slide.get("transition_note"), limit=160),
@@ -32296,7 +32315,12 @@ class AIOrchestratorService:
                 or structured_slide_count
             )
         should_enforce_target_slide_count = bool(raw_target_slide_count)
-        target_slide_count = max(int(raw_target_slide_count or 0), 3) if raw_target_slide_count else 0
+        # When no signal (prompt, outline, sequence pack, structured copy) gives a slide count at all,
+        # falling back to 0 disables the padding step below entirely — a carousel whose copy engine only
+        # returned 1 slide would stay at 1 (or get bumped to 2 by the "< 3" insert further down) instead
+        # of reaching the product's standard 4-7 slide carousel. Default to 5 (mid-point of the copy
+        # engine's own "emit 5-6 slides" instruction) so padding-from-fallback-slides still runs.
+        target_slide_count = max(int(raw_target_slide_count or 0), 3) if raw_target_slide_count else 5
         mistake_style = cls._has_mistake_carousel_signals(
             headline,
             supporting_line,
@@ -32336,7 +32360,7 @@ class AIOrchestratorService:
         else:
             normalized_slides = [dict(slide) for slide in fallback_slides]
 
-        if len(normalized_slides) < 3:
+        if len(normalized_slides) < 4:
             # Carousels need at least a cover/detail/close rhythm; insert a middle beat when upstream data is too thin.
             normalized_slides.insert(
                 1,

@@ -57,6 +57,10 @@ class PipelineRunResponse(BaseModel):
     user_prompt: str
     platform: str
     format: str
+    format_warning: str | None = Field(
+        default=None,
+        description="Studio vs prompt format conflict warning (demo P0)",
+    )
     brand_context: dict | None = Field(default=None)
     brand_intelligence: dict | None = Field(default=None)
     campaign_brief: dict | None = Field(default=None)
