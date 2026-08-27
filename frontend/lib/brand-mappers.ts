@@ -19,6 +19,7 @@ import {
   LOGO_PLACEMENT_OPTIONS,
   LOCATION_OPTIONS,
   MARKET_MATURITY_OPTIONS,
+  normalizeBrandColorRole,
   PERSPECTIVE_OPTIONS,
   PROFESSIONAL_BACKGROUND_OPTIONS,
   ROUTE_TO_MARKET_OPTIONS,
@@ -397,7 +398,7 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
         ? colorPalette.additional.map((item) => ({
             name: String(toRecord(item).name || ""),
             hex: String(toRecord(item).hex || ""),
-            role: String(toRecord(item).role || "") || undefined,
+            role: normalizeBrandColorRole(String(toRecord(item).role || "")) || undefined,
           }))
         : createDefaultAdditionalColors(),
     colorPaletteUploads,
@@ -405,6 +406,7 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     // Left blank on a fresh server load; the editor's attachment-hydration pass re-derives and stamps
     // this the first time it reconciles with the active color palette upload.
     activeColorPaletteFingerprint: "",
+    paletteManualEdit: false,
     typography: String(typography.primary_style || ""),
     uploadedFonts: [],
     fontStyleGuide: createKnowledgeItems(visualIdentity.font_style_guides, "visual_identity", ["Font Guide"]),

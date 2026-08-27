@@ -143,6 +143,24 @@ export const BRAND_COLOR_ROLE_OPTIONS = [
     "Background",
 ];
 
+/** Map saved/extracted role strings onto the fixed Role dropdown labels. */
+export function normalizeBrandColorRole(role: string): string {
+    const trimmed = String(role || "").trim();
+    if (!trimmed) {
+        return "";
+    }
+    const slug = trimmed.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    const match = BRAND_COLOR_ROLE_OPTIONS.find((option) => option.toLowerCase() === slug);
+    if (match) {
+        return match;
+    }
+    return slug
+        .split(" ")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+}
+
 export const LOGO_PLACEMENT_OPTIONS = [
     "Top - Right",
     "Top - Left",

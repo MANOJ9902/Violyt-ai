@@ -272,6 +272,7 @@ function applyColorPaletteEntries(
             ...form.visualIdentity,
             activeColorPaletteUploadId,
             activeColorPaletteFingerprint: fingerprintPaletteEntries(entries),
+            paletteManualEdit: false,
             primaryColor: primary ? extractedHex(primary) : "",
             primaryColorName: primary ? colorNameFromPaletteEntry(primary) : "",
             secondaryColor: secondary ? extractedHex(secondary) : "",
@@ -287,7 +288,39 @@ function applyColorPaletteEntries(
     };
 }
 
-function selectColorPaletteUpload(form: BrandFormState, itemId: string): BrandFormState {
+function hasSavedPaletteColors(form: BrandFormState) {
+    const { visualIdentity } = form;
+    return Boolean(
+        visualIdentity.primaryColor.trim() ||
+        visualIdentity.secondaryColor.trim() ||
+        visualIdentity.primaryColorName.trim() ||
+        visualIdentity.secondaryColorName.trim() ||
+        visualIdentity.additionalColors.some((color) => color.hex.trim() || color.name.trim()),
+    );
+}
+
+function linkColorPaletteUploadWithoutOverwrite(
+    form: BrandFormState,
+    itemId: string,
+    fingerprint: string,
+    markManual = false,
+): BrandFormState {
+    return {
+        ...form,
+        visualIdentity: {
+            ...form.visualIdentity,
+            activeColorPaletteUploadId: itemId,
+            activeColorPaletteFingerprint: fingerprint,
+            paletteManualEdit: markManual || form.visualIdentity.paletteManualEdit,
+        },
+    };
+}
+
+function selectColorPaletteUpload(
+    form: BrandFormState,
+    itemId: string,
+    options: { forceApply?: boolean } = {},
+): BrandFormState {
     const selectedItem = form.visualIdentity.colorPaletteUploads.find((item) => item.id === itemId);
     if (!selectedItem) {
         return form;
@@ -308,7 +341,21 @@ function selectColorPaletteUpload(form: BrandFormState, itemId: string): BrandFo
         form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
     // Once this exact extraction has already been applied for this upload, leave the form alone so
     // manual edits (a new row, a changed Role/name/hex) survive later re-syncs of the same file.
-    return alreadySynced ? form : applyColorPaletteEntries(form, itemId, entries);
+    if (alreadySynced && !options.forceApply) {
+        return form;
+    }
+    if (form.visualIdentity.paletteManualEdit && !options.forceApply) {
+        return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
+    }
+    if (
+        !options.forceApply &&
+        hasSavedPaletteColors(form) &&
+        !form.visualIdentity.activeColorPaletteFingerprint
+    ) {
+        // Server-hydrated palette: link the active upload without clobbering saved Role/name/hex values.
+        return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
+    }
+    return applyColorPaletteEntries(form, itemId, entries);
 }
 
 function attachmentToUploadPatch(asset: BrandAttachmentResponse): UploadStatePatch {
@@ -383,6 +430,12 @@ function applyExtractedVisualIdentityData(
         const fingerprint = entries.length ? fingerprintPaletteEntries(entries) : "";
         const alreadySynced =
             activeId === itemId && form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
+        if (form.visualIdentity.paletteManualEdit) {
+            if (entries.length && itemId && activeId === itemId && !alreadySynced) {
+                return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
+            }
+            return form;
+        }
         if (entries.length && itemId && (!activeId || activeId === itemId) && !alreadySynced) {
             return applyColorPaletteEntries(form, itemId, entries);
         }
@@ -1202,7 +1255,7 @@ export default function BrandSpaceEditor({
 
         if (!targetItem.uploadedAssetId || !effectiveBrandId) {
             setForm((current) => {
-                const next = selectColorPaletteUpload(current, itemId);
+                const next = selectColorPaletteUpload(current, itemId, { forceApply: true });
                 formRef.current = next;
                 return next;
             });
@@ -1210,7 +1263,7 @@ export default function BrandSpaceEditor({
         }
 
         setForm((current) => {
-            const next = selectColorPaletteUpload(current, itemId);
+            const next = selectColorPaletteUpload(current, itemId, { forceApply: true });
             formRef.current = next;
             return next;
         });
@@ -1225,13 +1278,13 @@ export default function BrandSpaceEditor({
                     return current;
                 }
                 const updated = updateBrandUploadItemState(current, itemId, patch);
-                const next = selectColorPaletteUpload(updated, itemId);
+                const next = selectColorPaletteUpload(updated, itemId, { forceApply: true });
                 formRef.current = next;
                 return next;
             });
         } catch {
             setForm((current) => {
-                const next = selectColorPaletteUpload(current, itemId);
+                const next = selectColorPaletteUpload(current, itemId, { forceApply: true });
                 formRef.current = next;
                 return next;
             });

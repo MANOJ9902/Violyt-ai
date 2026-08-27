@@ -104,6 +104,8 @@ export interface VisualIdentityFields {
   // so repeated status polling/re-syncs never silently discard manual edits (e.g. a Role change or a
   // manually added color row) made on top of the extracted defaults.
   activeColorPaletteFingerprint: string;
+  // Set when the user edits Role / Colour Name / HEX manually so upload polling never overwrites.
+  paletteManualEdit: boolean;
   typography: string;
   uploadedFonts: BrandUploadItem[];
   fontStyleGuide: BrandUploadItem[];
@@ -268,6 +270,7 @@ export const emptyBrandFormState: BrandFormState = {
     colorPaletteUploads: [],
     activeColorPaletteUploadId: "",
     activeColorPaletteFingerprint: "",
+    paletteManualEdit: false,
     typography: "",
     uploadedFonts: [],
     fontStyleGuide: [],
@@ -522,6 +525,8 @@ export function removeBrandUploadItem(form: BrandFormState, itemId: string): Bra
           : form.visualIdentity.activeColorPaletteUploadId,
       activeColorPaletteFingerprint:
         shouldClearPalette || shouldReplaceActivePalette ? "" : form.visualIdentity.activeColorPaletteFingerprint,
+      paletteManualEdit:
+        shouldClearPalette || shouldReplaceActivePalette ? false : form.visualIdentity.paletteManualEdit,
       uploadedFonts: removeFromList(form.visualIdentity.uploadedFonts),
       fontStyleGuide: removeFromList(form.visualIdentity.fontStyleGuide),
     },
