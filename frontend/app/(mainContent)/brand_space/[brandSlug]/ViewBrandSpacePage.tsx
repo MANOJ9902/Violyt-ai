@@ -1,28 +1,43 @@
 "use client";
 
-import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import BrandSpaceEditor from "@/components/brandSpaces/BrandSpaceEditor";
-import { useBrandOverview, useBrands } from "@/hooks/useBrands";
-import { mapBrandOverviewToForm } from "@/lib/brand-mappers";
-import { resolveBrandByRouteKey } from "@/lib/brand-routing";
+import { BrandSpacePageStatus } from "@/components/brandSpaces/BrandSpacePageStatus";
+import { useBrandSpacePageState } from "@/hooks/useBrandSpacePageState";
 
 export default function ViewBrandSpacePage() {
   const params = useParams<{ brandSlug: string }>();
-  const { data: brands, isLoading: isBrandsLoading } = useBrands();
-  const brand = useMemo(
-    () => resolveBrandByRouteKey(brands, params.brandSlug),
-    [brands, params.brandSlug],
-  );
-  const { data: overview, isLoading: isOverviewLoading } = useBrandOverview(brand?.id || "");
-
-  const initialForm = useMemo(
-    () => (overview ? mapBrandOverviewToForm(overview) : undefined),
-    [overview],
+  const router = useRouter();
+  const { brand, overview, initialForm, isLoading, isNotFound, loadError, retry } = useBrandSpacePageState(
+    params.brandSlug,
   );
 
-  if (isBrandsLoading || isOverviewLoading || !brand || !overview || !initialForm) {
-    return <div className="w-full px-6 py-10 text-sm text-slate-500">Loading Brand Space...</div>;
+  if (isLoading) {
+    return <BrandSpacePageStatus message="Loading Brand Space..." />;
+  }
+
+  if (loadError) {
+    return (
+      <BrandSpacePageStatus
+        tone="error"
+        message={loadError}
+        actionLabel="Try again"
+        onAction={() => {
+          void retry();
+        }}
+      />
+    );
+  }
+
+  if (isNotFound || !brand || !overview || !initialForm) {
+    return (
+      <BrandSpacePageStatus
+        tone="error"
+        message="Brand Space not found or you do not have access to it."
+        actionLabel="Back to Brand Spaces"
+        onAction={() => router.push("/brand_space")}
+      />
+    );
   }
 
   return (

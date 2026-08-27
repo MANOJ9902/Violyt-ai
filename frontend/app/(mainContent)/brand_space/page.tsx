@@ -13,7 +13,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { BrandSpacePageStatus } from "@/components/brandSpaces/BrandSpacePageStatus";
 import BrandSpaces from "@/components/brandSpaces/BrandSpaces";
+import { formatBrandSpaceLoadError } from "@/hooks/useBrandSpacePageState";
 import {
     PlatformPageTitle,
     SearchField,
@@ -54,7 +56,7 @@ function getBrandDisplayName(item: BrandResponse | { name?: string; slug?: strin
 export default function BrandSpacePage() {
     const router = useRouter();
     const { user, can } = useRBAC();
-    const { data: brands, isLoading } = useBrands();
+    const { data: brands, isLoading, isError, error, refetch } = useBrands();
     const publishBrand = usePublishBrandMutation();
     const unpublishBrand = useUnpublishBrandMutation();
     const archiveBrand = useArchiveBrandMutation();
@@ -205,7 +207,16 @@ export default function BrandSpacePage() {
             </div>
                 <SectionCard className="border-none p-0" >
                     {isLoading ? (
-                        <div className="py-10 text-sm text-slate-500">Loading Brand Space...</div>
+                        <BrandSpacePageStatus message="Loading Brand Space..." />
+                    ) : isError ? (
+                        <BrandSpacePageStatus
+                            tone="error"
+                            message={formatBrandSpaceLoadError(error, "Unable to load Brand Spaces.")}
+                            actionLabel="Try again"
+                            onAction={() => {
+                                void refetch();
+                            }}
+                        />
                     ) : visibleSpaces.length === 0 ? (
                         <div className="w-full mx-auto flex items-center justify-center py-10 text-sm text-slate-500">
                             {activeTab === "brand_spaces"

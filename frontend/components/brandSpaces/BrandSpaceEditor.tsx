@@ -311,7 +311,7 @@ function linkColorPaletteUploadWithoutOverwrite(
             ...form.visualIdentity,
             activeColorPaletteUploadId: itemId,
             activeColorPaletteFingerprint: fingerprint,
-            paletteManualEdit: markManual || form.visualIdentity.paletteManualEdit,
+            paletteManualEdit: markManual || Boolean(form.visualIdentity.paletteManualEdit),
         },
     };
 }
@@ -344,7 +344,7 @@ function selectColorPaletteUpload(
     if (alreadySynced && !options.forceApply) {
         return form;
     }
-    if (form.visualIdentity.paletteManualEdit && !options.forceApply) {
+    if (Boolean(form.visualIdentity.paletteManualEdit) && !options.forceApply) {
         return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
     }
     if (
@@ -430,7 +430,7 @@ function applyExtractedVisualIdentityData(
         const fingerprint = entries.length ? fingerprintPaletteEntries(entries) : "";
         const alreadySynced =
             activeId === itemId && form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
-        if (form.visualIdentity.paletteManualEdit) {
+        if (Boolean(form.visualIdentity.paletteManualEdit)) {
             if (entries.length && itemId && activeId === itemId && !alreadySynced) {
                 return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
             }

@@ -1,29 +1,21 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import BrandSpaceEditor from "@/components/brandSpaces/BrandSpaceEditor";
-import { useBrandOverview, useBrands } from "@/hooks/useBrands";
+import { BrandSpacePageStatus } from "@/components/brandSpaces/BrandSpacePageStatus";
+import { useBrandSpacePageState } from "@/hooks/useBrandSpacePageState";
 import { useRBAC } from "@/hooks/useRBAC";
-import { mapBrandOverviewToForm } from "@/lib/brand-mappers";
-import { buildBrandViewHref, resolveBrandByRouteKey } from "@/lib/brand-routing";
+import { buildBrandViewHref } from "@/lib/brand-routing";
 
 export default function EditBrandSpacePage() {
   const params = useParams<{ brandSlug: string }>();
   const router = useRouter();
-  const { user, can } = useRBAC();
-  const { data: brands, isLoading: isBrandsLoading } = useBrands();
-  const brand = useMemo(
-    () => resolveBrandByRouteKey(brands, params.brandSlug),
-    [brands, params.brandSlug],
+  const { user, isPending: isAuthPending, can } = useRBAC();
+  const { brand, overview, initialForm, isLoading, isNotFound, loadError, retry } = useBrandSpacePageState(
+    params.brandSlug,
   );
-  const { data: overview, isLoading: isOverviewLoading } = useBrandOverview(brand?.id || "");
   const canEditBrandSpace = Boolean(user && can("BRAND_SPACE", "EDIT"));
-
-  const initialForm = useMemo(
-    () => (overview ? mapBrandOverviewToForm(overview) : undefined),
-    [overview],
-  );
 
   useEffect(() => {
     if (!user || !brand || canEditBrandSpace) {
@@ -32,12 +24,36 @@ export default function EditBrandSpacePage() {
     router.replace(buildBrandViewHref(brand));
   }, [brand, canEditBrandSpace, router, user]);
 
-  if (user && brand && !canEditBrandSpace) {
-    return <div className="w-full px-6 py-10 text-sm text-slate-500">Opening read-only Brand Space...</div>;
+  if (isAuthPending || isLoading) {
+    return <BrandSpacePageStatus message="Loading Brand Space..." />;
   }
 
-  if (isBrandsLoading || isOverviewLoading || !brand || !overview || !initialForm) {
-    return <div className="w-full px-6 py-10 text-sm text-slate-500">Loading Brand Space...</div>;
+  if (user && brand && !canEditBrandSpace) {
+    return <BrandSpacePageStatus message="Opening read-only Brand Space..." />;
+  }
+
+  if (loadError) {
+    return (
+      <BrandSpacePageStatus
+        tone="error"
+        message={loadError}
+        actionLabel="Try again"
+        onAction={() => {
+          void retry();
+        }}
+      />
+    );
+  }
+
+  if (isNotFound || !brand || !overview || !initialForm) {
+    return (
+      <BrandSpacePageStatus
+        tone="error"
+        message="Brand Space not found or you do not have access to it."
+        actionLabel="Back to Brand Spaces"
+        onAction={() => router.push("/brand_space")}
+      />
+    );
   }
 
   return (
