@@ -109,13 +109,20 @@ async def handle_job(job_id, worker_id: str):
                 await heartbeat_task
 
 
-async def run_worker_loop() -> None:
+async def run_worker_loop(stop_event: asyncio.Event | None = None) -> None:
     # Polls for available jobs, claims a batch for this worker, and hands each job to the dispatcher.
     settings = get_settings()
     worker_id = _build_worker_id()
     while True:
-        async with AsyncSessionLocal() as session:
-            pending = await JobService(session).claim_pending(worker_id, settings.worker_batch_size)
-        for job in pending:
-            await handle_job(job.id, worker_id)
-        await asyncio.sleep(settings.worker_poll_interval_seconds)
+        if stop_event is not None and stop_event.is_set():
+            return
+        try:
+            async with AsyncSessionLocal() as session:
+                pending = await JobService(session).claim_pending(worker_id, settings.worker_batch_size)
+            for job in pending:
+                if stop_event is not None and stop_event.is_set():
+                    return
+                await handle_job(job.id, worker_id)
+            await asyncio.sleep(settings.worker_poll_interval_seconds)
+        except asyncio.CancelledError:
+            raise

@@ -53,7 +53,7 @@ async def execute_phase1(run_id: str, request: dict[str, Any]) -> dict[str, Any]
         emit_progress(run_id, event="pipeline_start", message="phase1")
         update_checkpoint_status(run_id, "running")
 
-        visual_pack = await load_brand_visual_pack(brand_id, fmt=fmt)
+        visual_pack = await load_brand_visual_pack(brand_id, fmt=fmt, user_prompt=user_prompt)
         initial_state["tenant_id"] = visual_pack.tenant_id
         initial_state["brand_name"] = visual_pack.brand_name
         initial_state["visual_pack"] = visual_pack.to_dict()
@@ -68,7 +68,11 @@ async def execute_phase1(run_id: str, request: dict[str, Any]) -> dict[str, Any]
         if (not fmt_in or fmt_in == "auto") and layout.suggested_format:
             chosen_fmt = layout.suggested_format
         if chosen_fmt != fmt_in or resolved.overridden:
-            visual_pack = await load_brand_visual_pack(brand_id, fmt=chosen_fmt or "")
+            visual_pack = await load_brand_visual_pack(
+                brand_id,
+                fmt=chosen_fmt or "",
+                user_prompt=user_prompt,
+            )
             initial_state["visual_pack"] = visual_pack.to_dict()
         initial_state["format"] = chosen_fmt
         if resolved.warning:

@@ -2,10 +2,8 @@ from __future__ import annotations
 
 """Build AI image prompts for the data-story infographic.
 
-Layout DNA is measured from sample_infographic_data_story_airports.png: a
-gradient ice-blue canvas, a hero stat band of big numbers, two side-by-side
-panels (numbered proof + qualitative reasons), a closing couplet and a source
-line. Use this for information/data-led explainers.
+Layout comes from this brand's Brand Space reference template.
+Use this for information/data-led explainers.
 
 Not for ranking boards (ranking_board.py) or light card explainers
 (explain_image_prompt.py).
@@ -433,6 +431,7 @@ def build_data_story_prompt(
         "================= 1. COPY TO BAKE (letter-perfect, COMPLETE) =================\n"
         "Render ONLY the strings below. No invented labels, no filler, no extra sentences.\n"
         "Every word must appear in full — never drop a leading letter, never cut a line short.\n"
+        "NEVER bake user design instructions or prompt meta (e.g. 'Find a recent…', 'TOPIC:').\n"
         "HEADLINE (max 3 lines):\n"
         f"{headline_block}\n"
         + (f'ACCENT PILL (ALL-CAPS, max 2 lines): "{subhead}"\n' if subhead else "")
@@ -458,7 +457,7 @@ def build_data_story_prompt(
         "  ACCENT PILL text in bold ALL-CAPS white, then the HERO INTRO paragraph in\n"
         f"  {body_c}. RIGHT ~40% = ONE large claymorphic 3D hero illustration on a soft\n"
         f"  {card} rounded platform (no text inside it).\n"
-        f"  TOP-RIGHT ~24%x12% pocket COMPLETELY BLANK {bg} — logo composited later,\n"
+        f"  TOP-RIGHT ~7% W × ~6% pocket COMPLETELY BLANK {bg} — logo composited later,\n"
         "  no white plate, no platform mark, no wordmark.\n"
         f"ZONE B RATIONALE CARD (~12%): ONE full-width soft rounded card filled {card}\n"
         "  (radius ~24px, hairline border, soft shadow): circular clay-3D icon badge on the\n"
@@ -501,7 +500,8 @@ def build_data_story_prompt(
         "  and footer bands are inset strips ON that page, never a second page colour, never a\n"
         "  full-bleed dark header, never a page frame. Never invent a tint for cards or canvas.\n\n"
         "================= 5. AVOID =================\n"
-        "No platform logos or chrome, no white logo box, no PowerPoint look, no hub-and-spoke\n"
+        "No platform logos or chrome, no white logo box, no fake brand wordmark in the corner,\n"
+        "no user prompt or design-request text baked into the image, no PowerPoint look, no hub-and-spoke\n"
         "diagram, no ranking table, no page frame, no teal/gold/neon, no lorem ipsum, no\n"
         "duplicated headings, no truncated words (e.g. 'rillion' for 'trillion'), no mid-card\n"
         "cutoffs, no text overlapping a band edge, no baked CTA button, no generic slogans\n"

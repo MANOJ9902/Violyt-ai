@@ -1644,10 +1644,12 @@ class DataValidatorService:
 
         # Filter out references with inactive or deleted knowledge assets
         references = []
+        reference_assets: dict[str, object] = {}
         for ref in all_references:
             asset = await self.assets.get(ref.knowledge_asset_id)
             if asset and asset.is_active and asset.lifecycle_state not in ("deleted", "failed"):
                 references.append(ref)
+                reference_assets[str(ref.knowledge_asset_id)] = asset
         palette_hexes = {
             normalized
             for entry in palette_summary.get("entries", [])
@@ -1695,9 +1697,19 @@ class DataValidatorService:
             )
             if reference_profile and not isinstance(style_characteristics.get("visual_style_profile"), dict):
                 style_characteristics["visual_style_profile"] = reference_profile
+            asset = reference_assets.get(str(reference.knowledge_asset_id))
             reference_payload.append(
                 {
                     "asset_id": str(reference.knowledge_asset_id),
+                    "name": str(
+                        getattr(asset, "name", None)
+                        or getattr(asset, "original_filename", None)
+                        or "Reference"
+                    ),
+                    "original_filename": str(getattr(asset, "original_filename", "") or ""),
+                    "storage_path": str(getattr(asset, "storage_path", "") or ""),
+                    "field_key": str(getattr(asset, "field_key", "") or ""),
+                    "mime_type": str(getattr(asset, "mime_type", "") or ""),
                     "layout_structure": reference.layout_structure,
                     "style_characteristics": style_characteristics,
                     "visual_style_profile": reference_profile,

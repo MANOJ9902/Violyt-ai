@@ -17,6 +17,8 @@ services:
       GENERATED_ASSETS_BASE_URL: ${GENERATED_ASSETS_BASE_URL:-http://localhost:8000/storage}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3001}
       ASSET_DOWNLOAD_BASE_URL: ${ASSET_DOWNLOAD_BASE_URL:-http://localhost:8000/api/v1/storage/download}
+      # Dedicated worker container handles jobs; avoid a second in-API worker.
+      EMBED_WORKER_IN_API: "false"
     ports:
       - "8000:8000"
     depends_on:

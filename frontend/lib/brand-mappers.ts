@@ -19,7 +19,6 @@ import {
   LOGO_PLACEMENT_OPTIONS,
   LOCATION_OPTIONS,
   MARKET_MATURITY_OPTIONS,
-  normalizeBrandColorRole,
   PERSPECTIVE_OPTIONS,
   PROFESSIONAL_BACKGROUND_OPTIONS,
   ROUTE_TO_MARKET_OPTIONS,
@@ -237,8 +236,10 @@ function competitorDescriptors(form: BrandFormState) {
 
 export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFormState {
   const form: BrandFormState = structuredClone(emptyBrandFormState);
+  const sections = Array.isArray(overview?.sections) ? overview.sections : [];
+  const overviewPersonas = Array.isArray(overview?.personas) ? overview.personas : [];
   const sectionMap = Object.fromEntries(
-    overview.sections.map((section) => [section.section_code, section.payload || {}]),
+    sections.map((section) => [section.section_code, section.payload || {}]),
   ) as Record<string, Record<string, unknown>>;
 
   const identity = toRecord(sectionMap.identity);
@@ -256,7 +257,7 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
       ? toRecord(
           personasSection.personas.find((item) => toRecord(item).is_default) || personasSection.personas[0],
         )
-      : toRecord(overview.personas.find((item) => Boolean(item.is_default)) || overview.personas[0]);
+      : toRecord(overviewPersonas.find((item) => Boolean(item.is_default)) || overviewPersonas[0]);
   const personaPsychographics = toRecord(primaryPersona.psychographics);
   const personaDemographics = toRecord(primaryPersona.demographics);
   const personaContentBehavior = toRecord(primaryPersona.content_behavior);
@@ -282,24 +283,25 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
   form.core = {
     logo: null,
     logos: [],
-    name: String(identity.brand_name || overview.brand.name || ""),
-    tagline: String(identity.brand_tagline || overview.brand.tagline || ""),
-    description: String(identity.brand_description || overview.brand.description || ""),
+    name: String(identity.brand_name || overview?.brand?.name || ""),
+    tagline: String(identity.brand_tagline || overview?.brand?.tagline || ""),
+    description: String(identity.brand_description || overview?.brand?.description || ""),
     industryCategory: String(identity.industry_category || ""),
     differentiators: toTextarea(identity.key_differentiators),
   };
 
+  const brandDisplayName = overview?.brand?.name || "Brand";
   const primaryLogo =
     createKnowledgeItemFromDescriptor(
         {
           id: identity.logo_asset_id,
-          name: `${overview.brand.name} Logo`,
+          name: `${brandDisplayName} Logo`,
           storage_path: identity.logo_asset_path,
           url: identity.logo_asset_url,
           lifecycle_state: "indexed",
           channel: "brand_asset",
         },
-        `${overview.brand.name} Logo`,
+        `${brandDisplayName} Logo`,
         "brand_asset",
         ["Logo"],
       ) || null;
@@ -398,7 +400,7 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
         ? colorPalette.additional.map((item) => ({
             name: String(toRecord(item).name || ""),
             hex: String(toRecord(item).hex || ""),
-            role: normalizeBrandColorRole(String(toRecord(item).role || "")) || undefined,
+            role: String(toRecord(item).role || "") || undefined,
           }))
         : createDefaultAdditionalColors(),
     colorPaletteUploads,
@@ -406,7 +408,6 @@ export function mapBrandOverviewToForm(overview: BrandOverviewResponse): BrandFo
     // Left blank on a fresh server load; the editor's attachment-hydration pass re-derives and stamps
     // this the first time it reconciles with the active color palette upload.
     activeColorPaletteFingerprint: "",
-    paletteManualEdit: false,
     typography: String(typography.primary_style || ""),
     uploadedFonts: [],
     fontStyleGuide: createKnowledgeItems(visualIdentity.font_style_guides, "visual_identity", ["Font Guide"]),

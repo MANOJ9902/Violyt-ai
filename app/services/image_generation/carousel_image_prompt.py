@@ -8,6 +8,11 @@ and logo always come from BrandVisualPack for the active brand_id.
 
 import re
 
+from app.services.image_generation.dense_content_bake import (
+    DESIGN_REQUEST_COPY_BAN,
+    ensure_complete_sentence,
+    strip_design_request_meta,
+)
 from app.services.image_generation.ranking_board import sanitize_ranking_text
 
 # Neutral defaults — real hexes always come from BrandVisualPack.palette_map().
@@ -46,7 +51,8 @@ _BARE_ORG_TAIL = re.compile(
     re.IGNORECASE,
 )
 
-# Bottom reserve — keep Learn More / legal / CTA from eating story cards.
+# Tiny top-right pocket — real logo is composited in post (~58×60px on 1080 canvas).
+_LOGO_POCKET = "~7% W × ~6% H"
 # Align with carousel_layout_grid (~20–24% empty when a footer/CTA may appear).
 _LEGAL_FOOTER_RESERVE = "20%"
 
@@ -94,7 +100,7 @@ TYPOGRAPHY: {p['font']}. Sentence case. ExtraBold headline 1–2 complete lines.
 INFO CARDS: fill {p['card']}, LEFT story text (~70%), RIGHT ONE clay-3D icon (~12–16% H).
 ICONS: ONE premium HD clay-3D studio object per card — sharp edges, satin accent highlights,
   studio light, contact shadow. NOT flat isometric, NOT emoji, NOT clipart.
-SPACING: logo pocket top-right EMPTY · {footer}{mascot}
+SPACING: logo pocket top-right EMPTY ({_LOGO_POCKET}) · {footer}{mascot}
 Every slide = SAME campaign + SAME {p['bg']} canvas. No neon. No second background.
 NO Learn More / Explore More buttons on cover or info slides — CTA text only on CLOSE.
 """
@@ -110,7 +116,7 @@ CAROUSEL CONTENT LOCK:
 CLEAN_LAYOUT_LOCK = f"""
 CLEAN EDITORIAL LOCK:
 • Calm LinkedIn-native craft. NO connector graphs / path lines / flowchart arrows.
-• Leave TOP-RIGHT logo pocket EMPTY. Leave BOTTOM {_LEGAL_FOOTER_RESERVE} EMPTY (Brand Space background only — no invented pale strip, no brand-name watermark).
+• Leave TOP-RIGHT logo pocket EMPTY ({_LOGO_POCKET}). Leave BOTTOM {_LEGAL_FOOTER_RESERVE} EMPTY (Brand Space background only — no invented pale strip, no brand-name watermark).
 • ≥6% clear gap between last content and the bottom reserve — cards must NOT touch it.
 • BAN: page counters, white logo boxes, LinkedIn/platform logos, dark invented footer bars, source citations, second background, navy header bands.
 • BAN: incomplete headlines, mid-word clips, truncated card sentences, '...' ellipsis cutoffs.
@@ -130,7 +136,7 @@ ROLE_LAYOUT_SPECS: dict[str, dict[str, object]] = {
         "role": "cover",
         "geometry": "cover",
         "composition": (
-            "COVER PAGE: TOP-RIGHT logo pocket EMPTY (~22% W × ~12% H). "
+            f"COVER PAGE: TOP-RIGHT logo pocket EMPTY ({_LOGO_POCKET}). "
             "UPPER-LEFT (left ~70%): very large ExtraBold headline in Brand Space primary, "
             "left-aligned, max 2 COMPLETE lines — never under the logo pocket. "
             "Directly below: large Brand Space accent supporting statement with the key number. "
@@ -146,7 +152,7 @@ ROLE_LAYOUT_SPECS: dict[str, dict[str, object]] = {
         "role": "info",
         "geometry": "info",
         "composition": (
-            "INFORMATION PAGE: TOP-RIGHT logo pocket EMPTY. "
+            f"INFORMATION PAGE: TOP-RIGHT logo pocket EMPTY ({_LOGO_POCKET}). "
             "TOP-LEFT (left ~75%): large ExtraBold headline in Brand Space primary "
             "(1–2 COMPLETE lines, LEFT-aligned — never centred under the logo). "
             "Below: ONE short Brand Space body explanatory sentence. "
@@ -163,7 +169,7 @@ ROLE_LAYOUT_SPECS: dict[str, dict[str, object]] = {
         "role": "close",
         "geometry": "close",
         "composition": (
-            "CLOSE PAGE: TOP-RIGHT logo pocket EMPTY. LEFT ~55%: very large "
+            f"CLOSE PAGE: TOP-RIGHT logo pocket EMPTY ({_LOGO_POCKET}). LEFT ~55%: very large "
             "ExtraBold question headline in Brand Space primary (max 3 short COMPLETE lines), left-aligned. "
             "Below it: one short bold invite line (share your thoughts / save this) — TEXT ONLY, no button. "
             "RIGHT ~45% stays EMPTY for a composited Brand Space mascot when one exists. "
@@ -192,20 +198,41 @@ def strip_carousel_source_citations(text: str) -> str:
 
 def _scrub(text: str, *, max_words: int = 24) -> str:
     t = sanitize_ranking_text(str(text or ""))
+    t = strip_design_request_meta(t)
     t = strip_carousel_source_citations(t)
     t = _SAFE.sub("", t)
     t = re.sub(r"\s+", " ", t).strip()
+    parts = re.split(r"(?<=[.!?])\s+", t)
+    if len(parts) > 1:
+        acc: list[str] = []
+        count = 0
+        for sent in parts:
+            sw = sent.split()
+            if not sw:
+                continue
+            if count + len(sw) <= max_words:
+                acc.append(sent.strip())
+                count += len(sw)
+            else:
+                break
+        if acc:
+            joined = " ".join(acc).strip()
+            if joined[-1] in ".!?":
+                return joined
     words = t.split()
     if len(words) > max_words:
         words = words[:max_words]
-    # Never end on a dangling connector
+    # Never end on a dangling connector or modal verb
     dangling = {
         "a", "an", "the", "and", "or", "but", "with", "for", "to", "of", "in", "on",
         "at", "by", "from", "as", "is", "are", "than", "that", "which",
+        "can", "will", "could", "would", "should", "may", "might", "must", "have", "has",
+        "this", "these", "those",
     }
     while words and words[-1].strip(".,;:").casefold() in dangling:
         words.pop()
-    return " ".join(words).strip(" ,;:-–")
+    out = " ".join(words).strip(" ,;:-–")
+    return ensure_complete_sentence(out) if out else ""
 
 
 def strip_carousel_heading_numbers(text: str) -> str:
@@ -344,7 +371,6 @@ def build_carousel_slide_image_prompt(
             cta_label = raw
         else:
             cta_label = "Share your thoughts in the comments"
-    topic_clean = _scrub(topic, max_words=12)
     priors = [_fit_headline(p) for p in (prior_headlines or []) if str(p).strip()][:9]
     prior_line = "; ".join(f'"{p}"' for p in priors) if priors else "(first slide)"
 
@@ -375,7 +401,6 @@ def build_carousel_slide_image_prompt(
     # that must be baked lead the prompt and can never be cut off.
     copy_block = (
         "COPY TO BAKE — render these EXACT strings, complete, nothing else:\n"
-        + (f'TOPIC: "{topic_clean}"\n' if topic_clean else "")
         + f'HEADLINE: "{hl}"\n'
         + (f'SUBHEAD: "{sup}"\n' if sup and geometry != "close" else "")
         + (f'BODY: "{body_txt}"\n' if body_txt else "")
@@ -383,6 +408,7 @@ def build_carousel_slide_image_prompt(
         + (f'CLOSE INVITE (text only, NO brand-name watermark): "{cta_label}"\n' if cta_label else "")
         + f"{cards}\n"
         + f"FORBIDDEN prior headlines (say something different): {prior_line}\n"
+        + f"{DESIGN_REQUEST_COPY_BAN}\n"
     )
 
     return (
@@ -401,6 +427,8 @@ def build_carousel_slide_image_prompt(
         "• NO numbers in headline — never '1.', '2.', '01', step counters.\n"
         "• NO page numbers / '1 of N' / slide badges.\n"
         "• NO source names, survey names, 'Source:' labels, or institution cites — EVER.\n"
+        f"• {DESIGN_REQUEST_COPY_BAN}\n"
+        f"• NO fake brand logos, wordmarks, or large corner marks — leave {_LOGO_POCKET} EMPTY.\n"
         f"{footer_rule}"
         "• NO Learn More / Explore More buttons.\n"
         "• Props from THIS slide's copy only.\n"
@@ -416,7 +444,7 @@ def build_carousel_style_stub(palette: dict[str, str] | None = None) -> str:
     return (
         f"CAROUSEL: BG {pal['bg']}; headlines {pal['headline']}; accent {pal['accent']}; "
         f"cards {pal['card']} (story text left, clay-3D icon right); "
-        "NO Learn More buttons; NO source names; empty top-right logo pocket; "
+        f"NO Learn More buttons; NO source names; empty top-right logo pocket ({_LOGO_POCKET}); "
         "LEFT-aligned headlines in left 75%."
     )
 

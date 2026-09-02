@@ -49,20 +49,6 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
         value: (typeof form.visualIdentity)[TKey],
     ) => updateBrandFormSection(setForm, "visualIdentity", key, value);
 
-    const updatePaletteField = <TKey extends keyof typeof form.visualIdentity>(
-        key: TKey,
-        value: (typeof form.visualIdentity)[TKey],
-    ) => {
-        setForm((prev) => ({
-            ...prev,
-            visualIdentity: {
-                ...prev.visualIdentity,
-                paletteManualEdit: true,
-                [key]: value,
-            },
-        }));
-    };
-
     const addUploads = (key: "colorPaletteUploads", files: FileList | null) => {
         if (!files?.length) {
             return;
@@ -155,12 +141,12 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                             <StyledInput
                                 placeholder="Define color name"
                                 value={form.visualIdentity.primaryColorName}
-                                onChange={(e) => updatePaletteField("primaryColorName", e.target.value)}
+                                onChange={(e) => updateField("primaryColorName", e.target.value)}
                                 className="bg-section-input-field"
                             />
                             <ColorHexInput
                                 value={form.visualIdentity.primaryColor}
-                                onValueChange={(value) => updatePaletteField("primaryColor", value)}
+                                onValueChange={(value) => updateField("primaryColor", value)}
                                 className="rounded-xl bg-section-input-field"
                             />
                         </div>
@@ -171,12 +157,12 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                             <StyledInput
                                 placeholder="Define color name"
                                 value={form.visualIdentity.secondaryColorName}
-                                onChange={(e) => updatePaletteField("secondaryColorName", e.target.value)}
+                                onChange={(e) => updateField("secondaryColorName", e.target.value)}
                                 className="bg-section-input-field"
                             />
                             <ColorHexInput
                                 value={form.visualIdentity.secondaryColor}
-                                onValueChange={(value) => updatePaletteField("secondaryColor", value)}
+                                onValueChange={(value) => updateField("secondaryColor", value)}
                                 className="rounded-xl bg-section-input-field"
                             />
                         </div>
@@ -187,23 +173,23 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                                 onRoleChange={(value) => {
                                     const nextColors = [...form.visualIdentity.additionalColors];
                                     nextColors[index] = { ...nextColors[index], role: value };
-                                    updatePaletteField("additionalColors", nextColors);
+                                    updateField("additionalColors", nextColors);
                                 }}
                                 name={color.name}
                                 hex={color.hex}
                                 onNameChange={(value) => {
                                     const nextColors = [...form.visualIdentity.additionalColors];
                                     nextColors[index] = { ...nextColors[index], name: value };
-                                    updatePaletteField("additionalColors", nextColors);
+                                    updateField("additionalColors", nextColors);
                                 }}
                                 onHexChange={(value) => {
                                     const nextColors = [...form.visualIdentity.additionalColors];
                                     nextColors[index] = { ...nextColors[index], hex: value };
-                                    updatePaletteField("additionalColors", nextColors);
+                                    updateField("additionalColors", nextColors);
                                 }}
                                 canRemove={form.visualIdentity.additionalColors.length > 1}
                                 onRemove={() =>
-                                    updatePaletteField(
+                                    updateField(
                                         "additionalColors",
                                         form.visualIdentity.additionalColors.filter((_, itemIndex) => itemIndex !== index),
                                     )
@@ -213,10 +199,7 @@ const VisualIdentity = ({ form, setForm, onRemoveUpload, onSelectColorPaletteUpl
                         <div className="flex justify-end">
                             <AddMoreButton
                                 onClick={() =>
-                                    updatePaletteField("additionalColors", [
-                                        ...form.visualIdentity.additionalColors,
-                                        { name: "", hex: "", role: "" },
-                                    ])
+                                    updateField("additionalColors", [...form.visualIdentity.additionalColors, { name: "", hex: "", role: "" }])
                                 }
                             />
                         </div>

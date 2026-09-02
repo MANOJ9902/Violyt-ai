@@ -9,7 +9,9 @@ exact brand logo — AI models cannot accurately render arbitrary logos.
 
 import base64
 import re
+import tempfile
 from io import BytesIO
+from pathlib import Path
 from urllib.request import urlopen
 from uuid import UUID, uuid4
 
@@ -23,13 +25,15 @@ from app.utils.palette_roles import normalize_hex
 
 logger = get_logger(__name__)
 
-# Keep Brand Space logo compact in top-right (full lockup OK — do NOT strip logo text).
-# Transparent BG only; smaller footprint so headlines stay clear.
-_LOGO_MAX_WIDTH_RATIO = 0.11
-# Minimum logo short-side in pixels (prevents tiny, unreadable logos).
-_LOGO_MIN_PX = 48
-# Padding from the canvas edge when placing the logo (in pixels).
-_LOGO_EDGE_PADDING = 14
+# Keep Brand Space logo compact in top-right — hero/header illustration needs the space.
+_LOGO_MAX_WIDTH_RATIO = 0.055
+_LOGO_MAX_HEIGHT_RATIO = 0.045
+# Minimum logo short-side in pixels (tiny corner mark — hero art is priority).
+_LOGO_MIN_PX = 36
+# Inset from canvas edge when placing the logo.
+_LOGO_EDGE_PADDING = 12
+# Wipe/scrub margin around logo ink only (never a wide pocket into hero art).
+_LOGO_POCKET_PAD = 6
 # Logo background fill color (used only for solid-background logos without transparency).
 _LOGO_BG_COLOR = (255, 255, 255, 0)  # transparent
 def _rgba(hex_color: str) -> tuple[int, int, int, int]:
@@ -39,6 +43,16 @@ def _rgba(hex_color: str) -> tuple[int, int, int, int]:
 
 _LEGAL_FOOTER_COLOR = (104, 116, 125, 255)
 _DEFAULT_CANVAS_BG = "#FFFFFF"
+
+
+def _canvas_luminance(bg_hex: str) -> float:
+    r, g, b = _rgba(bg_hex or _DEFAULT_CANVAS_BG)[:3]
+    return (r + g + b) / 3
+
+
+def _is_dark_canvas(bg_hex: str) -> bool:
+    """Dark reference canvases (Cognixia navy) must not run ice-plate flatteners."""
+    return _canvas_luminance(bg_hex) < 128
 
 
 def _flatten_rgba_to_brand_bg(img: Image.Image, bg_hex: str = _DEFAULT_CANVAS_BG) -> Image.Image:
@@ -473,6 +487,9 @@ def _make_background_transparent(img: Image.Image) -> Image.Image:
             (r > 170 and g < 165 and b < 90)  # orange
             or (b > 70 and r < 90 and g < 120)  # navy
             or (r < 95 and g < 95 and b < 95)  # dark wordmark
+            # Cognixia / teal-cyan icon marks (must NOT be keyed as white pad).
+            or (b >= 140 and g >= 120 and r <= 140 and (g + b) > (r * 2 + 40))
+            or (b >= 160 and g >= 150 and r <= 160 and b >= r and g >= r)
         )
 
     # Pass 1 — flood-fill from each corner through matching pad colour.
@@ -534,6 +551,27 @@ def _make_background_transparent(img: Image.Image) -> Image.Image:
     return img
 
 
+def _tight_crop_logo_with_margin(logo_img: Image.Image) -> Image.Image:
+    """BBox-crop to real ink and add a transparent breathing margin.
+
+    Brand Space logos often ship with large white pads (JPG). After keying, a
+    tight bbox can clip anti-aliased edges on circular icon marks (Cognixia C).
+    A small margin keeps the full circle visible when pasted top-right.
+    """
+    img = logo_img.convert("RGBA")
+    bbox = img.getbbox()
+    if not bbox:
+        return img
+    cropped = img.crop(bbox)
+    w, h = cropped.size
+    is_icon = w > 0 and abs(w - h) / max(w, 1) < 0.35
+    margin_pct = 0.04 if is_icon else 0.02
+    margin = max(3, int(max(w, h) * margin_pct))
+    out = Image.new("RGBA", (w + 2 * margin, h + 2 * margin), (0, 0, 0, 0))
+    out.paste(cropped, (margin, margin), cropped)
+    return out
+
+
 def _is_logo_wordmark_ink(r: int, g: int, b: int, a: int) -> bool:
     """Dark / navy pixels that form brand-name text in lockup logos (e.g. JIRAAF)."""
     if a < 24:
@@ -564,6 +602,11 @@ def _is_logo_icon_ink(r: int, g: int, b: int, a: int) -> bool:
         return False
     # Orange / vivid brand marks (Jiraaf giraffe glyph).
     if r > 160 and g < 175 and b < 120 and (r - b) > 45:
+        return True
+    # Cognixia / teal-cyan gradient icon marks.
+    if b >= 140 and g >= 120 and r <= 140 and (g + b) > (r * 2 + 40):
+        return True
+    if b >= 160 and g >= 150 and r <= 160 and b >= r and g >= r:
         return True
     mx = max(r, g, b)
     mn = min(r, g, b)
@@ -629,6 +672,242 @@ def _extract_logo_icon_only(logo_img: Image.Image) -> Image.Image:
     return cropped if cropped.getbbox() else logo_img.convert("RGBA")
 
 
+def _sample_logo_zone_background(
+    base_img: Image.Image,
+    canvas_width: int,
+    canvas_height: int,
+    *,
+    pocket_x0: int,
+    pocket_y1: int,
+) -> tuple[int, int, int, int]:
+    """Sample the real canvas colour just left of the logo pocket (not flat Brand hex)."""
+    px = base_img.load()
+    ref_x0 = max(0, pocket_x0 - max(28, int(canvas_width * 0.05)))
+    ref_x1 = max(ref_x0 + 1, pocket_x0 - 2)
+    samples: list[tuple[int, int, int]] = []
+    step_y = max(1, pocket_y1 // 10)
+    step_x = max(1, (ref_x1 - ref_x0) // 4)
+    for y in range(0, pocket_y1, step_y):
+        for x in range(ref_x0, ref_x1, step_x):
+            r, g, b, _a = px[x, min(y, canvas_height - 1)]
+            samples.append((r, g, b))
+    if not samples:
+        sx = max(0, pocket_x0 - 6)
+        sy = min(8, canvas_height - 1)
+        samples = [px[sx, sy][:3]]
+    rs = sorted(s[0] for s in samples)
+    gs = sorted(s[1] for s in samples)
+    bs = sorted(s[2] for s in samples)
+    mid = len(samples) // 2
+    return (rs[mid], gs[mid], bs[mid], 255)
+
+
+def _looks_like_hero_illustration(
+    px,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    *,
+    logo_x: int | None = None,
+) -> bool:
+    """True for 3D hero/shield pixels — must NOT be cleared for logo pocket."""
+    if x < 0 or y < 0 or x >= w or y >= h:
+        return False
+    r, g, b, _a = px[x, y]
+    # Flat wipe navy is never hero — restore gradient instead.
+    if _is_flat_wiped_navy_rgb(r, g, b):
+        return False
+    # Teal fake watermark circles are never hero.
+    if _is_teal_brand_mark_rgb(r, g, b):
+        return False
+    sat = max(r, g, b) - min(r, g, b)
+    lum = (r + g + b) / 3
+    # In the narrow corner strip, only protect bright metallic shield glints.
+    corner_x = max(int(w * 0.82), (logo_x or w) - 80)
+    if x >= corner_x and y <= int(h * 0.12):
+        return sat > 75 and lum > 130
+    # Metallic / glowing shield edges and the AI chip badge.
+    if sat > 55 and lum > 90:
+        return True
+    # Bright circuit / highlight specks on the hero object.
+    if b > 160 and g > 130 and lum > 150:
+        return True
+    # Local edge contrast — 3D object boundary, not flat canvas.
+    if x > 0 and x < w - 1:
+        nr = px[x + 1, y][:3]
+        if _colour_dist((r, g, b), nr) > 45:
+            return True
+    return False
+
+
+def _is_flat_wiped_navy_rgb(r: int, g: int, b: int) -> bool:
+    """Flat navy blocks left by old logo-pocket wipes (#1B3F7C / #012F6B)."""
+    lum = (r + g + b) / 3
+    if b >= max(r, g) + 12 and 28 < lum < 115:
+        if r < 85 and g < 110 and b > 95:
+            return True
+    # Exact wipe colours seen in Cognixia header damage.
+    if abs(r - 27) < 22 and abs(g - 63) < 28 and abs(b - 124) < 28:
+        return True
+    if abs(r - 1) < 22 and abs(g - 47) < 28 and abs(b - 107) < 28:
+        return True
+    return False
+
+
+def _is_corner_navy_plate(r: int, g: int, b: int) -> bool:
+    """Flat dark-navy rectangle AI paints behind fake corner logos."""
+    return _is_flat_wiped_navy_rgb(r, g, b)
+
+
+def _is_teal_brand_mark_rgb(r: int, g: int, b: int) -> bool:
+    """AI-drawn Cognixia-style C / teal watermark (remove before real logo paste)."""
+    if b >= 130 and g >= 110 and r <= 165 and (g + b) > (r * 2 + 18):
+        return True
+    return False
+
+
+def _is_fake_corner_logo_rgb(r: int, g: int, b: int) -> bool:
+    """Small AI-drawn brand marks in the top-right (not the hero shield)."""
+    if _is_logo_pad_rgb(r, g, b, jpeg_mode=True):
+        return True
+    if _is_teal_brand_mark_rgb(r, g, b):
+        return True
+    if _is_corner_navy_plate(r, g, b):
+        return True
+    return False
+
+
+def _clear_ai_corner_branding(
+    base_img: Image.Image,
+    canvas_width: int,
+    canvas_height: int,
+    *,
+    logo_x: int,
+    logo_y: int,
+    logo_w: int,
+    logo_h: int,
+) -> Image.Image:
+    """Remove BIG AI fake logo + flat navy wipe blocks; restore header gradient."""
+    px = base_img.load()
+    y1 = min(canvas_height, max(logo_y + logo_h + 12, int(canvas_height * 0.082)))
+    cleared = 0
+    for y in range(0, y1):
+        # Row-wise left edge: top strip is wider; lower rows stay tight to the corner.
+        if y <= int(canvas_height * 0.05):
+            row_x0 = int(canvas_width * 0.74)
+        elif y <= int(canvas_height * 0.075):
+            row_x0 = int(canvas_width * 0.78)
+        else:
+            row_x0 = max(int(canvas_width * 0.82), logo_x - 56)
+        # Pull clean header sky gradient from the LEFT headline zone (never the damaged corner).
+        ref_cols = [
+            int(canvas_width * 0.34),
+            int(canvas_width * 0.40),
+            int(canvas_width * 0.46),
+        ]
+        refs = [px[min(cx, canvas_width - 1), y][:3] for cx in ref_cols]
+        rr = sum(c[0] for c in refs) // len(refs)
+        rg = sum(c[1] for c in refs) // len(refs)
+        rb = sum(c[2] for c in refs) // len(refs)
+        for x in range(row_x0, canvas_width):
+            if _looks_like_hero_illustration(
+                px, x, y, canvas_width, canvas_height, logo_x=logo_x
+            ):
+                continue
+            r, g, b, _a = px[x, y]
+            # Strip flat wipe navy, fake teal logos, and AI navy logo plates.
+            if _is_fake_corner_logo_rgb(r, g, b) or _is_flat_wiped_navy_rgb(r, g, b):
+                px[x, y] = (rr, rg, rb, 255)
+                cleared += 1
+            elif x >= int(canvas_width * 0.88) and _is_teal_brand_mark_rgb(r, g, b):
+                px[x, y] = (rr, rg, rb, 255)
+                cleared += 1
+    if cleared:
+        logger.info(
+            "dalle.ai_corner_branding_cleared",
+            cleared=cleared,
+            y1=y1,
+        )
+    return base_img
+
+
+def _scrub_fake_corner_logos(
+    base_img: Image.Image,
+    canvas_width: int,
+    canvas_height: int,
+    *,
+    logo_x: int,
+    logo_y: int,
+    logo_w: int,
+    logo_h: int,
+    pad: int,
+) -> Image.Image:
+    """Remove AI fake logos/watermarks in the corner without eating the hero shield."""
+    px = base_img.load()
+    pocket = _LOGO_POCKET_PAD
+    x0 = max(0, logo_x - pocket)
+    y1 = min(canvas_height, logo_y + logo_h + pocket)
+    cleared = 0
+    for y in range(0, y1):
+        for x in range(x0, canvas_width):
+            if _looks_like_hero_illustration(
+                px, x, y, canvas_width, canvas_height, logo_x=logo_x
+            ):
+                continue
+            r, g, b, _a = px[x, y]
+            if not _is_fake_corner_logo_rgb(r, g, b):
+                continue
+            ref_x = max(0, x0 - 6)
+            ref = px[ref_x, y][:3]
+            px[x, y] = (ref[0], ref[1], ref[2], 255)
+            cleared += 1
+    if cleared:
+        logger.info("dalle.fake_corner_logos_scrubbed", cleared=cleared, x0=x0, y1=y1)
+    return base_img
+
+
+def _wipe_top_right_logo_pocket(
+    base_img: Image.Image,
+    canvas_width: int,
+    canvas_height: int,
+    *,
+    logo_x: int,
+    logo_y: int,
+    logo_w: int,
+    logo_h: int,
+    pad: int,
+) -> Image.Image:
+    """Clear only the compact logo slot — never eat the hero shield / AI chip."""
+    px = base_img.load()
+    pocket = _LOGO_POCKET_PAD
+    x0 = max(0, logo_x - pocket)
+    y0 = max(0, logo_y - 2)
+    x1 = canvas_width
+    y1 = min(canvas_height, logo_y + logo_h + pocket)
+    ref_x = max(0, x0 - 4)
+    for y in range(y0, y1):
+        row: list[tuple[int, int, int]] = []
+        for dx in (-2, 0, 2):
+            sx = min(max(0, ref_x + dx), canvas_width - 1)
+            row.append(px[sx, min(y, canvas_height - 1)][:3])
+        r = sum(c[0] for c in row) // len(row)
+        g = sum(c[1] for c in row) // len(row)
+        b = sum(c[2] for c in row) // len(row)
+        for x in range(x0, x1):
+            if _looks_like_hero_illustration(
+                px, x, y, canvas_width, canvas_height, logo_x=logo_x
+            ):
+                continue
+            px[x, y] = (r, g, b, 255)
+    logger.info(
+        "dalle.top_right_pocket_cleared",
+        box=f"{x0},{y0},{x1},{y1}",
+        ref_x=ref_x,
+    )
+    return base_img
+
+
 def _sample_corner_fill(base_img: Image.Image, canvas_width: int, canvas_height: int) -> tuple[int, int, int, int]:
     """Pick a fill color from just outside the small logo wipe zone (matches background)."""
     px = base_img.load()
@@ -692,14 +971,12 @@ def _composite_logo(
     logo_raw = Image.open(BytesIO(logo_bytes))
     # Remove solid white/cream plate — keep logo ink (icon AND wordmark) intact.
     logo_img = _make_background_transparent(logo_raw).convert("RGBA")
-    # Tight crop to real ink only (no empty pad).
-    content_box = logo_img.getbbox()
-    if content_box:
-        logo_img = logo_img.crop(content_box)
+    # Tight crop white pad + add margin so circular icons are never clipped.
+    logo_img = _tight_crop_logo_with_margin(logo_img)
 
-    # Compact size — less space, headlines stay clear of the pocket.
+    # Tiny corner mark — icon-only uploads must not steal hero/header space.
     max_logo_w = max(int(canvas_width * _LOGO_MAX_WIDTH_RATIO), _LOGO_MIN_PX)
-    max_logo_h = max(int(canvas_height * 0.055), _LOGO_MIN_PX)
+    max_logo_h = max(int(canvas_height * _LOGO_MAX_HEIGHT_RATIO), _LOGO_MIN_PX)
     logo_w, logo_h = logo_img.size
     scale = min(max_logo_w / max(logo_w, 1), max_logo_h / max(logo_h, 1), 1.0)
     new_w = max(int(logo_w * scale), 1)
@@ -712,28 +989,40 @@ def _composite_logo(
     logo_w, logo_h = logo_img.size
 
     pad = _LOGO_EDGE_PADDING
-    x = canvas_width - logo_w - pad
+    x = max(pad, canvas_width - logo_w - pad)
     y = pad
+    # Keep the full mark inside the canvas (never flush to y=0 / x=max).
+    if y + logo_h + pad > canvas_height:
+        y = max(pad, canvas_height - logo_h - pad)
+    if x + logo_w + pad > canvas_width:
+        x = max(pad, canvas_width - logo_w - pad)
 
     bg_hex = canvas_bg_hex or _DEFAULT_CANVAS_BG
-    # Kill LinkedIn / platform chrome before logo paste.
-    base_img = _wipe_platform_chrome(base_img, canvas_width, canvas_height, fill_hex=bg_hex)
-    # Kill AI-baked white logo rectangles in the top-right pocket.
-    base_img = _scrub_top_right_white_plates(
-        base_img, canvas_width, canvas_height, fill_hex=bg_hex
-    )
-    # Wipe AI-drawn fake logos / white plates with Brand Space background (never white).
-    wipe_w = max(0.22, min(0.36, (logo_w + 5 * pad) / max(canvas_width, 1)))
-    wipe_h = max(0.11, min(0.18, (logo_h + 5 * pad) / max(canvas_height, 1)))
-    base_img = _wipe_top_right_corner(
+    # Kill LinkedIn chrome on light canvases only — flat hex on navy creates a top band.
+    if not _is_dark_canvas(bg_hex):
+        base_img = _wipe_platform_chrome(base_img, canvas_width, canvas_height, fill_hex=bg_hex)
+    # Remove BIG AI fake logo + navy plate in the corner (wide sweep, hero-safe).
+    base_img = _clear_ai_corner_branding(
         base_img,
         canvas_width,
         canvas_height,
-        width_ratio=wipe_w,
-        height_ratio=wipe_h,
-        fill_hex=bg_hex,
+        logo_x=x,
+        logo_y=y,
+        logo_w=logo_w,
+        logo_h=logo_h,
     )
-    # Clear any leftover white plate in pocket, then paste transparent logo.
+    # Final touch-up on the tiny slot only — no wide rectangle wipe.
+    base_img = _scrub_fake_corner_logos(
+        base_img,
+        canvas_width,
+        canvas_height,
+        logo_x=x,
+        logo_y=y,
+        logo_w=logo_w,
+        logo_h=logo_h,
+        pad=pad,
+    )
+    # Paste transparent logo — no rectangle pocket wipe (that caused dark navy blocks).
     base_img = _scrub_logo_pocket_plates(
         base_img,
         logo_x=x,
@@ -759,10 +1048,18 @@ def _composite_logo(
     )
 
     out = BytesIO()
-    fixed = _ensure_light_brand_background(base_img, bg_hex)
-    fixed = _flatten_near_brand_canvas(fixed, bg_hex)
-    _flatten_rgba_to_brand_bg(fixed, bg_hex).convert("RGB").save(
+    # Do NOT run _ensure_light_brand_background here — its edge pin / flood fill
+    # was clipping the top of Cognixia-style circular logos after paste.
+    _flatten_rgba_to_brand_bg(base_img, bg_hex).convert("RGB").save(
         out, format="PNG", optimize=False
+    )
+    logger.info(
+        "dalle.logo_paste_geometry",
+        x=x,
+        y=y,
+        logo=f"{logo_w}x{logo_h}",
+        canvas=f"{canvas_width}x{canvas_height}",
+        pad=pad,
     )
     return out.getvalue()
 
@@ -928,6 +1225,7 @@ def _resize_to_export(
     allow_crop: bool = False,
     letterbox: bool = False,
     canvas_bg_hex: str = _DEFAULT_CANVAS_BG,
+    preserve_reference_canvas: bool = False,
 ) -> bytes:
     """Fit the API canvas to the exact export size.
 
@@ -936,9 +1234,9 @@ def _resize_to_export(
     centre-crop was cutting ~8% off the top and bottom and amputating text.
     allow_crop is retained for callers but is no longer used for portrait posters.
     """
-    img = _ensure_light_brand_background(
-        Image.open(BytesIO(image_bytes)), canvas_bg_hex or _DEFAULT_CANVAS_BG
-    )
+    img = Image.open(BytesIO(image_bytes)).convert("RGBA")
+    if not preserve_reference_canvas and not _is_dark_canvas(canvas_bg_hex):
+        img = _ensure_light_brand_background(img, canvas_bg_hex or _DEFAULT_CANVAS_BG)
     src_w, src_h = img.size
     if src_w <= 0 or src_h <= 0 or target_w <= 0 or target_h <= 0:
         return image_bytes
@@ -1083,7 +1381,9 @@ def _composite_infographic_cta(
 
     base_img = Image.open(BytesIO(base_bytes)).convert("RGBA")
     # Flatten nested ice plates first so the footer wipe does not leave a second BG.
-    base_img = _flatten_near_brand_canvas(base_img, canvas_bg_hex)
+    # Skip on dark reference canvases — rekeying pale card fills to navy creates speckle garbage.
+    if not _is_dark_canvas(canvas_bg_hex):
+        base_img = _flatten_near_brand_canvas(base_img, canvas_bg_hex)
     w, h = base_img.size
     # Footer reserve for the composited pill — keep shallow so cards stay intact.
     band_h = max(int(h * 0.13), 84)
@@ -1185,6 +1485,7 @@ def apply_brand_image_overlays(
     legal_color_hex: str = "",
     composite_sebi_footer: bool | None = None,
     composite_jiraaf_close_mascot: bool | None = None,
+    preserve_reference_canvas: bool = False,
 ) -> bytes:
     """Apply brand overlays.
 
@@ -1200,7 +1501,17 @@ def apply_brand_image_overlays(
     try:
         base_img = Image.open(BytesIO(image_bytes)).convert("RGBA")
         real_w, real_h = base_img.size
-        wiped = _wipe_platform_chrome(base_img, real_w, real_h, fill_hex=bg_hex)
+        # When learning from a Brand Space reference, keep its canvas/colors.
+        # Forcing a white Brand Space default was wiping Cognixia navy/teal DNA.
+        if preserve_reference_canvas:
+            sample = base_img.getpixel((max(2, real_w // 40), max(2, real_h // 40)))
+            bg_hex = "#{:02X}{:02X}{:02X}".format(sample[0], sample[1], sample[2])
+            wiped = base_img
+            logger.info("dalle.preserve_reference_canvas", bg=bg_hex, canvas=f"{real_w}x{real_h}")
+        else:
+            wiped = _wipe_platform_chrome(base_img, real_w, real_h, fill_hex=bg_hex)
+            wiped = _ensure_light_brand_background(wiped, bg_hex)
+            wiped = _flatten_near_brand_canvas(wiped, bg_hex)
         if wipe_reserved_corner and not logo_storage_path:
             wiped = _wipe_top_right_corner(
                 wiped,
@@ -1210,12 +1521,10 @@ def apply_brand_image_overlays(
                 height_ratio=0.13,
                 fill_hex=bg_hex,
             )
-        wiped = _ensure_light_brand_background(wiped, bg_hex)
-        wiped = _flatten_near_brand_canvas(wiped, bg_hex)
         out = BytesIO()
         _flatten_rgba_to_brand_bg(wiped, bg_hex).convert("RGB").save(out, format="PNG", optimize=False)
         image_bytes = out.getvalue()
-        logger.info("dalle.canvas_prepped", canvas=f"{real_w}x{real_h}", bg=bg_hex)
+        logger.info("dalle.canvas_prepped", canvas=f"{real_w}x{real_h}", bg=bg_hex, preserved=preserve_reference_canvas)
     except Exception as wipe_exc:
         logger.warning("dalle.canvas_prep_failed", error=str(wipe_exc)[:200])
 
@@ -1336,6 +1645,7 @@ class DalleService:
         composite_cta_text: str = "",
         cta_accent_hex: str = "",
         legal_color_hex: str = "",
+        reference_image_path: str = "",
     ) -> str:
         """Call gpt-image-1, optionally composite the brand logo, save, and return URL path.
 
@@ -1376,6 +1686,7 @@ class DalleService:
             api_size=dalle_size,
             prompt_len=len(prompt),
             has_logo=bool(logo_storage_path),
+            has_reference=bool(reference_image_path),
             has_client=bool(self.client),
             timeout_s=self.image_timeout_s,
         )
@@ -1402,17 +1713,62 @@ class DalleService:
                 kwargs["quality"] = q
             else:
                 kwargs["quality"] = "hd" if self.image_quality == "high" else "standard"
-            logger.info(
-                "dalle.generate_params",
-                model=self.model,
-                size=dalle_size,
-                quality=kwargs.get("quality"),
-                timeout_s=self.image_timeout_s,
-            )
-            response = await asyncio.wait_for(
-                self.client.images.generate(**kwargs),
-                timeout=self.image_timeout_s,
-            )
+
+            response = None
+            ref_path = str(reference_image_path or "").strip()
+            if ref_path and is_gpt_image:
+                try:
+                    ref_bytes = self.storage.read_bytes(ref_path)
+                    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                    tmp.write(ref_bytes)
+                    tmp.flush()
+                    tmp.close()
+                    logger.info(
+                        "dalle.generate_params",
+                        model=self.model,
+                        size=dalle_size,
+                        quality=kwargs.get("quality"),
+                        mode="edit_from_brand_reference",
+                        timeout_s=self.image_timeout_s,
+                    )
+                    with open(tmp.name, "rb") as ref_fh:
+                        edit_kwargs = {
+                            "model": self.model,
+                            "image": ref_fh,
+                            "prompt": kwargs["prompt"],
+                            "size": dalle_size,
+                            "n": 1,
+                            "quality": kwargs.get("quality"),
+                        }
+                        if "mini" not in (self.model or "").lower() and "gpt-image-2" not in (
+                            self.model or ""
+                        ):
+                            edit_kwargs["input_fidelity"] = "high"
+                        response = await asyncio.wait_for(
+                            self.client.images.edit(**edit_kwargs),
+                            timeout=self.image_timeout_s,
+                        )
+                    Path(tmp.name).unlink(missing_ok=True)
+                except Exception as ref_exc:
+                    logger.warning(
+                        "dalle.reference_edit_failed_fallback_generate",
+                        error=str(ref_exc)[:300],
+                    )
+                    response = None
+
+            if response is None:
+                logger.info(
+                    "dalle.generate_params",
+                    model=self.model,
+                    size=dalle_size,
+                    quality=kwargs.get("quality"),
+                    mode="generate",
+                    timeout_s=self.image_timeout_s,
+                )
+                response = await asyncio.wait_for(
+                    self.client.images.generate(**kwargs),
+                    timeout=self.image_timeout_s,
+                )
         except asyncio.TimeoutError as e:
             logger.error("dalle.generate_timeout", timeout_s=self.image_timeout_s, model=self.model)
             raise TimeoutError(
@@ -1464,6 +1820,7 @@ class DalleService:
                 export_h,
                 letterbox=use_letterbox,
                 canvas_bg_hex=canvas_bg_hex,
+                preserve_reference_canvas=bool(str(reference_image_path or "").strip()),
             )
             logger.info(
                 "dalle.resized_to_export",
@@ -1488,6 +1845,7 @@ class DalleService:
             composite_cta_text=composite_cta_text,
             cta_accent_hex=cta_accent_hex,
             legal_color_hex=legal_color_hex,
+            preserve_reference_canvas=bool(str(reference_image_path or "").strip()),
         )
 
         # ── Save final image to object storage ───────────────────────────────────

@@ -1101,53 +1101,7 @@ def repair_explain_infographic_copy(
     layout_type: LayoutType,
     user_prompt: str,
 ) -> CreativeBlueprint:
-    """Hard-lock polymer/RBI explain copy to sample DNA — stops LLM drift + bad headlines."""
-    from app.graph.models.layer7c_models import BlueprintInfographicSection
-
-    if blueprint.format not in ("infographic",) or layout_type != "carousel_story":
-        return blueprint
-    if not _is_polymer_explain_topic(user_prompt, blueprint):
-        return blueprint
-
-    blueprint.headline = "RBI TO TEST PLASTIC CURRENCY NOTES"
-    blueprint.title = blueprint.headline
-    blueprint.supporting_line = (
-        "Testing plastic notes for durability, security and sustainability."
-    )
-    blueprint.sections = [
-        BlueprintInfographicSection(
-            section_label="Why is RBI planning this?",
-            includes=[],
-            body="More durable, secure, cost-effective and eco-friendly currency.",
-            icon_hint="bank building, RBI seal",
-        ),
-        BlueprintInfographicSection(
-            section_label="Top reasons for switching",
-            includes=[
-                "Longer Life | Notes last much longer than paper",
-                "Cost Effective | Lower printing and logistics costs",
-                "Stronger Security | Harder to counterfeit",
-                "Water Resistant | Stays cleaner in daily use",
-                "Eco Friendly | Less paper waste over time",
-                "Future Ready | Modern durable currency system",
-            ],
-            body="",
-            icon_hint="shield, coins, padlock, droplets, recycle, leaf shield",
-        ),
-        BlueprintInfographicSection(
-            section_label="Trial before rollout",
-            includes=[],
-            body="Tests in select cities before a nationwide launch.",
-            icon_hint="map pins, clipboard checklist",
-        ),
-    ]
-    blueprint.customer_quote = "Innovating today for a stronger tomorrow"
-    blueprint.cta = "A SMARTER STEP TOWARDS A STRONGER INDIA"
-    blueprint.source_footer = "Source: rbi.org.in"
-    blueprint = apply_text_hygiene(blueprint, user_prompt=user_prompt)
-    notes = list(blueprint.brand_alignment_notes or [])
-    notes.insert(0, "Locked: clean explain pattern from sample_infographic_explain_rbi_plastic_perfect.png")
-    blueprint.brand_alignment_notes = notes[:8]
+    """No hardcoded sample copy. Layout comes from this brand's Brand Space reference."""
     return blueprint
 
 

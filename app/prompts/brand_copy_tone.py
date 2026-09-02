@@ -77,14 +77,14 @@ ICON STYLE LOCK (NON-NEGOTIABLE — ULTRA-PREMIUM HD 3D, premium editorial quali
 - NEVER pure black / charcoal backgrounds behind icons — always Brand Space background.
 """
 
-# Shared text + icon quality — oil bar ranking AND infographic explain use SAME family
+# Shared text + icon quality — every brand, every format
 SAMPLE_VISUAL_DNA = f"""
-SAMPLE VISUAL DNA (oil bar + infographic explain — SAME quality bar):
-Reference: sample_static_oil_consumption_bars.png + sample_infographic_explain_rbi_plastic_perfect.png
-(fallback: sample_infographic_explain_rbi_polymer.png)
+VISUAL QUALITY BAR (this Brand Space only):
+Follow the selected Brand Space reference template for layout, spacing, and hierarchy.
+Do not invent a built-in poster style.
 
 COLOURS:
-- BG soft Brand Space background
+- BG: Brand Space background
 - Headline: bold Brand Space primary. Optional KEY WORD in Brand Space accent
 - Supporting line: Brand Space body — clearly smaller than headline
 - Section headings / card titles: Brand Space primary
@@ -96,11 +96,11 @@ TYPOGRAPHY:
 - Clean geometric sans-serif (Inter / Helvetica) — vector-sharp, perfect kerning
 - No warped, melted, hand-drawn, or blurry baked text
 - Hierarchy: headline > section heading > card title > body (each ~30% smaller)
+- Letter-perfect spelling. Complete words. Never cut off mid-word.
 
-ICONS (premium HD — match perfect sample glossy 3D quality):
+ICONS (premium HD):
 - Clay-3D / glossy plastic studio render: satin materials, Brand Space primary/accent, soft shadows on Brand Space BG
 - Section icons SMALL–MEDIUM and sharp at 100% zoom — NOT clipart, NOT emoji, NOT blurry blobs
-- Hero cluster top-right for explain: holographic note + coins + shield (perfect sample)
 {ICON_STYLE_LOCK}
 """
 
@@ -115,9 +115,8 @@ Use the exact Brand Space hex values at full saturation. Washed-out / gray / bei
 """
 
 PARAGRAPH_INSIGHT_LOCK = f"""
-FOOTER / INSIGHT BLOCK (PERFECT sample_infographic_explain_rbi_plastic_perfect.png):
-- Bottom Brand Space primary full-width bar with WHITE tagline
-- Brand Space accent circle + white lightbulb on the LEFT of the footer bar
+FOOTER / INSIGHT BLOCK:
+- Bottom Brand Space primary full-width bar with WHITE tagline when Brand Space supplies one
 - Optional compact quote only if blueprint provides one — never a solid cream slab wall of text
 - Short paragraph max 2–3 lines; never a wall of tiny text
 - Annotation paragraphs may use 1–3 Brand Space accent highlight words instead
@@ -125,11 +124,11 @@ FOOTER / INSIGHT BLOCK (PERFECT sample_infographic_explain_rbi_plastic_perfect.p
 
 CAROUSEL_ICON_LOCK = f"""
 {PREMIUM_HD_ICON_LOCK}
-CAROUSEL ICON LOCK (NON-NEGOTIABLE — sample PDF avatar/icons):
+CAROUSEL ICON LOCK (NON-NEGOTIABLE):
 - ONE premium HD clay-3D illustrated avatar-object per slide (~12–16% canvas height).
 - Match the TOPIC and THIS brand's category — never default to finance props
   (wallet / coin stack / bond document) unless the prompt is about finance.
-- Soft-touch clay, studio-lit, topic-matched metaphor (book, leaf, bag, chart, shield…).
+- Soft-touch clay, studio-lit, topic-matched metaphor from this brand's category.
 - Maximum render quality: sharp edges, Brand Space primary/accent materials, no blur.
 - Place bottom-right or mid-right — text story cards own the left/center.
 - Never soft blurry low-res clay mush. Never clipart. Never emoji. Never cheap calculator blobs.
@@ -160,7 +159,7 @@ CAROUSEL TEXT FIT LOCK (NON-NEGOTIABLE — fixes broken/out-of-frame text):
 5) No mid-word breaks. No awkward 1–2 word orphan lines. Prefer 2 balanced lines max per card.
 6) Each explanation card: max ~14 words — wrap cleanly inside the card with padding ≥12px.
 7) Never place text under/through icons. Never let icons overlap text.
-8) Prefer 2–3 fully-visible story cards (sample DNA) — drop optional lines before clipping.
+8) Prefer 2–3 fully-visible story cards — drop optional lines before clipping.
 """
 
 CONTENT_DEPTH_LOCK = """
@@ -177,7 +176,7 @@ REQUIRED depth (pick ALL that fit):
   - A myth-bust or caveat (penalty, condition, illustrative note)
 CAROUSEL BODY: 22–36 words per slide — teach like Sweep-In samples (₹ scenario + mechanism).
 Each content card = short label + one clear explanation (8–14 words), not a lone keyword.
-NEVER ship a slide with only 1–2 vague lines and empty space — that is NOT sample DNA.
+NEVER ship a slide with only 1–2 vague lines and empty space.
 """
 
 UNIVERSAL_FIT_LOCK = f"""
@@ -219,11 +218,11 @@ CAROUSEL FIT LOCK — MATCH BRAND SPACE CAROUSEL LAYOUT:
 - FORBIDDEN: truncated headlines ("o.."), missing headlines, topic title alone, empty Pros/Cons,
   sparse 1–2 line slides with huge empty space.
 - MANDATORY: UNIQUE COMPLETE Brand Space primary headline at top-left on EVERY slide (wrap 2 lines if needed).
-- NEVER reuse topic name alone ("Capital Controls", "Sweep-in FD") as headline.
+- NEVER reuse a topic name alone as the headline.
 - Headlines/subheads: Brand Space primary ONLY. No accent underlines under titles.
 {HEADLINE_COLOR_LOCK}
 {ORANGE_COVERAGE_LOCK}
-- REQUIRED: 3–4 soft-blue story cards/blocks with full short explanations (sample page density).
+- REQUIRED: 3–4 story cards/blocks with full short explanations.
 - Bottom ~14% EMPTY for legal footer (only if Brand Space has one). Nothing clipped. Margins ≥8%.
 - Top-right corner: plain empty pale-blue only — NO AI logo, NO "Brand Logo" text, NO dashed box.
 - Spelling perfect. Plain printed sans-serif.
@@ -231,28 +230,26 @@ CAROUSEL FIT LOCK — MATCH BRAND SPACE CAROUSEL LAYOUT:
 
 # Carousel education — same retail tone as static/infographic ranking (NOT policy-analyst speak)
 CAROUSEL_AUDIENCE_TONE_LOCK = """
-CAROUSEL TONE LOCK — same voice as static/infographic samples (NON-NEGOTIABLE):
-Target = everyday Indian investor on LinkedIn/Instagram — NOT a policy analyst or textbook.
+CAROUSEL TONE LOCK — same voice as this brand's Brand Space (NON-NEGOTIABLE):
+Target = THIS brand's Brand Space audience — never a borrowed persona from another brand.
 
-WRITE LIKE THIS (plain, short, human):
-  "What if your savings earned FD-like returns?"
-  "Let's say you keep ₹2 lakh in your account"
-  "Only ₹50,000 is needed for daily expenses"
-  "The rest sits idle at low savings interest"
-  "Would you try a sweep-in FD?"
+WRITE LIKE THIS (plain, short, human) — invent lines from THIS prompt, not another campaign:
+  A surprising question
+  A concrete mini-scenario with real numbers
+  A simple "what it means" line
+  A short invite to comment
 
-NEVER WRITE LIKE THIS (too technical — client rejected):
-  Vostro/Nostro, liquidity risk, sector exposure, currency hedge, macro implications,
-  regulatory framework, capital account convertibility, LRS without plain English,
-  "implications for portfolio allocation", advisor-briefing essays, empty Pros/Cons chips
+NEVER WRITE LIKE THIS:
+  jargon without a plain-English translation, advisor-briefing essays, empty Pros/Cons chips,
+  another brand's product names or sample campaign headlines
 
 COPY RULES (every slide):
 - Headline: simple question or claim — max 8–10 words, complete (no mid-word cuts)
-- supporting_line: ONE short plain sentence with a ₹/% fact or "what it means"
+- supporting_line: ONE short plain sentence with a fact or "what it means"
 - body + proof_points: teach with a mini scenario — words THIS brand's audience gets in 3 seconds
 - Each story card: bold label + ONE explanation ≤12 plain English words
 - CTA: short invite ("Comment below!" / "What would you do?") — never a paragraph button
-- India: ₹ and % default; USD only when source is USD (label "USD" — never $ / US $)
+- Use currency/units from THIS run's research only
 - Perfect spelling. No jargon dumps. Depth = real numbers in simple language.
 """
 
@@ -262,7 +259,7 @@ CAROUSEL CONTENT DEPTH (plain language — still teach, never textbook):
 - FORBIDDEN shallow: "Invest wisely" / "Unlock potential" / "Connect the dots"
 - FORBIDDEN technical: one-word chips (Selling / Hedging / Pros) with NO explanation
 - REQUIRED: mini scenario OR comparison OR honest trade-off — in words anyone understands
-- body: 18–32 words per slide — shorter sentences, same teaching depth as Sweep-In samples
+- body: 18–32 words per slide — shorter sentences, same teaching depth
 - Each card = label + one clear line (6–12 words) with ₹/% — NOT a jargon paragraph
 - Include ONE honest caveat somewhere (penalty, condition, illustrative note) in plain English
 """
@@ -273,23 +270,22 @@ INFOGRAPHIC_EXPLAIN_LAYOUT_LOCK = f"""
 ════════════════════════════════════════════════════════
 INFOGRAPHIC EXPLAIN — STORYTELLING LOCK (NOT TEXTBOOK)
 Canonical bake: app/services/image_generation/explain_image_prompt.py
-Visual DNA: sample_infographic_explain_why_airports.png +
-            sample_infographic_explain_rbi_plastic_perfect.png
+Layout comes from this brand's Brand Space reference template, not a built-in poster.
 NOT a hub-and-spoke web-search collage. NOT a ranking board.
 ════════════════════════════════════════════════════════
 {BRAND_SPACE_PALETTE_LOCK}
 
 FORMAT: 1080×1350 portrait (4:5). Data-led editorial storytelling.
-Aesthetic: editorial sample DNA — Brand Space background, primary hierarchy, accent highlights, 3D icons.
+Aesthetic: Brand Space background, primary hierarchy, accent highlights, 3D icons.
 
-COLOURS (EXACT — same as ranking / lists / paragraphs):
+COLOURS (EXACT):
 - BG full-bleed Brand Space background — NEVER invent a foreign brand canvas colour
 - Headlines / section titles: Brand Space primary ONLY
 - Accent: Brand Space accent ONLY — never a borrowed palette
 - Body gray Brand Space body
 - Soft cards white/Brand Space card on Brand Space background
 - Footer: solid Brand Space primary bar + WHITE tagline
-- FORBIDDEN sample colours unless they are the Brand Space hexes: navy #0B2C5F, orange #FFA400, ice-blue fills
+- FORBIDDEN sample colours unless they are the Brand Space hexes
 COPY UNIQUENESS: each reason/insight card body must be a DIFFERENT sentence — never paste the same line on every card.
 
 LOGO: empty TOP-RIGHT pocket (~24% width × ~12% height) — never draw wordmark (Brand Space composite).
@@ -301,13 +297,13 @@ STORY STRUCTURE (must feel like a narrative, not a textbook dump):
 4) "At a glance" 3–4 stat chips (numbers + short labels) — proof, not essays
 5) 4–6 KEY REASON cards: short TITLE + 1–2 line so-what (NOT paragraphs, NOT "Web Search:")
 6) One chart / growth visual that advances the story
-7) Closing insight / economic implication + Brand Space primary footer tagline
+7) Closing insight + Brand Space primary footer tagline
 
 COPY RULES:
-- Everyday investor language. Insight-led. Complete sentences.
+- Everyday language for THIS brand's audience. Insight-led. Complete sentences.
 - Each card body ≤18 words. NO textbook essays. NO policy jargon walls.
 - FORBIDDEN baked strings: "Web Search:", "Answer WHY", research meta-labels, truncated mid-sentence.
-- Spell UDAN correctly (never ADAN). CTA ≤3 words ("Explore more").
+- CTA ≤3 words ("Explore more"). Perfect spelling. Never cut off mid-word.
 
 ICONS: glossy clay-3D Brand Space primary/accent — never flat emoji, never teal UI chrome.
 {ORANGE_COVERAGE_LOCK}
@@ -319,7 +315,7 @@ STORYTELLING LOCK (NON-NEGOTIABLE):
 - Narrative arc: hook → scale → why → effect → takeaway.
 - Ban textbook tone, ban repeated identical card titles, ban "Web Search:" labels in creative.
 - Each section must add a new beat of the story; never repeat the same WHY line 3×.
-- Prefer one memorable thesis (e.g. "airports as regional economic anchors") over generic "India is building airports".
+- Prefer one memorable thesis over a generic slogan.
 """
 
 INFOGRAPHIC_EXPLAIN_SPELLING_LOCK = """
@@ -383,7 +379,7 @@ Never invent navy/orange unless those exact hexes are the Brand Space primary/ac
 """
 
 INFOGRAPHIC_EXPLAIN_ORANGE_STUB = f"""
-ACCENT BRAND LOCK (infographic explain — match sample STRUCTURE only):
+ACCENT BRAND LOCK (infographic explain):
 Brand Space accent REQUIRED:
 1) Thick Brand Space accent vertical bars left of EVERY section heading
 2) 1–3 Brand Space accent highlight words in intro/section line OR callout
@@ -391,62 +387,55 @@ Brand Space accent REQUIRED:
 4) Accent accents on clay-3D icons where natural
 Headline stays Brand Space primary but MUST include Brand Space accent text somewhere in body.
 Accent ≥2% of image. Never drop Brand Space accent.
-Never paint sample navy/orange — use Brand Space primary/accent hexes only.
+Never paint a foreign palette — use Brand Space primary/accent hexes only.
 """
 
 # Legacy alias — route by format in callers
 EDUCATION_POSTER_LAYOUT_LOCK = INFOGRAPHIC_EXPLAIN_LAYOUT_LOCK
 
-# Static HORIZONTAL BAR ranking — sample_static_oil_consumption_bars.png
+# Static HORIZONTAL BAR ranking — structure only; visual DNA from Brand Space reference
 STATIC_HORIZONTAL_BAR_DNA_LOCK = f"""
 ════════════════════════════════════════════════════════
-STATIC HORIZONTAL BAR DNA — sample_static_oil_consumption_bars.png
-Layout reference (structure only): sample_static_oil_consumption_bars.png
+STATIC HORIZONTAL BAR — follow this brand's Brand Space reference
 {SAMPLE_VISUAL_DNA}
-Use for format=static + static_ranking when topic is oil/consumption/data bars (ADDITIVE — does not replace Top Countries).
+Use for format=static + static_ranking when the topic is a data/bar comparison.
 ════════════════════════════════════════════════════════
 
 COLOURS:
 - BG Brand Space background
 - Brand Space primary headline with Brand Space accent highlight phrase in title
-- Bars: Brand Space card for rows; HIGHLIGHT row (India/subject) in Brand Space accent
-- Orange annotation arrow + insight text on the right
+- Bars: Brand Space card for rows; HIGHLIGHT row (the subject) in Brand Space accent
+- Accent annotation arrow + insight text on the right
 {ORANGE_COVERAGE_LOCK}
 {STATIC_ORANGE_STUB}
 
 TEXT + ICONS (every row must be complete):
-- Bake country NAME + value inside bar + % outside — no missing labels
-- Circular flag icon per row — correct country, never empty
-- Clay-3D topic icons bottom-right (oil barrels / coins) — premium HD, not blurry
-- Source footer with exact domain text
+- Bake NAME + value inside bar + % outside — no missing labels
+- Topic-matched icon per row — never empty
+- Clay-3D topic icons bottom-right — premium HD, not blurry
+- Source footer with exact domain text when Brand Space / research provides one
 
 LAYOUT:
 1) Centered headline — highlight key phrase in Brand Space accent
-2) Horizontal BAR CHART rows (top to bottom, longest first):
-   EACH row LEFT→RIGHT:
-   - Country NAME (Brand Space primary, all-caps or bold)
-   - Circular flag icon at bar start
-   - Horizontal rounded BAR (length ∝ value)
-   - Value INSIDE bar right end (e.g. "5.621 mb/d" or "₹50B")
-   - % share OUTSIDE bar on the right (bold)
-3) Highlight the focal country row in Brand Space accent bar (others Brand Space primary/secondary)
-4) Brand Space accent arrow annotation → 1–2 line insight text block on the right
-5) Premium clay-3D topic icons bottom-right (oil barrels / coins — topic-matched)
-6) Source footer bottom-left (e.g. "Source: Indian Express, Energy Institute")
+2) Horizontal BAR CHART rows (top to bottom, longest first)
+3) Highlight the focal row in Brand Space accent bar
+4) Brand Space accent arrow annotation → 1–2 line insight text block
+5) Premium clay-3D topic icons bottom-right (topic-matched)
+6) Source footer bottom-left when provided
 7) Tiny empty top-right pocket for logo — never draw brand wordmark text
 
-CURRENCY: mb/d · ₹ · % · USD letters — NEVER $ / US $ / ESD
-FLAGS: correct per country (USA not ASA; UAE not HAE)
-CTA: omit or compact ≤4 words — data posts often have no CTA button
+CURRENCY: use the units from THIS run's research — NEVER invent $ / US $ / ESD
+CTA: omit or compact ≤4 words
+Perfect spelling. Never cut off mid-word.
 """
 
 STATIC_HORIZONTAL_BAR_IMAGE_STUB = f"""
-STATIC HORIZONTAL BAR = sample_static_oil_consumption_bars.png:
+STATIC HORIZONTAL BAR — follow Brand Space reference:
 BG Brand Space background. Brand Space primary headline + Brand Space accent highlight phrase.
-Rows: COUNTRY | flag circle | horizontal bar | value inside | % outside.
-Focal row (India/topic) = Brand Space accent bar; others = Brand Space primary/secondary bars.
-Accent arrow → insight text. Clay-3D icons bottom-right. Source footer.
-Never vertical rank badges. Never bond benefit cards.
+Rows: NAME | icon | horizontal bar | value inside | % outside.
+Focal row = Brand Space accent bar; others = Brand Space primary/secondary bars.
+Accent arrow → insight text. Clay-3D icons bottom-right. Source footer when provided.
+Never invent a built-in sample poster.
 """
 
 # Hybrid ranking + insight (e.g. "top 7 oil countries — why India is top 3")
@@ -462,11 +451,11 @@ STATIC RANKING + INSIGHT (when user asks top-N AND why/describe about focal coun
 
 # Generic retail tone — safe for EVERY topic/format (contains no sample copy to plagiarise)
 RETAIL_TONE_LOCK = """
-RETAIL AUDIENCE TONE LOCK (all formats):
-Target = everyday Indian investor on LinkedIn/Instagram.
+AUDIENCE TONE LOCK (all formats):
+Target = THIS brand's Brand Space audience — never a borrowed persona from another brand.
 - Short, plain, human lines. Scannable. Concrete.
 - Every line must be about the USER'S OWN TOPIC — written fresh from this run's research.
-- BAD: textbook essays, policy jargon (Vostro/hedge/sector exposure), mid-word cuts,
+- BAD: textbook essays, policy jargon, mid-word cuts,
   paragraph CTAs, research meta-labels ("Web Search:", "Answer WHY").
 - CTA: 2–3 words maximum.
 """
@@ -475,100 +464,87 @@ Target = everyday Indian investor on LinkedIn/Instagram.
 # Sample wording is described, never quoted — quoting caused verbatim copy leaks
 # (an airport prompt rendered the FDI sample creative word-for-word).
 INFOGRAPHIC_AUDIENCE_TONE_LOCK = f"""
-RANKING TONE LOCK — structure of sample_top_countries_investing.png:
+RANKING TONE LOCK — follow this brand's Brand Space ranking/reference template:
 {RETAIL_TONE_LOCK}
 ANTI-PLAGIARISM RULE (HARD FAIL):
-The sample creative is a LAYOUT reference only. NEVER reuse its subject matter,
-entity names, phrases, amounts, headline or subtitle. If the user's topic is not
-a country-investment ranking, none of that sample's wording may appear anywhere.
+Never reuse another brand's subject matter, entity names, phrases, amounts, headline or subtitle.
 
 COPY SHAPE (write fresh wording for the user's actual topic):
 - Headline: plain factual claim naming the USER'S topic and the count
 - Supporting: one soft factual line about the USER'S topic
 - Each row: ONE descriptive phrase ≤5 words, specific to that row's entity
-- Amount: ₹ figure (or % / USD letters when the source requires)
+- Amount: units from THIS run's research
 - CTA: 2–3 words
 """
 
 # Shared DNA for INFOGRAPHIC ranking — vertical rows (Top Countries sample)
 RANKING_SAMPLE_DNA_LOCK = f"""
 ════════════════════════════════════════════════════════
-RANKING SAMPLE DNA — Top Countries vertical rows (UNCHANGED — primary country/FDI ranking)
-Layout reference (structure only): sample_top_countries_investing.png
-Use for: infographic static_ranking OR static static_ranking when topic is country/FDI top-N.
-(Does NOT apply to oil/consumption horizontal bar topics — those use STATIC_HORIZONTAL_BAR_DNA_LOCK.)
+RANKING LAYOUT — follow this brand's Brand Space reference
+Use for: infographic static_ranking OR static static_ranking when the topic is a ranked list.
 ════════════════════════════════════════════════════════
 
 COLOURS:
 - BG Brand Space background
 - Navy text Brand Space primary
-- Orange Brand Space accent: rank squares, accent line under subtitle, coin/chart icons, CTA
+- Accent Brand Space accent: rank squares, accent line under subtitle, icons, CTA
 {BRAND_SPACE_PALETTE_LOCK}
 {ORANGE_COVERAGE_LOCK}
 {HEADLINE_COLOR_LOCK}
 
 LAYOUT (exact columns left→right on EVERY row):
-1) Orange rounded square with white rank number
-2) Rounded real country flag (matched — UAE not HAE, USA not ASA, never India flag for UAE)
-3) Country NAME bold + ONE short grey phrase under it
-4) Amount bold (₹50B / ₹45B …) 
-5) Tiny coin + rising Brand Space accent bars icon
+1) Accent rounded square with white rank number
+2) Topic-matched icon or flag for THAT row's entity
+3) NAME bold + ONE short grey phrase under it
+4) Amount bold from THIS run's research
+5) Tiny supporting icon
 
 Header: centered Brand Space primary headline + soft supporting + short centered Brand Space accent line
 Footer: compact Brand Space accent CTA ("Explore more")
-Thin light dividers between rows. No dark BG. No $ / US $ signs.
+Thin light dividers between rows. No dark BG.
 
-CURRENCY: ₹ for India FDI ranks · % for inflation · ¥ Japan · USD letters only if source USD
 {INFOGRAPHIC_AUDIENCE_TONE_LOCK}
 """
 
 # Compact stub for any remaining AI image path
 RANKING_IMAGE_STUB = f"""
-RANKING = sample_top_countries_investing.png LAYOUT DNA (not its wording):
-BG Brand Space background. Navy Brand Space primary. Orange badges+accent+CTA+coin icons Brand Space accent.
-Row: Brand Space accent # square | real flag | NAME + ≤5-word phrase | amount | coin/chart icon.
-Tone: short plain phrases about THIS run's entities — never textbook, never the sample's words.
-Never HAE/ASA/$/US $/wrong flags. Same for static AND infographic.
+RANKING — follow Brand Space reference (not a built-in sample):
+BG Brand Space background. Brand Space primary. Accent badges+CTA+icons.
+Row: accent # square | icon | NAME + ≤5-word phrase | amount | supporting icon.
+Tone: short plain phrases about THIS run's entities — never textbook, never another brand's words.
+Same for static AND infographic.
 """
 
 INFOGRAPHIC_RANKING_FORMAT_LOCK = RANKING_SAMPLE_DNA_LOCK
 
 INFOGRAPHIC_TRADE_BOARD_LOCK = f"""
-TRADE DEFICIT BOARD LOCK — match sample_india_russia_trade_deficit.png EXACTLY:
-Layout reference (structure only): sample_india_russia_trade_deficit.png
-- Punchy plain headline + one short subtitle on cream rounded strip (no jargon)
-- Clean dual-bar year table ONLY: EXPORT (Brand Space accent) | TRADE BALANCE | IMPORT (Brand Space primary), Billion USD
-- Year labels correct (2020-21, 2021-22, 2022-23, 2023-24…) — never "2021-2023"
-- Bake exact strings: "Export: USD X.XB" / "Import: USD Y.YB" — NEVER ESD / Emp / Impp / $
-- Brand Space accent export bars LEFT; Brand Space primary import bars RIGHT; balance numbers CENTER (deficit in red if large)
-- Bottom Brand Space card box: category bullets + USD lines
-- Source: Ministry of Commerce (or research domain)
-- Thick Brand Space accent line at bottom edge optional
-- FORBIDDEN technical sidebars: Key Drivers, Sector Exposure, Currency Risk, Vostro/Bistro,
-  Investment Considerations, Questions for Advisors, FD briefcase, handshake as main story
-- Optional CTA: COMPACT 2–4 words only — never a paragraph-length button
+COMPARISON / DUAL-BAR BOARD — follow this brand's Brand Space reference:
+- Punchy plain headline + one short subtitle (no jargon)
+- Clean dual-bar year/period table from THIS run's research only
+- Bake exact strings from research — never invent units or truncated labels
+- Brand Space accent bars LEFT; Brand Space primary bars RIGHT when comparing two series
+- Bottom Brand Space card box: category bullets when the copy supplies them
+- Source footer when Brand Space / research provides a domain
+- FORBIDDEN: borrowed sidebars, another brand's entities, mid-word cuts
+- Optional CTA: COMPACT 2–4 words only
 """
 
-# Static HUB facts — sample_bank_penalties.png
+# Static HUB facts — layout from Brand Space reference
 STATIC_HUB_FACTS_DNA_LOCK = f"""
 ════════════════════════════════════════════════════════
-STATIC HUB FACTS DNA — sample_bank_penalties.png
-Layout reference (structure only): sample_bank_penalties.png
-Use for: bank penalties / key rules / top-N bank facts (layout_type=static_hub_facts).
+STATIC HUB FACTS — follow this brand's Brand Space reference
+Use for: hub + fact cards (layout_type=static_hub_facts).
 ════════════════════════════════════════════════════════
 
 LAYOUT (hub + spoke — NOT ranking rows):
-1) Centered Brand Space primary headline (topic-matched variant)
-2) CENTER HUB: white circle with premium clay-3D bank building icon
-   - Coloured ring segments behind hub (Brand Space accent segment required)
-   - Five bank pods on the ring (Axis Bank | SBI | HDFC Bank | ICICI Bank | PNB)
-3) FIVE white rounded cards around hub — one per bank:
-   - Exact bank name as heading (typed text — NOT official trademark logos)
-   - 1–2 SHORT lines with concrete ₹/% premature-withdrawal rules
-   - Thin connector line from card to hub pod
+1) Centered Brand Space primary headline (topic-matched)
+2) CENTER HUB: circle with premium clay-3D topic icon from THIS prompt
+3) Fact cards around hub — one per named entity from THIS prompt:
+   - Exact name as heading
+   - 1–2 SHORT lines with concrete facts from THIS run's research
 4) BG Brand Space background — never an invented dark navy/black
 5) Tiny empty top-right pocket for logo composite — never draw brand wordmark
-6) NO fake customer quotes. NO teaser question without rates. body="" on blueprint.
+6) NO fake customer quotes. NO teaser question without facts.
 
 COLOURS: Brand Space primary headlines · Brand Space accent hub ring segment + dividers (≥2%)
 {ORANGE_COVERAGE_LOCK}
@@ -576,10 +552,10 @@ COLOURS: Brand Space primary headlines · Brand Space accent hub ring segment + 
 """
 
 STATIC_HUB_FACTS_IMAGE_STUB = f"""
-STATIC HUB = sample_bank_penalties.png:
-Hub + 5 bank fact cards. Center clay-3D bank building. Ring with bank pods.
-Cards: Axis | SBI | HDFC | ICICI | PNB — each with ₹/% penalty lines. Orange ring accent.
-Never ranking rows. Never bond benefit cards. Never teaser-only headline.
+STATIC HUB — follow Brand Space reference:
+Hub + fact cards for the named entities in THIS prompt.
+Center clay-3D topic icon. Cards each have a name + short fact lines.
+Never ranking rows. Never teaser-only headline. Never another brand's entity list.
 """
 
 SIMPLIFIED_CREATIVE_TONE_RULES = f"""
@@ -588,25 +564,21 @@ BRAND SPACE LAYOUT SYSTEM LOCK (NON-NEGOTIABLE)
 {STORYTELLING_LOCK}
 
 Layout quality bar:
-- Ranking/lists: sample_top_countries_investing.png
-- Explain/why stories: sample_infographic_explain_why_airports.png + rbi plastic perfect
-Samples are LAYOUT references. Their words, entities and numbers belong to their own
-topics and must never be reused on a different topic.
-Educate-first, short human lines — NEVER textbook paragraphs, NEVER empty teaser ads.
-NEVER bake "Web Search:" or research meta-labels into the creative.
+- Follow the selected Brand Space reference template for this format.
+- Educate-first, short human lines — NEVER textbook paragraphs, NEVER empty teaser ads.
+- NEVER bake "Web Search:" or research meta-labels into the creative.
 {RETAIL_TONE_LOCK}
 
 ════════════════════════════════════════
 LAYOUT ROUTER (follow layout_type)
 ════════════════════════════════════════
 - carousel_story: education story OR single education poster
-  Examples: why bonds / predictable income / liquidity / FIRE / myths / checklists
-  → BENEFIT/REASON cards — NEVER invent country comparison tables unless user asked
-- static_hub_facts → hub + 5 bank fact cards (sample_bank_penalties.png)
-- static_ranking + oil/consumption/data bars + format=static → horizontal bar (sample_static_oil_consumption_bars.png)
-- static_ranking + country/FDI top-N → vertical rank rows (sample_top_countries_investing.png)
-- static_ranking + trade deficit → dual-bar board (sample_india_russia_trade_deficit.png)
-- carousel_story + format=infographic → DENSE sample editorial (sample_infographic_explain_why_airports.png)
+  → BENEFIT/REASON cards — NEVER invent comparison tables unless user asked
+- static_hub_facts → hub + fact cards for entities named in THIS prompt
+- static_ranking + data bars + format=static → horizontal bar (Brand Space reference)
+- static_ranking + top-N list → vertical rank rows (Brand Space reference)
+- static_ranking + two-series comparison → dual-bar board (Brand Space reference)
+- carousel_story + format=infographic → dense editorial from Brand Space reference
 - carousel_story + format=static → simple hero + heading cards (STATIC_EXPLAIN_LAYOUT_LOCK)
 
 ════════════════════════════════════════
@@ -625,7 +597,7 @@ TOPIC LOCK (HARD FAIL — read before using any example below):
 The examples in this document exist to show SHAPE only. Every headline, entity,
 phrase, statistic and CTA you emit must come from the user's own topic and this
 run's research. Reusing an example's subject matter or wording is a rejection.
-If the user asked about airports, nothing about FDI/countries/banks/bonds may appear.
+If the user asked about one topic, nothing from another brand or sample campaign may appear.
 
 BAD SHAPE: teaser question + "Learn more" + fake quote, with none of the actual rates
 BAD SHAPE: a country/yield comparison board when the user asked neither compare nor rank
@@ -709,7 +681,7 @@ STATIC_IMAGE_EXTRA_LOCKS = f"""
 TOP-RIGHT CORNER: leave COMPLETELY BLANK (background colour only). NEVER draw a logo, leaf icon, compass icon, circular badge, decorative symbol, or ANY graphic element in the top-right corner. The brand logo is composited in post-processing — this area MUST be empty.
 BRAND/LOGO BAN: never draw a brand-name watermark / signature / "Brand Logo" placeholder anywhere.
 The ONLY brand mark is the Brand Space logo asset composited in post (top-right).
-Never bake plain brand-name text like "Jiraaf" at the bottom or corners.
+Never bake plain brand-name text at the bottom or corners.
 PAGE BACKGROUND (CRITICAL):
 - ONE full-bleed Brand Space background only — edge to edge, identical everywhere.
 - NEVER draw a nested white / off-white / pale-blue page panel, floating frame, or second background.

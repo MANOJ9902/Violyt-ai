@@ -56,43 +56,36 @@ class CopyEnginePromptBuilder(BasePromptBuilder):
 {CAROUSEL_SAMPLE_DNA}
 {CAROUSEL_AUDIENCE_TONE_LOCK}
 
-CAROUSEL OUTPUT RULES (client quality — NON-NEGOTIABLE — MATCH SAMPLE PDFs):
-Emit exactly 5–6 slides in slide_copy. Follow the sample STORY ARC beat-by-beat.
-This is an EDUCATION STORY in PLAIN RETAIL LANGUAGE — same tone as static/infographic samples.
+CAROUSEL OUTPUT RULES (client quality — NON-NEGOTIABLE):
+Emit exactly 5–6 slides in slide_copy. Follow a clear STORY ARC beat-by-beat.
+This is an EDUCATION STORY in PLAIN LANGUAGE for THIS brand's Brand Space audience.
 
 UNIQUE COMPLETE HEADLINES (critical):
 - Every slide_copy[].headline MUST be unique, COMPLETE (no mid-word cuts), max 8–10 words.
-- NEVER bare topic titles (BAD: "Sweep-in FD", "Capital Controls", "Interest rates").
-- NEVER policy-analyst jargon in headlines or body.
+- NEVER bare topic titles.
+- NEVER jargon in headlines or body.
 - NEVER near-duplicates.
-- GOOD sample-style headlines (plain English):
-  * "What if savings quietly earned FD-like returns?"
-  * "Let's say you keep ₹2 lakh idle"
-  * "A Sweep-in FD tries to solve this"
-  * "But what happens when you need money?"
-  * "So should you opt for Sweep-in FD?"
-  * "Would you choose the Sweep-in facility?"
+- Write headlines fresh from THIS prompt — never reuse another campaign's lines.
 
 STORY DEPTH (teach with numbers — keep language simple):
 - Slide 1 HOOK: surprising question + concrete tension in plain words
-- Slide 2 SCENARIO: ₹ mini-story in body + 3 proof_points (e.g. ₹2L / ₹50k / ₹1.5L idle)
-- Slide 3 HOW IT WORKS: mechanism + comparison numbers (₹6,000 vs ₹10,500 style) — explain simply
-- Slide 4 CHOICE: liquidity / decision + honest caveat (penalty note)
+- Slide 2 SCENARIO: mini-story in body + 3 proof_points
+- Slide 3 HOW IT WORKS: mechanism + comparison numbers — explain simply
+- Slide 4 CHOICE: decision + honest caveat
 - Slide 5 PROS/CONS: short reason sentences in proof_points (NOT empty Pros/Cons chips)
-- Slide 6 CTA: short question inviting comments ("What would you do?")
-- body: 18–32 words per slide — short sentences, real ₹/% facts
+- Slide 6 CTA: short question inviting comments
+- body: 18–32 words per slide — short sentences, real facts
 - supporting_line = one plain sentence with a number or "what it means" (required)
-- proof_points: 2–3 lines with ₹/%/rules (6–12 plain words each)
+- proof_points: 2–3 lines with facts (6–12 plain words each)
 - chip_labels = 3 content words — NEVER Pros/Cons/Examples/Advantages
 
 FORBIDDEN (too technical OR too shallow):
-- Vostro/Nostro, hedge, sector exposure, liquidity risk jargon, macro implications essays
 - Sparse slides with only 1–2 vague lines
 - Truncated / missing headlines
 - Same headline repeated
-- Body that only restates a definition with jargon and no ₹/% example
+- Body that only restates a definition with jargon and no example
 
-TOPIC LOCK: stay on the user's topic.
+TOPIC LOCK: stay on the user's topic. Use only this brand's Brand Space + web + vector data.
 Spelling perfect.
 """
 
@@ -102,7 +95,7 @@ Same DNA for format=static AND format=infographic when ranking — tone + curren
 {INFOGRAPHIC_AUDIENCE_TONE_LOCK}
 Pick the board type from the user topic:
 
-A) COUNTRY / TOP-N RANK (FDI, inflation ranks) — MATCH sample_top_countries_investing.png:
+A) COUNTRY / TOP-N RANK (when the user asked for a ranked list):
 {INFOGRAPHIC_RANKING_FORMAT_LOCK}
 - Fill infographic_sections with ranked rows.
 - section_label = real country (USA, Singapore, Japan, UK, UAE — NEVER HAE / ASA)
@@ -116,7 +109,7 @@ A) COUNTRY / TOP-N RANK (FDI, inflation ranks) — MATCH sample_top_countries_in
 - Row COUNT must match the user request (top 6 → 6 rows).
 - SPELLING: UAE not HAE; USA not ASA; tech/infrastructure letter-perfect.
 
-B) TRADE DEFICIT / EXPORT–IMPORT BOARD (India–Russia sample DNA):
+B) TWO-SERIES COMPARISON / DUAL-BAR (when the user asked to compare two series):
 {INFOGRAPHIC_TRADE_BOARD_LOCK}
 - Punchy plain data headline (e.g. "India Buys Much More From Russia Than It Sells").
 - supporting_line: one soft factual subtitle — NO "implications / exposure / hedge".
@@ -161,7 +154,7 @@ Spelling perfect. CTA ≤4 words. No text breaking.
 """
 
     _INFOGRAPHIC_EXPLAIN_SUFFIX = f"""
-INFOGRAPHIC EXPLAIN (layout_type=carousel_story on infographic) — sample DNA, SHORT copy:
+INFOGRAPHIC EXPLAIN (layout_type=carousel_story on infographic) — Brand Space reference, SHORT copy:
 {INFOGRAPHIC_EXPLAIN_LAYOUT_LOCK}
 {INFOGRAPHIC_EXPLAIN_ORANGE_STUB}
 {INFOGRAPHIC_EXPLAIN_QUALITY_LOCK}
@@ -216,17 +209,10 @@ STATIC EXPLAIN (layout_type=carousel_story on static):
     _EDUCATION_POSTER_SUFFIX = _INFOGRAPHIC_EXPLAIN_SUFFIX  # legacy alias
 
     _STATIC_DATA_HUB_SUFFIX = """
-STATIC DATA / HUB TOPICS (bank penalties, top-N rules, comparisons):
-Even for format=static you MUST fill infographic_sections with the actual data cards.
-Example for FD penalty rates of top 5 Indian banks:
-- headline: "Bank's Penalty Rates and Key Rules"
-- supporting_line: "" 
-- body: ""
-- customer_quote: ""
-- cta: "" or very short
-- infographic_sections: EXACTLY 5 — Axis Bank, SBI, HDFC Bank, ICICI Bank, PNB
-  each with includes = 1–2 short ₹/% rule lines, body = ""
-FORBIDDEN: teaser creatives that only ask "What Are Your FD Penalty Rates?" without listing the rates.
+STATIC DATA / HUB TOPICS:
+Even for format=static you MUST fill infographic_sections with the actual data cards
+from THIS prompt and THIS brand's research — never a borrowed entity list.
+FORBIDDEN: teaser creatives that only ask a question without listing the facts.
 """
 
     _STATIC_RANKING_SUFFIX = f"""

@@ -15,6 +15,8 @@ services:
       GENERATED_ASSETS_BASE_URL: https://65.0.82.127/storage
       ASSET_DOWNLOAD_BASE_URL: ${ASSET_DOWNLOAD_BASE_URL:-https://65.0.82.127/api/v1/storage/download}
       CORS_ORIGINS: '["https://65.0.82.127","http://localhost:3000","http://127.0.0.1:3000"]'
+      # Dedicated worker container handles jobs; avoid a second in-API worker.
+      EMBED_WORKER_IN_API: "false"
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

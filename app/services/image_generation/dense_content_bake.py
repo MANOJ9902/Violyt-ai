@@ -13,21 +13,90 @@ _SAFE = re.compile(r"[^\w\s₹%&.,'\"?!():;\-–/×+]")
 _DANGLING = frozenset(
     """a an the and or but that which with for to of in on at by from as is are was were
     its their this these those than when while if into over under per vs about after
-    before between during through across""".split()
+    before between during through across can will could would should may might must
+    have has""".split()
+)
+
+_DESIGN_REQUEST_RE = re.compile(
+    r"(?:^|\b)(?:find|create|make|generate|build|turn|design)\s+(?:a|an|the)?\s*"
+    r"(?:recent\s+)?(?:\w+\s+){0,10}?(?:into|as|for)\s+(?:a|an)?\s*"
+    r"(?:data[- ]?led\s+)?(?:cognixia\s+)?(?:linkedin\s+)?"
+    r"(?:carousel|infographic|static|post|slide|image)s?\b.*",
+    re.IGNORECASE,
+)
+_META_INSTRUCTION_RE = re.compile(
+    r"\b(?:don't simply report|do not simply report|user prompt|design request|"
+    r"turn it into|data-led cognixia|linkedin carousel|web search:)\b.*",
+    re.IGNORECASE,
+)
+
+DESIGN_REQUEST_COPY_BAN = (
+    "NEVER bake user design instructions, prompts, or meta labels "
+    "(e.g. 'Find a recent…', 'turn it into a carousel', 'TOPIC:', 'Web Search:')."
 )
 
 
+def strip_design_request_meta(text: str) -> str:
+    """Remove design-request / prompt-instruction fragments — never bake into images."""
+    t = str(text or "").strip()
+    if not t:
+        return ""
+    t = _DESIGN_REQUEST_RE.sub("", t).strip(" ,;:-–")
+    t = _META_INSTRUCTION_RE.sub("", t).strip(" ,;:-–")
+    return re.sub(r"\s+", " ", t).strip(" ,;:-–")
+
+
+def ensure_complete_sentence(text: str) -> str:
+    """Drop incomplete trailing clauses so baked copy never ends on 'This gap can'."""
+    t = strip_design_request_meta(str(text or ""))
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        return ""
+    if t[-1] in ".!?":
+        return t
+    if "." in t:
+        head = t.rsplit(".", 1)[0].strip()
+        if head:
+            return f"{head}."
+    words = t.split()
+    while words and words[-1].strip(".,;:").casefold() in _DANGLING:
+        words.pop()
+    out = " ".join(words).strip(" ,;:-–")
+    if out and out[-1] not in ".!?":
+        out = f"{out}."
+    return out
+
+
 def scrub(text: str, *, max_words: int = 28) -> str:
-    t = _SAFE.sub("", str(text or ""))
+    t = strip_design_request_meta(str(text or ""))
+    t = _SAFE.sub("", t)
     t = re.sub(r"\bRs\.?\s*", "₹", t, flags=re.I)
     t = re.sub(r"\bcrore\b", "cr", t, flags=re.I)
     t = re.sub(r"\s+", " ", t).strip()
+    parts = re.split(r"(?<=[.!?])\s+", t)
+    if len(parts) > 1:
+        acc: list[str] = []
+        count = 0
+        for sent in parts:
+            sw = sent.split()
+            if not sw:
+                continue
+            if count + len(sw) <= max_words:
+                acc.append(sent.strip())
+                count += len(sw)
+            else:
+                break
+        if acc:
+            joined = " ".join(acc).strip()
+            if joined[-1] in ".!?":
+                return joined
     words = t.split()
     if len(words) > max_words:
         words = words[:max_words]
     while words and words[-1].strip(".,;:").casefold() in _DANGLING:
         words.pop()
-    return " ".join(words).strip(" ,;:-–")
+    out = " ".join(words).strip(" ,;:-–")
+    return ensure_complete_sentence(out) if out else ""
 
 
 def _is_filler(text: str) -> bool:

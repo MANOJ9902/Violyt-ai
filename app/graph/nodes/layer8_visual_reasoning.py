@@ -16,7 +16,6 @@ from app.services.llm.llm_router import LLMRouter
 from app.prompts.brand_copy_tone import (
     SOURCE_FOOTER_RULE,
     ICON_STYLE_LOCK,
-    INFOGRAPHIC_AUDIENCE_TONE_LOCK,
 )
 from app.prompts.layout_router import classify_layout
 from app.prompts.creative_templates import resolve_creative_template
@@ -353,11 +352,12 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
     from app.services.brand_visual_pack import BrandVisualPack, load_brand_visual_pack, visual_pack_from_state
 
     pack = visual_pack_from_state(state)
-    if not pack.primary or pack.source == "neutral_fallback":
-        try:
-            pack = await load_brand_visual_pack(str(brand_id), fmt=fmt)
-        except Exception as exc:
-            logger.warning("visual_reasoning.visual_pack_reload_failed", error=str(exc)[:120])
+    try:
+        loaded = await load_brand_visual_pack(str(brand_id), fmt=fmt, user_prompt=str(user_prompt or ""))
+        if loaded.brand_id or loaded.primary:
+            pack = loaded
+    except Exception as exc:
+        logger.warning("visual_reasoning.visual_pack_reload_failed", error=str(exc)[:120])
     brand_name = pack.brand_name or (brand_intelligence.brand_core.brand_name or "").strip()
     brand_primary_color = pack.primary
     brand_secondary_color = pack.secondary
@@ -380,6 +380,33 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         background=pack.background,
         has_legal=pack.has_legal,
         has_mascot=pack.has_mascot,
+    )
+    from app.services.image_generation.reference_template import (
+        select_reference_template,
+        template_follow_lock,
+    )
+
+    selected_ref = select_reference_template(
+        list(pack.reference_templates or []),
+        fmt=fmt,
+        user_prompt=str(user_prompt or ""),
+    )
+    if selected_ref:
+        pack.selected_reference = selected_ref
+    _template_lock = (
+        template_follow_lock(pack.selected_reference, fmt=fmt)
+        if pack.selected_reference
+        else (
+            "LAYOUT SOURCE: this brand's Brand Space visual identity only. "
+            "Do not use a built-in sample poster from another brand. "
+            "TEXT QUALITY: letter-perfect spelling; complete words; never cut off mid-word."
+        )
+    )
+    logger.info(
+        "visual_reasoning.reference_template",
+        name=(pack.selected_reference or {}).get("name") or "",
+        path=(pack.selected_reference or {}).get("storage_path") or "",
+        count=len(pack.reference_templates or []),
     )
     headline = (blueprint.headline if blueprint and blueprint.headline else copy.headline)
     body = (blueprint.body if blueprint and blueprint.body else copy.body)
@@ -477,6 +504,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         brand_secondary_color=brand_secondary_color,
         brand_typography_font=brand_typography_font,
         visual_pack=pack.to_dict(),
+        platform=platform,
     )
     user = _prompt_builder.build_user(
         brand_intelligence=brand_intelligence,
@@ -486,6 +514,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         user_prompt=user_prompt,
         fmt=fmt,
         layout_type=layout_type,
+        visual_pack=pack.to_dict(),
     )
 
     # Visual-semantic blueprint from Content Intelligence (Phase-1 package)
@@ -512,7 +541,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             + (f"NARRATIVE BEATS: {beat_lines}\n" if beat_lines else "")
             + "Hero statistic must dominate. Supporting cards secondary. "
             "Do not give equal visual weight to every box. "
-            "Complete sentences only. Spell UDAN correctly (never ADAN).\n"
+            "Complete sentences only. Perfect spelling — never cut off mid-word.\n"
         )
 
     if blueprint:
@@ -614,6 +643,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             fmt=fmt,
             brand_name=brand_name,
         )
+        if _template_lock:
+            expander_system = f"{_template_lock}\n{expander_system}"
         expander_user = _prompt_builder.build_expander_user(
             brand_name=brand_intelligence.brand_core.brand_name,
             visual_mood=brand_intelligence.visual_behavior.visual_mood,
@@ -657,6 +688,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             primary=pack.primary,
             secondary=pack.secondary,
             accent=pack.accent,
+            visual_pack=pack.to_dict(),
         )
 
         try:
@@ -767,17 +799,26 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         skip_extra_locks: bool = False,
         letterbox_to_aspect: bool = False,
         composite_close_mascot: bool = False,
+        reference_image_path: str = "",
     ) -> str:
         wipe_reserved_corner = True
         extra = ""
         if not skip_extra_locks:
             extra = pack.image_extra_locks(fmt=fmt)
+        quality_lock = (
+            "TEXT QUALITY: letter-perfect spelling; complete words and sentences; "
+            "never cut off mid-word, mid-sentence, or with an ellipsis; "
+            "shrink type rather than clip; every label fully inside the frame."
+        )
+        mandatory = "\n".join(
+            part for part in (_template_lock, quality_lock, _mandatory_lock) if part
+        )
         # Applies to EVERY brand, format and platform — never skipped, never trimmed.
         safe_prompt = _budget_prompt(
             prompt,
             extra,
             _IMAGE_PROMPT_BUDGET,
-            mandatory=_mandatory_lock,
+            mandatory=mandatory,
         )
         logger.info(
             "visual_reasoning.image_prompt_budget",
@@ -788,6 +829,35 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         )
         try:
             dalle = DalleService()
+            ref_path = str(
+                reference_image_path or (pack.selected_reference or {}).get("storage_path") or ""
+            ).strip()
+            canvas_bg = pack.background
+            if ref_path:
+                try:
+                    from io import BytesIO
+
+                    from PIL import Image as _PILImage
+
+                    from app.integrations.object_storage import get_object_storage
+
+                    _ref_bytes = get_object_storage().read_bytes(ref_path)
+                    _ref_img = _PILImage.open(BytesIO(_ref_bytes)).convert("RGB")
+                    _samples = [
+                        _ref_img.getpixel((20, 20)),
+                        _ref_img.getpixel((40, min(80, _ref_img.height - 1))),
+                        _ref_img.getpixel((30, max(1, _ref_img.height // 2))),
+                    ]
+                    _avg = tuple(sum(c[i] for c in _samples) // len(_samples) for i in range(3))
+                    canvas_bg = "#{:02X}{:02X}{:02X}".format(*_avg)
+                    logger.info(
+                        "visual_reasoning.reference_canvas_bg",
+                        bg=canvas_bg,
+                        pack_bg=pack.background,
+                        reference=ref_path[-80:],
+                    )
+                except Exception as bg_exc:  # noqa: BLE001
+                    logger.warning("visual_reasoning.reference_canvas_bg_failed", error=str(bg_exc)[:160])
             url = await dalle.generate_and_save(
                 tenant_id=tenant_id,
                 brand_space_id=brand_id,
@@ -803,10 +873,11 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 letterbox_to_aspect=letterbox_to_aspect,
                 composite_close_mascot=composite_close_mascot,
                 close_mascot_storage_path=pack.mascot_storage_path if composite_close_mascot else "",
-                canvas_bg_hex=pack.background,
+                canvas_bg_hex=canvas_bg,
                 composite_cta_text=(cta or "Explore More") if fmt in {"static", "infographic"} else "",
                 cta_accent_hex=pack.accent if fmt in {"static", "infographic"} else "",
                 legal_color_hex=pack.legal_color,
+                reference_image_path=ref_path,
             )
             logger.info(
                 "visual_reasoning.dalle_success",
@@ -941,7 +1012,8 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
         if not storyline_lines and blueprint and blueprint.story_flow:
             storyline_lines = [str(x) for x in blueprint.story_flow]
         storyline_block = "\n".join(storyline_lines) or "(derive from per-slide headlines)"
-        topic_lock = _q(user_prompt, 160)
+        # Never pass raw user_prompt into baked copy — it leaked as visible "TOPIC" text.
+        topic_lock = ""
         used_heroes: set[str] = set()
         used_headlines: list[str] = []
 
@@ -1034,6 +1106,7 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                 strip_carousel_heading_numbers,
                 strip_carousel_source_citations,
             )
+            from app.services.image_generation.dense_content_bake import ensure_complete_sentence
 
             story_blocks = [
                 str(x).strip('"')
@@ -1044,7 +1117,9 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
             slide_headline = strip_carousel_heading_numbers(str(slide_headline or ""))
             slide_headline = strip_carousel_source_citations(str(slide_headline or ""))
             slide_supporting = strip_carousel_source_citations(str(slide_supporting or ""))
-            slide_body = strip_carousel_source_citations(str(slide_body or ""))
+            slide_body = ensure_complete_sentence(
+                strip_carousel_source_citations(str(slide_body or ""))
+            )
             story_blocks = [
                 strip_carousel_source_citations(b) for b in story_blocks if b
             ]
@@ -1332,8 +1407,6 @@ async def layer8_visual_reasoning(state: ViolytState) -> dict:
                     card_bake = "".join(card_lines)
 
                 layout_hint = creative_template.l8_image_hint(canvas_desc=canvas_desc)
-                if creative_template.layout_type == "static_ranking":
-                    layout_hint += f"\n{INFOGRAPHIC_AUDIENCE_TONE_LOCK}\n"
                 layout_hint += (
                     f"Canvas size LOCKED: {canvas_desc}. Fit every element inside with >=8% side/top margins "
                     "and >=14% EMPTY bottom reserve (NO baked CTA — CTA is composited in post).\n"

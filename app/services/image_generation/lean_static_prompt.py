@@ -9,15 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.image_generation.dense_content_bake import (
+    DESIGN_REQUEST_COPY_BAN,
+    scrub as _shared_scrub,
+)
+
 
 def _scrub(text: str, max_words: int) -> str:
-    words = " ".join(str(text or "").split()).strip().rstrip("….").strip()
-    if not words:
-        return ""
-    parts = words.split()
-    if len(parts) <= max_words:
-        return words
-    return " ".join(parts[:max_words]).rstrip(".,;:")
+    return _shared_scrub(text, max_words=max_words)
 
 
 def build_lean_static_prompt(
@@ -75,7 +74,7 @@ def build_lean_static_prompt(
         "Each card = one small icon + ONE complete title (max 8 words). "
         "No body paragraph, no second line, no hyphenation, no cutoff.\n"
         "- 16px inner padding inside every card. Title must sit fully inside the card.\n"
-        "- TOP-RIGHT ~20%x12% EMPTY page background (logo composited in post).\n"
+        "- TOP-RIGHT ~7% W × ~6% H EMPTY page background (logo composited in post).\n"
         f"- BOTTOM ≥16% EMPTY {bg} — DO NOT bake any CTA / button / '{cta_note}' pill "
         "(composited in post).\n"
         "- ≥8% side margins. Scale font down — never clip, never mid-word wrap.\n\n"
@@ -83,6 +82,7 @@ def build_lean_static_prompt(
         f"BG {bg} · HEADLINE {primary} · CARD {card} · ACCENT {accent} · BODY {body}.\n"
         "No green, mint, teal, gold, neon, or white page panels.\n"
         "Icons: small clay-3D studio objects using ONLY the hexes above.\n"
+        f"{DESIGN_REQUEST_COPY_BAN}\n"
         "=== END ===\n"
     )
 

@@ -9,6 +9,7 @@ import {
     CheckCircle2,
     Clock3,
     Download,
+    Edit3 as Edit3Icon,
     Eye,
     FileText,
     Loader2,
@@ -48,7 +49,7 @@ import type { BrandAttachmentResponse, BrandResponse, BrandTemplateImportRespons
 import { API } from "@/lib/api/endpoints";
 import { apiClient } from "@/lib/api/client";
 import { request } from "@/lib/api/request";
-import { buildBrandChatHref, buildBrandWorkspaceHref } from "@/lib/brand-routing";
+import { buildBrandChatHref, buildBrandEditHref, buildBrandWorkspaceHref } from "@/lib/brand-routing";
 import { brandSpaceTabs } from "@/lib/brandSpace";
 import {
     formatMissingRequiredBrandFields,
@@ -73,6 +74,7 @@ import { useAutofillBrandFromKnowledge, useBrands, useCreateBrand } from "@/hook
 import { useChatSessions } from "@/hooks/useContentWorkspace";
 import { applyBrandAutofillToForm } from "@/lib/brand-autofill";
 import { useGetMe } from "@/hooks/useUser";
+import { useRBAC } from "@/hooks/useRBAC";
 import { useGetTenantData } from "@/hooks/tenantAdmins/useGetTenants";
 import { useUpdateBrandUsageTargets } from "@/hooks/tenantAdmins/useUpdateTenant";
 import { toast } from "@/components/ui/use-toast";
@@ -272,7 +274,6 @@ function applyColorPaletteEntries(
             ...form.visualIdentity,
             activeColorPaletteUploadId,
             activeColorPaletteFingerprint: fingerprintPaletteEntries(entries),
-            paletteManualEdit: false,
             primaryColor: primary ? extractedHex(primary) : "",
             primaryColorName: primary ? colorNameFromPaletteEntry(primary) : "",
             secondaryColor: secondary ? extractedHex(secondary) : "",
@@ -288,39 +289,7 @@ function applyColorPaletteEntries(
     };
 }
 
-function hasSavedPaletteColors(form: BrandFormState) {
-    const { visualIdentity } = form;
-    return Boolean(
-        visualIdentity.primaryColor.trim() ||
-        visualIdentity.secondaryColor.trim() ||
-        visualIdentity.primaryColorName.trim() ||
-        visualIdentity.secondaryColorName.trim() ||
-        visualIdentity.additionalColors.some((color) => color.hex.trim() || color.name.trim()),
-    );
-}
-
-function linkColorPaletteUploadWithoutOverwrite(
-    form: BrandFormState,
-    itemId: string,
-    fingerprint: string,
-    markManual = false,
-): BrandFormState {
-    return {
-        ...form,
-        visualIdentity: {
-            ...form.visualIdentity,
-            activeColorPaletteUploadId: itemId,
-            activeColorPaletteFingerprint: fingerprint,
-            paletteManualEdit: markManual || Boolean(form.visualIdentity.paletteManualEdit),
-        },
-    };
-}
-
-function selectColorPaletteUpload(
-    form: BrandFormState,
-    itemId: string,
-    options: { forceApply?: boolean } = {},
-): BrandFormState {
+function selectColorPaletteUpload(form: BrandFormState, itemId: string): BrandFormState {
     const selectedItem = form.visualIdentity.colorPaletteUploads.find((item) => item.id === itemId);
     if (!selectedItem) {
         return form;
@@ -341,21 +310,7 @@ function selectColorPaletteUpload(
         form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
     // Once this exact extraction has already been applied for this upload, leave the form alone so
     // manual edits (a new row, a changed Role/name/hex) survive later re-syncs of the same file.
-    if (alreadySynced && !options.forceApply) {
-        return form;
-    }
-    if (Boolean(form.visualIdentity.paletteManualEdit) && !options.forceApply) {
-        return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
-    }
-    if (
-        !options.forceApply &&
-        hasSavedPaletteColors(form) &&
-        !form.visualIdentity.activeColorPaletteFingerprint
-    ) {
-        // Server-hydrated palette: link the active upload without clobbering saved Role/name/hex values.
-        return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
-    }
-    return applyColorPaletteEntries(form, itemId, entries);
+    return alreadySynced ? form : applyColorPaletteEntries(form, itemId, entries);
 }
 
 function attachmentToUploadPatch(asset: BrandAttachmentResponse): UploadStatePatch {
@@ -430,12 +385,6 @@ function applyExtractedVisualIdentityData(
         const fingerprint = entries.length ? fingerprintPaletteEntries(entries) : "";
         const alreadySynced =
             activeId === itemId && form.visualIdentity.activeColorPaletteFingerprint === fingerprint;
-        if (Boolean(form.visualIdentity.paletteManualEdit)) {
-            if (entries.length && itemId && activeId === itemId && !alreadySynced) {
-                return linkColorPaletteUploadWithoutOverwrite(form, itemId, fingerprint);
-            }
-            return form;
-        }
         if (entries.length && itemId && (!activeId || activeId === itemId) && !alreadySynced) {
             return applyColorPaletteEntries(form, itemId, entries);
         }
@@ -473,7 +422,7 @@ function FileProcessingStatusTipContent() {
             <p className="font-medium text-[#6F6F6F]">File Processing Status</p>
             <p>These statuses indicate the current state of files uploaded to this Brand Space.</p>
             <div className="space-y-1">
-                <p><span className="font-medium text-[#6F6F6F]">Ready:</span> Files have been uploaded successfully and are waiting to be processed.</p>
+                <p><span className="font-medium text-[#6F6F6F]">Ready:</span> File selected and waiting to upload. Violyt uploads and queues it for processing automatically.</p>
                 <p><span className="font-medium text-[#6F6F6F]">Processing:</span> Files are currently being processed. During this stage, Violyt extracts and analyzes the content to make it available for use.</p>
                 <p><span className="font-medium text-[#6F6F6F]">Synced:</span> File processing has been completed successfully, and the content is fully synchronized with the Brand Space. These files are now available for content generation and other Brand Space features.</p>
             </div>
@@ -487,6 +436,7 @@ function UploadStatusPanel({
     onReprocess,
     onUnsync,
     onRemove,
+    readOnly = false,
 }: {
     items: UploadStatusItem[];
     isSubmitting: boolean;
@@ -494,6 +444,7 @@ function UploadStatusPanel({
     onReprocess: (itemId: string) => void | Promise<void>;
     onUnsync: (itemId: string) => void | Promise<void>;
     onRemove: (itemId: string) => void | Promise<void>;
+    readOnly?: boolean;
 }) {
     const [isOpen, setIsOpen] = useState(false);
     if (!items.length) {
@@ -529,7 +480,9 @@ function UploadStatusPanel({
                         <p className="mt-1 text-sm text-slate-500">
                             {isSubmitting
                                 ? "Uploads, OCR, and template analysis are running in the background. Larger files can take a few minutes."
-                                : "Attached files stay linked to this Brand Space. You can reprocess, unsync, or remove them here."}
+                                : readOnly
+                                    ? "Synced file status for this Brand Space. Open Edit to reprocess, unsync, or remove files."
+                                    : "Attached files stay linked to this Brand Space. You can reprocess, unsync, or remove them here."}
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2 text-xs font-medium">
@@ -606,7 +559,7 @@ function UploadStatusPanel({
                                 </div>
 
                                 <div className="flex flex-wrap justify-end gap-2">
-                                    {item.uploadedAssetId ? (
+                                    {!readOnly && item.uploadedAssetId ? (
                                         <>
                                             <button
                                                 type="button"
@@ -628,14 +581,16 @@ function UploadStatusPanel({
                                             </button>
                                         </>
                                     ) : null}
-                                    <button
-                                        type="button"
-                                        onClick={() => void onRemove(item.id)}
-                                        disabled={isActioning}
-                                        className="text-xs font-medium text-red-600 disabled:opacity-50"
-                                    >
-                                        Remove
-                                    </button>
+                                    {!readOnly ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void onRemove(item.id)}
+                                            disabled={isActioning}
+                                            className="text-xs font-medium text-red-600 disabled:opacity-50"
+                                        >
+                                            Remove
+                                        </button>
+                                    ) : null}
                                 </div>
                             </div>
                         </div>
@@ -807,6 +762,8 @@ export default function BrandSpaceEditor({
     const createBrand = useCreateBrand();
     const updateBrandUsageTargets = useUpdateBrandUsageTargets();
     const { data: currentUser } = useGetMe();
+    const { can } = useRBAC();
+    const canEditBrandSpace = can("BRAND_SPACE", "EDIT");
     const tenantId = currentUser?.tenantId ?? "";
     const { data: tenant } = useGetTenantData(tenantId);
     const { data: brands } = useBrands();
@@ -834,6 +791,7 @@ export default function BrandSpaceEditor({
     const [isTemplateImporting, setIsTemplateImporting] = useState(false);
     const templateInputRef = useRef<HTMLInputElement>(null);
     const formRef = useRef(form);
+    const autoUploadInFlightRef = useRef(false);
     const readOnlySetForm = useMemo(() => (() => undefined) as typeof setForm, []);
 
     useEffect(() => {
@@ -1255,7 +1213,7 @@ export default function BrandSpaceEditor({
 
         if (!targetItem.uploadedAssetId || !effectiveBrandId) {
             setForm((current) => {
-                const next = selectColorPaletteUpload(current, itemId, { forceApply: true });
+                const next = selectColorPaletteUpload(current, itemId);
                 formRef.current = next;
                 return next;
             });
@@ -1263,7 +1221,7 @@ export default function BrandSpaceEditor({
         }
 
         setForm((current) => {
-            const next = selectColorPaletteUpload(current, itemId, { forceApply: true });
+            const next = selectColorPaletteUpload(current, itemId);
             formRef.current = next;
             return next;
         });
@@ -1278,13 +1236,13 @@ export default function BrandSpaceEditor({
                     return current;
                 }
                 const updated = updateBrandUploadItemState(current, itemId, patch);
-                const next = selectColorPaletteUpload(updated, itemId, { forceApply: true });
+                const next = selectColorPaletteUpload(updated, itemId);
                 formRef.current = next;
                 return next;
             });
         } catch {
             setForm((current) => {
-                const next = selectColorPaletteUpload(current, itemId, { forceApply: true });
+                const next = selectColorPaletteUpload(current, itemId);
                 formRef.current = next;
                 return next;
             });
@@ -1356,6 +1314,95 @@ export default function BrandSpaceEditor({
             window.clearInterval(timer);
         };
     }, [effectiveBrandId, hasPendingUploadItems]);
+
+    // Selected files ("Ready") used to sit idle until Save. Upload + queue them automatically.
+    useEffect(() => {
+        if (isReadOnly || !effectiveBrandId || isSubmitting || !hasUnsavedUploadItems) {
+            return;
+        }
+        if (autoUploadInFlightRef.current) {
+            return;
+        }
+
+        let disposed = false;
+        const timer = window.setTimeout(() => {
+            void (async () => {
+                if (disposed || autoUploadInFlightRef.current || isSubmitting) {
+                    return;
+                }
+                const snapshot = formRef.current;
+                const selectedWithFiles = collectUploadStatusItems(snapshot).filter((item) => {
+                    if (normalizeUploadState(item.lifecycleState) !== "selected") {
+                        return false;
+                    }
+                    const full = findBrandUploadItem(snapshot, item.id);
+                    return Boolean(full?.file);
+                });
+                if (!selectedWithFiles.length) {
+                    return;
+                }
+
+                autoUploadInFlightRef.current = true;
+                try {
+                    await uploadBrandSpaceAssets(effectiveBrandId, formRef.current, (update) => {
+                        applyUploadUpdate(update.itemId, {
+                            uploadedAssetId: update.uploadedAssetId,
+                            storagePath: update.storagePath,
+                            assetUrl: update.assetUrl || undefined,
+                            lifecycleState: update.lifecycleState,
+                            channel: update.channel,
+                            mimeType: update.mimeType,
+                            pageCount: update.pageCount,
+                            processingError: update.processingError,
+                            templateKind: update.templateKind,
+                            analysisJson: update.analysisJson,
+                            fieldKey: update.fieldKey,
+                            assetCategory: update.assetCategory,
+                            validationState: update.validationState,
+                            validationSummaryJson: update.validationSummaryJson,
+                            structuredDataJson: update.structuredDataJson,
+                            normalizedDataJson: update.normalizedDataJson,
+                            processingStatus: update.processingStatus,
+                            routing: update.routing,
+                            isActive: update.isActive,
+                        });
+                    });
+                    const latestAttachments = await listBrandSpaceAttachments(effectiveBrandId);
+                    setForm((current) => {
+                        const merged = syncActiveColorPaletteFields(
+                            mergeBrandAttachmentsIntoForm(current, latestAttachments),
+                        );
+                        formRef.current = merged;
+                        return merged;
+                    });
+                    setHydratedAttachmentBrandId(effectiveBrandId);
+                    showInfoToast(
+                        "Files queued for processing",
+                        "Upload finished. File Processing stats will update as OCR completes.",
+                    );
+                } catch (uploadError) {
+                    const uploadDetail = axios.isAxiosError(uploadError)
+                        ? uploadError.response?.data?.detail || uploadError.message
+                        : uploadError instanceof Error
+                            ? uploadError.message
+                            : "File upload failed";
+                    showErrorToast(
+                        "Unable to upload files",
+                        typeof uploadDetail === "string"
+                            ? uploadDetail
+                            : "Selected files could not be uploaded automatically. Click Save Changes to retry.",
+                    );
+                } finally {
+                    autoUploadInFlightRef.current = false;
+                }
+            })();
+        }, 500);
+
+        return () => {
+            disposed = true;
+            window.clearTimeout(timer);
+        };
+    }, [effectiveBrandId, hasUnsavedUploadItems, isReadOnly, isSubmitting]);
 
     const syncQueries = async (brand: BrandResponse) => {
         queryClient.setQueryData(["brand", brand.id], brand);
@@ -1457,6 +1504,10 @@ export default function BrandSpaceEditor({
             let uploadWarning: string | null = null;
             try {
                 setSubmissionPhase("Uploading and syncing brand files...");
+                const waitStartedAt = Date.now();
+                while (autoUploadInFlightRef.current && Date.now() - waitStartedAt < 60_000) {
+                    await new Promise((resolve) => window.setTimeout(resolve, 200));
+                }
                 formSnapshot = formRef.current;
                 uploadedAssets = await uploadBrandSpaceAssets(currentBrand.id, formSnapshot, (update) =>
                     applyUploadUpdate(update.itemId, {
@@ -1843,6 +1894,24 @@ export default function BrandSpaceEditor({
                             </Button>
                         ) : null}
 
+                        {isReadOnly && canEditBrandSpace && effectiveBrandId ? (
+                            <Button
+                                type="button"
+                                onClick={() =>
+                                    router.push(
+                                        buildBrandEditHref({
+                                            id: effectiveBrandId,
+                                            slug: draftBrand?.slug || effectiveBrandId,
+                                        }),
+                                    )
+                                }
+                                className="flex items-center justify-center gap-2 rounded-none bg-primary/72 p-6 text-base hover:bg-primary/90"
+                            >
+                                <Edit3Icon className="h-4 w-4" />
+                                <span>Edit Brand Space</span>
+                            </Button>
+                        ) : null}
+
                         {!isReadOnly && brandLifecycleState !== "active" ? (
                             <Button
                                 type="button"
@@ -1942,7 +2011,7 @@ export default function BrandSpaceEditor({
 
             {canOpenWorkspace && hasPendingUploadItems ? (
                 <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-primary">
-                    This Brand Space is active. File processing is still running in the background You can leave this page and check the status later.
+                    This Brand Space is active. File processing is still running in the background. You can leave this page and check the status later.
                 </div>
             ) : null}
 
@@ -2064,16 +2133,15 @@ export default function BrandSpaceEditor({
                 </div>
             </Tabs>
 
-            {!isReadOnly ? (
-                <UploadStatusPanel
-                    items={uploadStatusItems}
-                    isSubmitting={isSubmitting}
-                    actionItemId={actionItemId}
-                    onReprocess={handleReprocessUpload}
-                    onUnsync={handleUnsyncUpload}
-                    onRemove={handleRemoveUpload}
-                />
-            ) : null}
+            <UploadStatusPanel
+                items={uploadStatusItems}
+                isSubmitting={isSubmitting}
+                actionItemId={actionItemId}
+                onReprocess={handleReprocessUpload}
+                onUnsync={handleUnsyncUpload}
+                onRemove={handleRemoveUpload}
+                readOnly={isReadOnly}
+            />
 
             {submissionPhase ? (
                 <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-primary">

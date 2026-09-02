@@ -281,8 +281,6 @@ export function StyledSelect({
 }) {
     const [open, setOpen] = useState(false);
     const canClear = clearable && Boolean(value);
-    const resolvedOptions =
-        value && !options.includes(value) ? [...options, value] : options;
 
     return (
         <div className="relative w-full">
@@ -296,7 +294,7 @@ export function StyledSelect({
                     <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
                 <SelectContent>
-                    {resolvedOptions.map((option) => (
+                    {options.map((option) => (
                         <SelectItem
                             key={option}
                             value={option}

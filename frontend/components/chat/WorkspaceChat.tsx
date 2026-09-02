@@ -43,8 +43,8 @@ import type {
     StudioPanelSelection,
     TemplateRecommendationResponse,
 } from "@/lib/api/contracts";
-import { buildBrandChatHref, buildBrandSharingHref, buildBrandViewHref, buildBrandWorkspaceHref, resolveBrandByRouteKey } from "@/lib/brand-routing";
-import { useBrandUsage, useBrands } from "@/hooks/useBrands";
+import { buildBrandChatHref, buildBrandEditHref, buildBrandSharingHref, buildBrandWorkspaceHref, resolveBrandByRouteKey } from "@/lib/brand-routing";
+import { useBrandOverview, useBrandUsage, useBrands } from "@/hooks/useBrands";
 import { useGetMe } from "@/hooks/useUser";
 import { usePipeline } from "@/hooks/usePipeline";
 import ChatPipelinePanel, {
@@ -80,6 +80,8 @@ import {
 import { FormField, StyledInput, StyledSelect } from "../brandSpaces/tabs/FormFields";
 import Image from "next/image";
 import { STUDIO_AUDIENCE_OPTIONS } from "@/lib/brand-space-options";
+import { mapBrandOverviewToForm } from "@/lib/brand-mappers";
+import type { BrandUploadItem } from "@/types/brand-space.types";
 import { Label } from "../ui/label";
 import { Tooltips } from "../Tooltip";
 
@@ -865,8 +867,36 @@ function resolveBrandAudienceOptions(context: Record<string, unknown>) {
         ...readStringArray(identity.audience_type),
         ...(typeof identity.audience_type === "string" ? [identity.audience_type] : []),
     ];
-    const uniqueAudiences = Array.from(new Set(selectedAudiences.filter((item) => STUDIO_AUDIENCE_OPTIONS.includes(item))));
+    const uniqueAudiences = Array.from(new Set(selectedAudiences.filter(Boolean)));
     return uniqueAudiences.length ? uniqueAudiences : STUDIO_AUDIENCE_OPTIONS;
+}
+
+function inferStudioReferenceFormat(item: Pick<BrandUploadItem, "name" | "kind" | "templateKind" | "tags">): string {
+    const blob = [item.name, item.kind, item.templateKind, ...(item.tags || [])].filter(Boolean).join(" ").toLowerCase();
+    if (/(carousel|swipe|slide|deck|multi-slide)/.test(blob)) return "carousel";
+    if (/(infographic|explainer|poster|data story|one-pager)/.test(blob)) return "infographic";
+    if (/(static|banner|feed|linkedin post)/.test(blob)) return "static";
+    return "";
+}
+
+type StudioReferenceItem = {
+    id: string;
+    name: string;
+    previewUrl?: string;
+    format: string;
+    kind: "reference" | "template";
+};
+
+function collectStudioReferences(items: BrandUploadItem[], kind: "reference" | "template"): StudioReferenceItem[] {
+    return items
+        .filter((item) => item.name || item.assetUrl || item.previewUrl)
+        .map((item) => ({
+            id: item.id,
+            name: item.name || "Reference",
+            previewUrl: item.previewUrl || item.assetUrl,
+            format: inferStudioReferenceFormat(item),
+            kind,
+        }));
 }
 
 function getTemplatePreviewUrl(recommendation: TemplateRecommendationResponse) {
@@ -1973,6 +2003,7 @@ function StudioPanel({
     targetAudience,
     setTargetAudience,
     targetAudienceOptions,
+    brandReferences = [],
     onToggle,
     className,
 }: {
@@ -1989,6 +2020,7 @@ function StudioPanel({
     targetAudience: string;
     setTargetAudience: (value: string) => void;
     targetAudienceOptions: string[];
+    brandReferences?: StudioReferenceItem[];
     onToggle?: () => void;
     className?: string;
 }) {
@@ -2004,18 +2036,11 @@ function StudioPanel({
     const applyPlatform = (next: Platform) => {
         setPlatform(next);
         setSizeLabel(resolveSizeOptions(format, next)[0].label);
-        // Keep audience in sync with platform — stale LinkedIn audience was leaking onto Instagram runs.
-        const platformAudienceDefaults: Record<Platform, string> = {
-            instagram: "Indian Instagram users / retail savers",
-            linkedin: "Indian LinkedIn professionals / retail savers",
-            x: "Indian X (Twitter) users / retail savers",
-            youtube_thumbnail: "Indian YouTube viewers / retail savers",
-        };
-        const preferred = platformAudienceDefaults[next];
-        const matchedOption =
-            targetAudienceOptions.find((option) => option.toLowerCase().includes(next.replace("_", " "))) ||
-            targetAudienceOptions.find((option) => preferred.toLowerCase().includes(option.toLowerCase().slice(0, 12)));
-        setTargetAudience(matchedOption || preferred);
+        const platformKey = next.replace("_", " ");
+        const matchedOption = targetAudienceOptions.find((option) => option.toLowerCase().includes(platformKey));
+        if (matchedOption) {
+            setTargetAudience(matchedOption);
+        }
     };
 
     return (
@@ -2131,6 +2156,49 @@ function StudioPanel({
                     />
                 </FormField>
             </div>
+
+            <div className="space-y-3 pb-8">
+                <p className="text-base font-medium text-[#121212]">Brand templates</p>
+                <p className="text-xs text-[#6B7280]">
+                    Uploaded in this Brand Space. When you generate, the image model learns the template that matches {format}.
+                </p>
+                {brandReferences.length ? (
+                    <div className="grid grid-cols-2 gap-2">
+                        {brandReferences.map((item) => {
+                            const matchesFormat = item.format === format || (!item.format && format !== "video");
+                            return (
+                                <div
+                                    key={`${item.kind}-${item.id}`}
+                                    className={`overflow-hidden rounded-xl border bg-white ${
+                                        matchesFormat ? "border-primary ring-1 ring-primary/30" : "border-[#E5E7F0]"
+                                    }`}
+                                >
+                                    <div className="relative flex h-20 items-center justify-center bg-[#F4F4F5]">
+                                        {item.previewUrl ? (
+                                            <img src={item.previewUrl} alt={item.name} className="h-full w-full object-cover" />
+                                        ) : (
+                                            <span className="px-2 text-center text-[11px] text-[#8D8D95]">{item.kind}</span>
+                                        )}
+                                    </div>
+                                    <div className="px-2 py-1.5">
+                                        <p className="truncate text-xs font-medium text-[#121212]" title={item.name}>
+                                            {item.name}
+                                        </p>
+                                        <p className="truncate text-[10px] uppercase tracking-wide text-[#8D8D95]">
+                                            {item.format || "any format"}
+                                            {matchesFormat ? " · match" : ""}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="rounded-xl border border-dashed border-[#D1D3DA] bg-white px-3 py-4 text-xs text-[#8D8D95]">
+                        Upload reference creatives and templates in Brand Space. The image model will learn that look for this brand only.
+                    </p>
+                )}
+            </div>
         </aside>
     );
 }
@@ -2143,6 +2211,19 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
     const brand = useMemo(() => resolveBrandByRouteKey(brands, brandKey), [brands, brandKey]);
     const brandId = brand?.id || "";
     const { data: brandUsage } = useBrandUsage(brandId);
+    const { data: brandOverview } = useBrandOverview(brandId);
+    const brandReferences = useMemo(() => {
+        if (!brandOverview) return [];
+        try {
+            const form = mapBrandOverviewToForm(brandOverview);
+            return [
+                ...collectStudioReferences(form.visualIdentity.referenceCreatives || [], "reference"),
+                ...collectStudioReferences(form.brandKnowledge.templateFiles || [], "template"),
+            ];
+        } catch {
+            return [];
+        }
+    }, [brandOverview]);
     const targetAudienceOptions = useMemo(
         () => resolveBrandAudienceOptions(brand?.resolved_brand_context || {}),
         [brand?.resolved_brand_context],
@@ -3272,17 +3353,17 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                     <h1 className="font-dmSans text-3xl font-bold text-primary">{brand.name}</h1>
 
                                                     <Tooltips
-                                                        content="View Brand Space"
+                                                        content="Edit Brand Space"
                                                         side="right"
                                                         sideOffset={8}
                                                         contentClassName="bg-primary text-white"
                                                     >
                                                     <Link
-                                                        href={buildBrandViewHref({ id: brandId, slug: brand?.slug || brandId })}
-                                                        aria-label="View Brand Space"
+                                                        href={buildBrandEditHref({ id: brandId, slug: brand?.slug || brandId })}
+                                                        aria-label="Edit Brand Space"
                                                         className="absolute -right-7 -top-1 text-sm text-[#121212] hover:underline"
                                                     >
-                                                        <Image src="/actions_icons/chat/redirect_link.svg" alt="View Brand Space" width={19} height={19} className="inline-block mr-1" />
+                                                        <Image src="/actions_icons/chat/redirect_link.svg" alt="Edit Brand Space" width={19} height={19} className="inline-block mr-1" />
                                                     </Link>
                                                 </Tooltips>
                                                 </div>
@@ -3625,6 +3706,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                             targetAudience={studioTargetAudience}
                                             setTargetAudience={setStudioTargetAudience}
                                             targetAudienceOptions={targetAudienceOptions}
+                                            brandReferences={brandReferences}
                                             onToggle={() => setIsStudioOpen(false)}
                                             className="hidden xl:block"
                                         />
@@ -3647,6 +3729,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                     targetAudience={studioTargetAudience}
                                                     setTargetAudience={setStudioTargetAudience}
                                                     targetAudienceOptions={targetAudienceOptions}
+                                                    brandReferences={brandReferences}
                                                     onToggle={() => setIsStudioOpen(false)}
                                                     className="min-h-full border-l-0"
                                                 />
@@ -3669,17 +3752,17 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                                 <div className="flex gap-2 relative">
                                                     <h1 className="font-dmSans text-3xl font-bold text-primary">{brand.name}</h1>
                                                     <Tooltips
-                                                        content="View Brand Space"
+                                                        content="Edit Brand Space"
                                                         side="right"
                                                         sideOffset={8}
                                                         contentClassName="bg-primary text-white"
                                                     >
                                                     <Link
-                                                        href={buildBrandViewHref({ id: brandId, slug: brand?.slug || brandId })}
-                                                        aria-label="View Brand Space"
+                                                        href={buildBrandEditHref({ id: brandId, slug: brand?.slug || brandId })}
+                                                        aria-label="Edit Brand Space"
                                                         className="absolute -right-7 -top-1 text-sm text-[#121212] hover:underline"
                                                     >
-                                                        <Image src="/actions_icons/chat/redirect_link.svg" alt="View Brand Space" width={19} height={19} className="inline-block mr-1" />
+                                                        <Image src="/actions_icons/chat/redirect_link.svg" alt="Edit Brand Space" width={19} height={19} className="inline-block mr-1" />
                                                     </Link>
                                                 </Tooltips>
                                                 </div>
@@ -3834,6 +3917,7 @@ export default function WorkspaceChat({ brandKey }: WorkspaceChatProps) {
                                         targetAudience={studioTargetAudience}
                                         setTargetAudience={setStudioTargetAudience}
                                         targetAudienceOptions={targetAudienceOptions}
+                                        brandReferences={brandReferences}
                                         onToggle={() => setIsStudioOpen(false)}
                                         className="hidden xl:block"
                                     />

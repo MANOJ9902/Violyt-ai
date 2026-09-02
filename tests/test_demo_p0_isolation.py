@@ -89,6 +89,16 @@ def test_legal_footer_only_comes_from_brand_space_text() -> None:
     assert "SEBI" in pack.legal_footer
 
 
+def test_retrieval_namespace_is_brand_scoped() -> None:
+    import inspect
+
+    from app.services.vectorstore.retrieval_service import BrandRetrievalService
+
+    source = inspect.getsource(BrandRetrievalService._query_namespace)
+    assert 'namespace = f"brand:{brand_id}"' in source
+    assert "HARD isolation" in source
+
+
 def test_icon_lock_does_not_force_finance_dna_for_all_brands() -> None:
     from app.prompts.brand_copy_tone import CAROUSEL_ICON_LOCK, ICON_STYLE_LOCK
 

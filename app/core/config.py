@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     tone_model: str = "gpt-4o-mini"
     vision_model: str = "gpt-4o-mini"
-    image_model: str = "gpt-image-1-mini"
+    image_model: str = "gpt-image-1"
     # gpt-image quality: low | medium | high — high can hang many minutes
     image_quality: str = "high"
     # Carousel runs several gpt-image-1 calls; 180s was timing out mid-deck.
@@ -133,6 +133,10 @@ class Settings(BaseSettings):
     worker_batch_size: int = 10
     worker_job_lease_seconds: int = 60 * 10
     worker_job_heartbeat_seconds: int = 10
+    # When true, FastAPI starts the job worker loop in-process so uploads
+    # (OCR / File Processing stats) run without a separate `python scripts/run_worker.py`.
+    # Docker Compose disables this on the API service because a dedicated worker container runs.
+    embed_worker_in_api: bool = True
 
     upload_max_file_bytes: int = 25 * 1024 * 1024
     upload_max_pdf_pages: int = 120

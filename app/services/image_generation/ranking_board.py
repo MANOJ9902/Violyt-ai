@@ -367,12 +367,12 @@ def render_ranking_board_png(
     source_footer: str = "",
     rows: list[dict],
 ) -> bytes:
-    """Paint ranking board matching sample_top_countries_investing.png EXACTLY.
+    """Paint ranking board from THIS run's rows. Colors come from Brand Space.
 
     Anatomy (locked):
-    - ice-blue BG · centered navy headline · soft supporting · short orange accent
-    - EACH row: orange rank square | rounded flag | NAME + one short phrase | ₹ amount | coin icon
-    - thin light dividers · compact orange CTA
+    - ice-blue BG, centered navy headline, soft supporting, short orange accent
+    - EACH row: orange rank square | rounded flag | NAME + one short phrase | amount | coin icon
+    - thin light dividers, compact orange CTA
     """
     bg = _hex_rgb(NEUTRAL_BG)
     navy = _hex_rgb(NEUTRAL_HEADLINE)

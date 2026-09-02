@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { CalendarDays, ChevronDown, HelpCircle, HelpCircleIcon } from "lucide-react";
 import { PlatformPageTitle, SectionCard } from "@/components/platformOwner/PlatformOwnerPrimitives";

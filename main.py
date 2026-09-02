@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
+import logging
 import mimetypes
 from pathlib import Path
 
@@ -18,12 +20,38 @@ from app.integrations.object_storage import get_object_storage
 from app.services.bootstrap import seed_demo_owner, seed_rbac
 
 
+logger = logging.getLogger("uvicorn.error")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
         await seed_rbac(session)
         await seed_demo_owner(session)
-    yield
+
+    worker_task: asyncio.Task | None = None
+    worker_stop: asyncio.Event | None = None
+    settings = get_settings()
+    if settings.embed_worker_in_api:
+        from app.workers.runner import run_worker_loop
+
+        worker_stop = asyncio.Event()
+        worker_task = asyncio.create_task(run_worker_loop(worker_stop), name="embed-worker-loop")
+        logger.info(
+            "Embedded job worker started (uploads/File Processing will run automatically). "
+            "Set EMBED_WORKER_IN_API=false to disable."
+        )
+
+    try:
+        yield
+    finally:
+        if worker_stop is not None:
+            worker_stop.set()
+        if worker_task is not None:
+            worker_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await asyncio.wait_for(worker_task, timeout=5)
+            logger.info("Embedded job worker stopped.")
 
 
 settings = get_settings()

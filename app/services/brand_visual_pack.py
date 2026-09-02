@@ -1,3 +1,4 @@
+
 """Brand-agnostic visual pack for the LangGraph image pipeline.
 
 Every run is keyed by brand_id. Colors, fonts, legal footer, and mascot come
@@ -27,11 +28,18 @@ def _hex(value: Any, fallback: str = "") -> str:
     return normalize_hex(value) or fallback
 
 
-def _is_light(hex_color: str) -> bool:
+def _is_near_white(hex_color: str) -> bool:
     rgb = hex_to_rgb(hex_color)
     if not rgb:
-        return True
-    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) >= 200
+        return False
+    return min(rgb) >= 245 and (max(rgb) - min(rgb)) <= 12
+
+
+def _is_near_black(hex_color: str) -> bool:
+    rgb = hex_to_rgb(hex_color)
+    if not rgb:
+        return False
+    return max(rgb) <= 28
 
 
 def _is_card_wash(hex_color: str) -> bool:
@@ -201,6 +209,95 @@ def _design_notes(visual_identity: dict[str, Any]) -> str:
     return " | ".join(parts)[:800]
 
 
+def _is_dark_hex(hex_color: str) -> bool:
+    rgb = hex_to_rgb(hex_color)
+    if not rgb:
+        return False
+    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) < 80
+
+
+def _sample_reference_background_hex(storage_path: str) -> str:
+    """Average the top-left region of a Brand Space reference creative."""
+    path = str(storage_path or "").strip()
+    if not path:
+        return ""
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        from app.integrations.object_storage import get_object_storage
+
+        data = get_object_storage().read_bytes(path)
+        img = Image.open(BytesIO(data)).convert("RGB")
+        samples = [
+            img.getpixel((20, 20)),
+            img.getpixel((40, min(80, img.height - 1))),
+            img.getpixel((30, max(1, img.height // 2))),
+        ]
+        avg = tuple(sum(c[i] for c in samples) // len(samples) for i in range(3))
+        return "#{:02X}{:02X}{:02X}".format(*avg)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "brand_visual_pack.reference_bg_sample_failed",
+            error=str(exc)[:160],
+            path=path[-80:],
+        )
+        return ""
+
+
+def align_pack_with_reference_canvas(pack: BrandVisualPack) -> BrandVisualPack:
+    """When a Brand Space reference uses a dark canvas, align carousel palette to match."""
+    dark_bg = ""
+    ref_path = str((pack.selected_reference or {}).get("storage_path") or "").strip()
+    if ref_path:
+        sampled = _sample_reference_background_hex(ref_path)
+        if sampled and _is_dark_hex(sampled):
+            dark_bg = sampled
+
+    if not dark_bg:
+        for item in pack.additional or []:
+            if not isinstance(item, dict):
+                continue
+            hx = _hex(item.get("hex"))
+            label = str(item.get("name") or item.get("role") or "").casefold()
+            if hx and _is_dark_hex(hx) and any(
+                token in label for token in ("background", "navy", "gradient", "canvas", "deep", "midnight")
+            ):
+                dark_bg = hx
+                break
+
+    if not dark_bg:
+        return pack
+
+    pack.background = dark_bg
+    pack.card = "#FFFFFF"
+    if pack.secondary and _is_card_wash(pack.secondary):
+        pack.card = pack.secondary
+    # Light headline/body on dark canvases when current values are too dark to read.
+    if _is_dark_hex(pack.headline):
+        for candidate in (
+            pack.accent,
+            *[c.get("hex") for c in pack.additional if isinstance(c, dict)],
+        ):
+            hx = _hex(candidate)
+            if hx and not _is_dark_hex(hx) and not _is_near_white(hx):
+                pack.headline = hx
+                break
+    if _is_dark_hex(pack.body):
+        pack.body = "#E8F4FF"
+    pack.source = f"{pack.source}+reference_canvas" if pack.source else "reference_canvas"
+    logger.info(
+        "brand_visual_pack.reference_canvas_aligned",
+        brand_id=pack.brand_id,
+        background=pack.background,
+        card=pack.card,
+        headline=pack.headline,
+        reference=ref_path[-80:] if ref_path else "",
+    )
+    return pack
+
+
 @dataclass
 class BrandVisualPack:
     brand_id: str = ""
@@ -222,6 +319,8 @@ class BrandVisualPack:
     logo_position: str = "top-right"
     design_system_summary: str = ""
     source: str = "neutral_fallback"
+    reference_templates: list[dict] = field(default_factory=list)
+    selected_reference: dict = field(default_factory=dict)
 
     @property
     def has_legal(self) -> bool:
@@ -342,6 +441,17 @@ def build_visual_pack(
     surface = _hex(palette_obj.get("surface"), "")
     muted = _hex(palette_obj.get("neutral") or palette_obj.get("muted"), "")
 
+    # White/black "text & button" rows must not occupy the accent lock — they wash out CTAs
+    # and fight Brand Space reference templates (e.g. Cognixia teal).
+    if accent and (_is_near_white(accent) or _is_near_black(accent)):
+        logger.info(
+            "brand_visual_pack.accent_rejected",
+            brand_id=str(brand_id or ""),
+            rejected=accent,
+            reason="near_white_or_black",
+        )
+        accent = ""
+
     additional_raw = palette_obj.get("additional") if isinstance(palette_obj.get("additional"), list) else []
     additional: list[dict] = []
     ignored_extra: list[str] = []
@@ -365,8 +475,12 @@ def build_visual_pack(
             secondary = hx
             additional.append({"name": label or "secondary", "hex": hx, "role": "secondary"})
         elif role == "accent" and not accent:
-            accent = hx
-            additional.append({"name": label or "accent", "hex": hx, "role": "accent"})
+            # Skip white/black text colors so Card Gradient / teal accents can win.
+            if _is_near_white(hx) or _is_near_black(hx):
+                ignored_extra.append(f"{label or 'accent'}:{hx}")
+            else:
+                accent = hx
+                additional.append({"name": label or "accent", "hex": hx, "role": "accent"})
         elif role == "background" and not background:
             background = hx
             additional.append({"name": label or "background", "hex": hx, "role": "background"})
@@ -413,7 +527,9 @@ def build_visual_pack(
         if not secondary:
             secondary = _hex(roles.get("secondary"), "")
         if not accent:
-            accent = _hex(roles.get("accent"), "")
+            candidate = _hex(roles.get("accent"), "")
+            if candidate and not _is_near_white(candidate) and not _is_near_black(candidate):
+                accent = candidate
         if not background:
             background = _hex(roles.get("background"), "")
         if not surface:
@@ -427,8 +543,25 @@ def build_visual_pack(
             source = "neutral_fallback"
     if not secondary:
         secondary = _NEUTRAL_SECONDARY
-    if not accent:
-        accent = secondary
+    if accent and (_is_near_white(accent) or _is_near_black(accent)):
+        accent = ""
+    # Prefer a vivid Brand Space extra (Card Gradient / teal) over washed white "button" accents.
+    if not accent or (
+        secondary and accent.upper() == secondary.upper() and _is_card_wash(secondary)
+    ):
+        vivid = ""
+        for item in additional:
+            hx = _hex(item.get("hex"))
+            if not hx or _is_near_white(hx) or _is_near_black(hx):
+                continue
+            if _is_card_wash(hx):
+                continue
+            vivid = hx
+            break
+        if vivid:
+            accent = vivid
+        elif not accent:
+            accent = secondary if secondary and not _is_near_white(secondary) else primary
     # Canvas default is white when Brand Space did not set a background. Never invent a tint of primary.
     if not background:
         background = _NEUTRAL_BG
@@ -460,6 +593,26 @@ def build_visual_pack(
     mascot = _mascot_path(visual, identity)
     logo_pos = str(visual.get("logo_position") or identity.get("logo_position") or "top-right")
 
+    from app.services.image_generation.reference_template import (
+        extract_brand_references,
+        select_reference_template,
+    )
+
+    knowledge = context.get("knowledge") if isinstance(context.get("knowledge"), dict) else {}
+    if not knowledge and isinstance(snapshot.get("knowledge"), dict):
+        knowledge = snapshot["knowledge"]
+    prompt_intel = (
+        context.get("prompt_intelligence")
+        if isinstance(context.get("prompt_intelligence"), dict)
+        else {}
+    )
+    references = extract_brand_references(
+        visual_identity=visual,
+        knowledge=knowledge,
+        prompt_intelligence=prompt_intel,
+    )
+    selected = select_reference_template(references, fmt=fmt)
+
     pack = BrandVisualPack(
         brand_id=str(brand_id or ""),
         brand_name=name,
@@ -480,6 +633,8 @@ def build_visual_pack(
         logo_position=logo_pos,
         design_system_summary=_design_notes(visual),
         source=source,
+        reference_templates=references,
+        selected_reference=selected,
     )
     logger.info(
         "brand_visual_pack.built",
@@ -494,14 +649,25 @@ def build_visual_pack(
         has_legal=pack.has_legal,
         has_mascot=pack.has_mascot,
         font=pack.font_primary or "",
+        references=len(pack.reference_templates),
+        selected_reference=(pack.selected_reference or {}).get("name") or "",
     )
     return pack
 
 
-async def load_brand_visual_pack(brand_id: str, *, fmt: str = "") -> BrandVisualPack:
+async def load_brand_visual_pack(brand_id: str, *, fmt: str = "", user_prompt: str = "") -> BrandVisualPack:
     """Load the compact visual pack for a Brand Space id."""
+    from sqlalchemy import select
+
     from app.db.session import AsyncSessionLocal
     from app.models.brand import BrandSpace
+    from app.models.knowledge import KnowledgeAsset
+    from app.services.image_generation.reference_template import (
+        REFERENCE_FIELD_KEYS,
+        merge_reference_lists,
+        resolve_reference_preview_path,
+        select_reference_template,
+    )
 
     if not brand_id:
         return BrandVisualPack()
@@ -516,7 +682,7 @@ async def load_brand_visual_pack(brand_id: str, *, fmt: str = "") -> BrandVisual
         if row is None:
             logger.warning("brand_visual_pack.brand_not_found", brand_id=str(brand_id))
             return BrandVisualPack(brand_id=str(brand_id))
-        return build_visual_pack(
+        pack = build_visual_pack(
             brand_id=str(row.id),
             brand_name=str(getattr(row, "name", "") or ""),
             tenant_id=str(getattr(row, "tenant_id", "") or ""),
@@ -524,6 +690,61 @@ async def load_brand_visual_pack(brand_id: str, *, fmt: str = "") -> BrandVisual
             overview_snapshot=getattr(row, "overview_snapshot", None),
             fmt=fmt,
         )
+
+        # Live Brand Space uploads beat stale snapshot refs (which often lack storage_path).
+        live_rows = (
+            await session.execute(
+                select(KnowledgeAsset).where(
+                    KnowledgeAsset.brand_space_id == brand_uuid,
+                    KnowledgeAsset.is_active.is_(True),
+                    KnowledgeAsset.lifecycle_state.in_(("indexed", "complete", "ready")),
+                    KnowledgeAsset.field_key.in_(REFERENCE_FIELD_KEYS),
+                )
+            )
+        ).scalars().all()
+        live_refs: list[dict[str, str]] = []
+        for asset in live_rows:
+            storage_path = str(getattr(asset, "storage_path", "") or "").strip()
+            if not storage_path:
+                continue
+            preview = resolve_reference_preview_path(storage_path)
+            name = str(
+                getattr(asset, "name", None)
+                or getattr(asset, "original_filename", None)
+                or "Reference"
+            )
+            live_refs.append(
+                {
+                    "name": name[:120],
+                    "storage_path": preview or storage_path,
+                    "url": "",
+                    "format": "",
+                    "kind": str(getattr(asset, "field_key", "") or ""),
+                    "asset_id": str(asset.id),
+                }
+            )
+            # Infer format from filename after record is built.
+            from app.services.image_generation.reference_template import infer_template_format
+
+            live_refs[-1]["format"] = infer_template_format(live_refs[-1])
+
+        if live_refs:
+            pack.reference_templates = merge_reference_lists(live_refs, list(pack.reference_templates or []))
+            selected = select_reference_template(
+                pack.reference_templates,
+                fmt=fmt,
+                user_prompt=user_prompt,
+            )
+            if selected:
+                pack.selected_reference = selected
+            logger.info(
+                "brand_visual_pack.live_references",
+                brand_id=str(brand_id),
+                live=len(live_refs),
+                total=len(pack.reference_templates or []),
+                selected=(pack.selected_reference or {}).get("name") or "",
+            )
+        return pack
 
 
 def visual_pack_from_state(state: dict[str, Any] | None) -> BrandVisualPack:

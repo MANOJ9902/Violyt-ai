@@ -118,7 +118,17 @@ The worker loop polls queued jobs and currently handles:
 - knowledge processing
 - template analysis
 
-Start it with:
+### Local / uvicorn (default)
+
+When `EMBED_WORKER_IN_API=true` (the default for local `.env`), starting the API also starts the job worker in-process. Uploads and File Processing stats then advance automatically — you do **not** need a second terminal.
+
+```powershell
+uvicorn main:app --reload --port 8000
+```
+
+### Dedicated worker process
+
+Still available if you disable the embedded worker (`EMBED_WORKER_IN_API=false`) or want a separate process:
 
 ```powershell
 python scripts/run_worker.py
@@ -128,6 +138,7 @@ Worker tuning comes from:
 
 - `WORKER_POLL_INTERVAL_SECONDS`
 - `WORKER_BATCH_SIZE`
+- `EMBED_WORKER_IN_API`
 
 ## Docker Usage
 
